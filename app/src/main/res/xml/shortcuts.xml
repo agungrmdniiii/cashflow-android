@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="record_voice"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="com.cashflow.app.ACTION_RECORD_VOICE"
+            android:targetPackage="com.cashflow.app"
+            android:targetClass="com.cashflow.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="add_transaction"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_add_short"
+        android:shortcutLongLabel="@string/shortcut_add_long">
+        <intent
+            android:action="com.cashflow.app.ACTION_ADD_TRANSACTION"
+            android:targetPackage="com.cashflow.app"
+            android:targetClass="com.cashflow.app.MainActivity" />
+    </shortcut>
+</shortcuts>

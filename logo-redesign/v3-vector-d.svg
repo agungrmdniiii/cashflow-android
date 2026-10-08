@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Vector Cashflow D</title>
+  <!-- Heavy Neo-Brutalist D with 45-degree growth arrow counter -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 44 48
+    C 44 38, 52 32, 64 32
+    H 136
+    C 198 32, 232 70, 232 128
+    C 232 186, 198 224, 136 224
+    H 64
+    C 52 224, 44 218, 44 208
+    Z
+    M 176 76
+    L 112 76
+    L 134 98
+    L 86 146
+    L 110 170
+    L 158 122
+    L 180 144
+    Z
+  "/>
+</svg>

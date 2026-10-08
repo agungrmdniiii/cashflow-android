@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Concept 1: Monogram DA</title>
+  <!-- Outer D + Angled A Geometry in single evenodd path -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 48 44
+    H 140
+    C 194 44, 224 76, 224 128
+    C 224 180, 194 212, 140 212
+    H 48
+    Z
+    M 96 112
+    L 128 72
+    L 160 112
+    Z
+    M 96 136
+    H 168
+    C 172 154, 160 172, 136 172
+    H 96
+    Z
+  "/>
+</svg>

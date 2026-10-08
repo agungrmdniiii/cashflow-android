@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 980" width="1440" height="980" style="background:#F4F6F0;">
+  <!-- Header -->
+  <text x="60" y="70" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="900" fill="#1A201C" letter-spacing="-0.5">Duit Aing &#8212; 6 Variasi Eksplorasi Arketipe Logo</text>
+  <text x="60" y="105" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#4B5563">Berakar dari preferensi Anda pada Konsep A (Huruf D &amp; Pertumbuhan Kas), dieksplorasi ke 6 arketipe desain</text>
+
+  <!-- Card 1: Pure Vector D (Col 1, Row 1) -->
+  <g transform="translate(60, 140)">
+    <rect width="400" height="360" rx="16" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+    <g transform="translate(110, 30) scale(0.7)">
+      <path fill="#14532D" fill-rule="evenodd" d="M34 48C34 38 42 32 54 32H126C188 32 222 70 222 128C222 186 188 224 126 224H54C42 224 34 218 34 208ZM166 76L102 76L124 98L76 146L100 170L148 122L170 144Z"/>
+    </g>
+    <!-- Label -->
+    <rect x="24" y="225" width="130" height="24" rx="4" fill="#DCFCE7"/>
+    <text x="32" y="241" font-family="system-ui, sans-serif" font-size="10.5" font-weight="800" fill="#14532D" letter-spacing="0.5">NEGATIVE SPACE</text>
+    <text x="24" y="278" font-family="system-ui, sans-serif" font-size="19" font-weight="800" fill="#1A201C">1. Vektor Murni (Konsep A)</text>
+    <text x="24" y="304" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Huruf D monolitik dengan panah surplus 45&#176;</text>
+    <text x="24" y="324" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">di ruang negatif. Ekstrem bersih &amp; tajam.</text>
+  </g>
+
+  <!-- Card 2: Tactile Stamp D (Col 2, Row 1) -->
+  <g transform="translate(520, 140)">
+    <rect width="400" height="360" rx="16" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+    <g transform="translate(110, 30) scale(0.7)">
+      <!-- Outer Minted Squircle -->
+  <rect x="18" y="18" width="220" height="220" rx="46" fill="#14532D"/>
+  <!-- Inner Tactile Double Rim -->
+  <rect x="28" y="28" width="200" height="200" rx="38" fill="none" stroke="#22C55E" stroke-width="3" stroke-opacity="0.35"/>
+  <!-- Vector D Inside in Pristine White -->
+  <g transform="translate(42, 42) scale(0.67)">
+    <path fill="#FFFFFF" fill-rule="evenodd" d="M34 48C34 38 42 32 54 32H126C188 32 222 70 222 128C222 186 188 224 126 224H54C42 224 34 218 34 208ZM166 76L102 76L124 98L76 146L100 170L148 122L170 144Z"/>
+  </g>
+    </g>
+    <rect x="24" y="225" width="130" height="24" rx="4" fill="#E0F2FE"/>
+    <text x="32" y="241" font-family="system-ui, sans-serif" font-size="10.5" font-weight="800" fill="#0369A1" letter-spacing="0.5">EMBLEM / STAMP</text>
+    <text x="24" y="278" font-family="system-ui, sans-serif" font-size="19" font-weight="800" fill="#1A201C">2. Segel Taktil Neo-Brutalis</text>
+    <text x="24" y="304" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Konsep A dibingkai squircle koin tebal dan</text>
+    <text x="24" y="324" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">double-rim. Siap jadi ikon aplikasi Android.</text>
+  </g>
+
+  <!-- Card 3: Stepped Stairs D (Col 3, Row 1) -->
+  <g transform="translate(980, 140)">
+    <rect width="400" height="360" rx="16" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+    <g transform="translate(110, 30) scale(0.7)">
+      <!-- D with ascending stairs counter -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 34 48
+    C 34 38, 42 32, 54 32
+    H 126
+    C 188 32, 222 70, 222 128
+    C 222 186, 188 224, 126 224
+    H 54
+    C 42 224, 34 218, 34 208
+    Z
+    M 174 74
+    H 134
+    V 110
+    H 104
+    V 146
+    H 74
+    V 182
+    H 174
+    Z
+  "/>
+    </g>
+    <rect x="24" y="225" width="145" height="24" rx="4" fill="#FEF3C7"/>
+    <text x="32" y="241" font-family="system-ui, sans-serif" font-size="10.5" font-weight="800" fill="#B45309" letter-spacing="0.5">MODULAR LADDER</text>
+    <text x="24" y="278" font-family="system-ui, sans-serif" font-size="19" font-weight="800" fill="#1A201C">3. Tangga Pertumbuhan</text>
+    <text x="24" y="304" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Rongga dalam D berupa 3 anak tangga kenaikan</text>
+    <text x="24" y="324" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">arus kas &amp; disiplin akumulasi tabungan.</text>
+  </g>
+
+  <!-- Card 4: Dual Flow D (Col 1, Row 2) -->
+  <g transform="translate(60, 540)">
+    <rect width="400" height="360" rx="16" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+    <g transform="translate(110, 30) scale(0.7)">
+      <!-- Left Inflow Bar (Deep Jade) -->
+  <path fill="#14532D" d="M 34 48 C 34 38, 42 32, 54 32 H 86 V 224 H 54 C 42 224, 34 218, 34 208 Z"/>
+  <!-- Right Curved Cashflow Surge (Emerald) -->
+  <path fill="#22C55E" fill-rule="evenodd" d="
+    M 98 32
+    H 130
+    C 188 32, 222 70, 222 128
+    C 222 186, 188 224, 130 224
+    H 98
+    V 176
+    H 126
+    C 158 176, 174 156, 174 128
+    C 174 100, 158 80, 126 80
+    H 98
+    Z
+  "/>
+  <!-- 45-deg Growth Wedge inside -->
+  <polygon fill="#14532D" points="98,80 148,80 98,130"/>
+    </g>
+    <rect x="24" y="225" width="145" height="24" rx="4" fill="#F3E8FF"/>
+    <text x="32" y="241" font-family="system-ui, sans-serif" font-size="10.5" font-weight="800" fill="#7E22CE" letter-spacing="0.5">INTERLOCKING FLOW</text>
+    <text x="24" y="278" font-family="system-ui, sans-serif" font-size="19" font-weight="800" fill="#1A201C">4. Aliran Kas Ganda</text>
+    <text x="24" y="304" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Dua pita: Batang Kas Masuk (Jade) dan</text>
+    <text x="24" y="324" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Lengkung Kas Keluar Terkendali (Emerald).</text>
+  </g>
+
+  <!-- Card 5: Folded Banknote Ribbon (Col 2, Row 2) -->
+  <g transform="translate(520, 540)">
+    <rect width="400" height="360" rx="16" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+    <g transform="translate(110, 30) scale(0.7)">
+      <!-- Facet 1: Vertical Spine (Deep Jade #14532D) -->
+  <path fill="#14532D" d="M 40 40 H 92 V 216 H 40 Z"/>
+  <!-- Facet 2: Upper Fold Arch (Medium Forest #15803D) -->
+  <path fill="#15803D" d="
+    M 92 40
+    H 138
+    C 188 40, 220 72, 220 128
+    H 168
+    C 168 96, 154 88, 136 88
+    H 92
+    Z
+  "/>
+  <!-- Facet 3: Lower Surplus Fold (Vibrant Emerald #22C55E) -->
+  <path fill="#22C55E" d="
+    M 92 168
+    H 136
+    C 154 168, 168 160, 168 128
+    H 220
+    C 220 184, 188 216, 138 216
+    H 92
+    Z
+  "/>
+    </g>
+    <rect x="24" y="225" width="135" height="24" rx="4" fill="#FEE2E2"/>
+    <text x="32" y="241" font-family="system-ui, sans-serif" font-size="10.5" font-weight="800" fill="#B91C1C" letter-spacing="0.5">ORIGAMI / FACET</text>
+    <text x="24" y="278" font-family="system-ui, sans-serif" font-size="19" font-weight="800" fill="#1A201C">5. Lipatan Uang Kertas</text>
+    <text x="24" y="304" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Tiga faset lipatan uang kertas 3D modern</text>
+    <text x="24" y="324" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">yang membentuk huruf D fleksibel dan lincah.</text>
+  </g>
+
+  <!-- Card 6: Vault Gate D (Col 3, Row 2) -->
+  <g transform="translate(980, 540)">
+    <rect width="400" height="360" rx="16" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+    <g transform="translate(110, 30) scale(0.7)">
+      <!-- Vault Door D -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 34 48
+    C 34 38, 42 32, 54 32
+    H 126
+    C 188 32, 222 70, 222 128
+    C 222 186, 188 224, 126 224
+    H 54
+    C 42 224, 34 218, 34 208
+    Z
+    M 86 80
+    H 124
+    C 156 80, 172 98, 172 128
+    C 172 158, 156 176, 124 176
+    H 86
+    Z
+  "/>
+  <!-- Centered Minted Vault Core Wheel -->
+  <circle cx="128" cy="128" r="32" fill="#22C55E"/>
+  <rect x="116" y="116" width="24" height="24" rx="4" fill="#14532D"/>
+    </g>
+    <rect x="24" y="225" width="130" height="24" rx="4" fill="#CCFBF1"/>
+    <text x="32" y="241" font-family="system-ui, sans-serif" font-size="10.5" font-weight="800" fill="#0F766E" letter-spacing="0.5">PICTORIAL VAULT</text>
+    <text x="24" y="278" font-family="system-ui, sans-serif" font-size="19" font-weight="800" fill="#1A201C">6. Pintu Brankas Koin</text>
+    <text x="24" y="304" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">Huruf D berwujud pintu brankas baja dengan</text>
+    <text x="24" y="324" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#6B7280">roda koin berdaulat di pusat keamanannya.</text>
+  </g>
+</svg>

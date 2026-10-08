@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Concept 3: Nusantara Sovereign Coin</title>
+  <!-- Top plate: Inflow / Pemasukan -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 44 128
+    C 44 81.6, 81.6 44, 128 44
+    C 174.4 44, 212 81.6, 212 128
+    H 172
+    C 172 103.7, 152.3 84, 128 84
+    C 103.7 84, 84 103.7, 84 128
+    Z
+    M 106 106
+    H 150
+    V 128
+    H 106
+    Z
+  "/>
+  <!-- Bottom plate: Reserve / Tabungan with 45-degree offset -->
+  <path fill="#22C55E" fill-rule="evenodd" d="
+    M 212 136
+    C 212 182.4, 174.4 220, 128 220
+    C 81.6 220, 44 182.4, 44 136
+    H 84
+    C 84 160.3, 103.7 180, 128 180
+    C 152.3 180, 172 160.3, 172 136
+    Z
+    M 106 136
+    H 150
+    V 150
+    H 106
+    Z
+  "/>
+</svg>

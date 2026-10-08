@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Concept A: Sovereign Monogram DA</title>
+  <!-- Outer D + Integrated A counter in pure geometry -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 44 40
+    H 140
+    C 192 40, 224 72, 224 128
+    C 224 184, 192 216, 140 216
+    H 44
+    Z
+    M 92 82
+    H 136
+    C 166 82, 182 100, 182 128
+    C 182 156, 166 174, 136 174
+    H 92
+    Z
+  "/>
+  <!-- Integrated Crossbar and Diagonal Strut forming bold A inside the D -->
+  <path fill="#14532D" d="
+    M 92 128
+    H 156
+    V 152
+    H 92
+    Z
+  "/>
+  <polygon fill="#14532D" points="92,82 144,82 124,128 92,128"/>
+</svg>

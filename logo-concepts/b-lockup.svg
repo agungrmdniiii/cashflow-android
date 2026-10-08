@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 256" width="800" height="256" role="img" aria-labelledby="title-b-lockup">
+  <title id="title-b-lockup">Duit Aing — Lockup B</title>
+  <!-- Symbol B (The Cashflow Prism) -->
+  <g id="symbol">
+    <path fill="#121614" d="
+      M 128 36
+      L 208 82
+      L 136 123
+      L 128 119
+      L 120 123
+      L 48 82
+      Z
+    "/>
+    <path fill="#121614" d="
+      M 44 94
+      L 120 138
+      L 120 220
+      L 44 176
+      Z
+    "/>
+    <path fill="#121614" d="
+      M 212 94
+      L 212 176
+      L 136 220
+      L 136 138
+      Z
+    "/>
+  </g>
+  <!-- Wordmark -->
+  <g id="wordmark">
+    <text x="264" y="142" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="900" font-size="72" letter-spacing="2" fill="#121614">DUIT AING</text>
+    <text x="268" y="182" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="700" font-size="20" letter-spacing="3" fill="#121614" opacity="0.6">MANAJEMEN KAS PRIBADI</text>
+  </g>
+</svg>

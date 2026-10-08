@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Sovereign Monogram DA</title>
+  <!-- Monolithic outer D with internal A architecture -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 44 44
+    H 140
+    C 192 44, 224 76, 224 128
+    C 224 180, 192 212, 140 212
+    H 44
+    Z
+    M 92 82
+    H 136
+    C 166 82, 180 98, 180 120
+    H 134
+    L 120 98
+    H 108
+    L 92 120
+    Z
+    M 92 136
+    H 180
+    C 178 156, 164 174, 136 174
+    H 92
+    Z
+  "/>
+</svg>

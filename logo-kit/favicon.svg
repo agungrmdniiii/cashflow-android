@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>Duit Aing</title><g transform="translate(-59.26 -59.26) scale(1.463)">
+  <title id="title-symbol-small">Duit Aing Symbol (Small-Size Cut)</title>
+  <!-- Small-size optimized geometry (16–32px): enlarged counters & robust stroke weights -->
+  <path fill="#121614" fill-rule="evenodd" d="
+    M 64 48
+    L 192 48
+    A 20 20 0 0 1 212 68
+    L 212 106
+    A 22 22 0 0 0 212 150
+    L 212 188
+    A 20 20 0 0 1 192 208
+    L 64 208
+    A 20 20 0 0 1 44 188
+    L 44 150
+    A 22 22 0 0 0 44 106
+    L 44 68
+    A 20 20 0 0 1 64 48
+    Z
+    M 92 84
+    L 132 84
+    A 44 44 0 0 1 176 128
+    A 44 44 0 0 1 132 172
+    L 92 172
+    Z
+    M 116 106
+    L 130 106
+    A 22 22 0 0 1 152 128
+    A 22 22 0 0 1 130 150
+    L 116 150
+    Z
+  "/>
+  <circle cx="130" cy="128" r="11" fill="#121614"/>
+</g></svg>

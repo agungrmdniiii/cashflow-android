@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="cc-title">
+  <title id="cc-title">Duit Aing - Concept C: Nusantara Sovereign Coin</title>
+  <!-- Inflow Crescent (Deep Jade) -->
+  <path fill="#14532D" d="M128 32A96 96 0 0 1 224 128A96 96 0 0 1 196 196L172 172A62 62 0 0 0 190 128A62 62 0 0 0 128 66A62 62 0 0 0 84 84L60 60A96 96 0 0 1 128 32Z"/>
+  <!-- Asset / Reserve Crescent (Emerald) -->
+  <path fill="#22C55E" d="M128 224A96 96 0 0 1 32 128A96 96 0 0 1 60 60L84 84A62 62 0 0 0 66 128A62 62 0 0 0 128 190A62 62 0 0 0 172 172L196 196A96 96 0 0 1 128 224Z"/>
+  <!-- Central Minted Square Core -->
+  <rect x="106" y="106" width="44" height="44" rx="8" fill="#14532D"/>
+</svg>

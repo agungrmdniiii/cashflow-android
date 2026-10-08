@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Upward Vault D</title>
+  <!-- Solid D with centered vertical upward arrow counter -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 44 48
+    C 44 40, 52 36, 64 36
+    H 136
+    C 196 36, 228 72, 228 128
+    C 228 184, 196 220, 136 220
+    H 64
+    C 52 220, 44 216, 44 208
+    Z
+    M 136 76
+    L 180 120
+    H 154
+    V 176
+    H 118
+    V 120
+    H 92
+    Z
+  "/>
+</svg>

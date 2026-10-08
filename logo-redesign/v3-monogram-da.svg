@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Monogram DA</title>
+  <!-- Outer D contour with inner A slash -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 44 40
+    H 136
+    C 192 40, 224 72, 224 128
+    C 224 184, 192 216, 136 216
+    H 44
+    Z
+    M 92 84
+    H 132
+    C 162 84, 176 100, 176 128
+    C 176 142, 170 154, 158 162
+    L 126 120
+    H 92
+    Z
+    M 92 144
+    H 112
+    L 136 176
+    H 92
+    Z
+  "/>
+</svg>

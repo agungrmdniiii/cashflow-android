@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Inner double bezel rim within the safe mask zone -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22C55E"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.5"
+        android:pathData="M37,21 H71 A16,16 0 0 1 87,37 V71 A16,16 0 0 1 71,87 H37 A16,16 0 0 1 21,71 V37 A16,16 0 0 1 37,21 Z" />
+    
+    <!-- Vector D with 45-deg growth arrow in negative space -->
+    <group
+        android:translateX="25.5"
+        android:translateY="24.5"
+        android:scaleX="0.23"
+        android:scaleY="0.23">
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M34,48 C34,38 42,32 54,32 H126 C188,32 222,70 222,128 C222,186 188,224 126,224 H54 C42,224 34,218 34,208 Z M166,76 L102,76 L124,98 L76,146 L100,170 L148,122 L170,144 Z" />
+    </group>
+</vector>

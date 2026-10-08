@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_description"
+    android:initialKeyguardLayout="@layout/widget_duit_aing_quick"
+    android:initialLayout="@layout/widget_duit_aing_quick"
+    android:minWidth="240dp"
+    android:minHeight="54dp"
+    android:minResizeWidth="160dp"
+    android:minResizeHeight="54dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:maxResizeWidth="512dp"
+    android:maxResizeHeight="160dp"
+    android:previewImage="@mipmap/ic_launcher"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

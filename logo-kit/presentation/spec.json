@@ -1,0 +1,50 @@
+{
+  "brand": "Duit Aing",
+  "tagline": "Manajemen Kas Pribadi",
+  "brief": "Aplikasi manajemen arus kas & kekayaan pribadi offline-first dengan estetika Neo-Brutalisme taktil. Transparan, protektif, dan unpretentious.",
+  "adjectives": [
+    "Tegas",
+    "Taktil",
+    "Amanah",
+    "Jujur"
+  ],
+  "criteria": "Terbaca pada ukuran 16 px, kontras tinggi WCAG AAA, siluet uang kertas berbobot taktil, kuat dalam 1 warna.",
+  "industry": "finance",
+  "mockups": [
+    "payment-card",
+    "app-icon",
+    "website",
+    "social",
+    "business-card",
+    "favicon-tab"
+  ],
+  "nav": [
+    "Beranda",
+    "Transaksi",
+    "Anggaran",
+    "Aset"
+  ],
+  "brand_color": "#1B4332",
+  "tile_color": "#121614",
+  "greyscale": false,
+  "final": true,
+  "round": 2,
+  "designer": "Duit Aing Identity System",
+  "concepts": [
+    {
+      "name": "The Minted Banknote",
+      "symbol": "../svg/duit-aing-symbol-color.svg",
+      "lockup": "../svg/duit-aing-horizontal-color.svg",
+      "stacked": "../svg/duit-aing-stacked-color.svg",
+      "avatar": "../duit-aing-symbol-square.svg",
+      "idea": "Siluet uang kertas taktil Neo-Brutalisme dengan lekukan perforasi karcis pada sisi tepi serta cap monogram 'D' di tengah.",
+      "rationale": [
+        "Siluet uang kertas taktil unik yang langsung membedakan Duit Aing dari logo fintech korporat yang klise",
+        "Geometri presisi dengan lekukan perforasi tepi dan monogram D di tengah membentuk hierarki fokus yang harmonis",
+        "Bertahan sempurna pada skala ekstrem 16 px hingga billboard tanpa kehilangan identitas bentuk",
+        "Selaras 100% dengan bahasa desain Neo-Brutalisme dan komponen Double-Bezel dalam aplikasi"
+      ]
+    }
+  ],
+  "recommendation": "The Minted Banknote — identitas taktil yang jujur, tegas, dan berakar pada filosofi uang nyata yang dikelola secara bijak."
+}

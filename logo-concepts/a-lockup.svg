@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 256" width="800" height="256" role="img" aria-labelledby="title-a-lockup">
+  <title id="title-a-lockup">Duit Aing — Lockup A</title>
+  <!-- Symbol A (The Vault Monogram) -->
+  <g id="symbol">
+    <path fill="#121614" fill-rule="evenodd" d="
+      M 56 36
+      L 128 36
+      A 92 92 0 0 1 220 128
+      A 92 92 0 0 1 128 220
+      L 56 220
+      A 20 20 0 0 1 36 200
+      L 36 56
+      A 20 20 0 0 1 56 36
+      Z
+      M 124 82
+      A 46 46 0 1 0 124.1 82
+      Z
+    "/>
+    <circle cx="124" cy="128" r="22" fill="#121614"/>
+  </g>
+  <!-- Wordmark -->
+  <g id="wordmark">
+    <text x="264" y="142" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="900" font-size="72" letter-spacing="2" fill="#121614">DUIT AING</text>
+    <text x="268" y="182" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-weight="700" font-size="20" letter-spacing="3" fill="#121614" opacity="0.6">MANAJEMEN KAS PRIBADI</text>
+  </g>
+</svg>

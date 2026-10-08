@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-a">
+  <title id="title-a">Duit Aing — Konsep A: The Vault Monogram</title>
+  <!-- Architectural 'D' Monogram with rounded spine and precision vault aperture -->
+  <path fill="#121614" fill-rule="evenodd" d="
+    M 56 36
+    L 128 36
+    A 92 92 0 0 1 220 128
+    A 92 92 0 0 1 128 220
+    L 56 220
+    A 20 20 0 0 1 36 200
+    L 36 56
+    A 20 20 0 0 1 56 36
+    Z
+    M 124 82
+    A 46 46 0 1 0 124.1 82
+    Z
+  "/>
+  <!-- Central Vault Core Token -->
+  <circle cx="124" cy="128" r="22" fill="#121614"/>
+</svg>

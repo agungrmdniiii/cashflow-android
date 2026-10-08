@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-b">
+  <title id="title-b">Duit Aing — Konsep B: The Cashflow Prism</title>
+  <!-- Isometric Hexagonal Vault: Three dynamic financial streams converging into a secure core -->
+  <!-- Top Facet (Pemasukan) -->
+  <path fill="#121614" d="
+    M 128 36
+    L 208 82
+    L 136 123
+    L 128 119
+    L 120 123
+    L 48 82
+    Z
+  "/>
+  <!-- Bottom-Left Facet (Aset & Simpanan) -->
+  <path fill="#121614" d="
+    M 44 94
+    L 120 138
+    L 120 220
+    L 44 176
+    Z
+  "/>
+  <!-- Bottom-Right Facet (Alokasi & Anggaran) -->
+  <path fill="#121614" d="
+    M 212 94
+    L 212 176
+    L 136 220
+    L 136 138
+    Z
+  "/>
+</svg>

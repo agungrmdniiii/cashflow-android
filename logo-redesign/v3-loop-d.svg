@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Cashflow Loop D</title>
+  <!-- Band 1: Deep Jade Spine and Top Curve (Inflow) -->
+  <path fill="#14532D" d="
+    M 44 48
+    C 44 38, 52 32, 64 32
+    H 136
+    C 192 32, 224 68, 224 124
+    C 224 140, 218 154, 208 166
+    L 174 138
+    C 178 132, 180 126, 180 120
+    C 180 88, 160 74, 132 74
+    H 88
+    V 208
+    H 44
+    Z
+  "/>
+  <!-- Band 2: Emerald Bottom Return Loop (Surplus / Reserve) -->
+  <path fill="#22C55E" d="
+    M 88 152
+    H 136
+    C 150 152, 162 144, 168 134
+    L 202 162
+    C 190 184, 166 224, 136 224
+    H 64
+    C 52 224, 44 218, 44 208
+    V 194
+    H 88
+    Z
+  "/>
+</svg>

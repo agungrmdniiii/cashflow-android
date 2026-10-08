@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Folded Banknote D</title>
+  <!-- Facet 1: Left Vertical Stem (Solid Deep Jade) -->
+  <path fill="#14532D" d="
+    M 44 48
+    H 96
+    V 208
+    H 44
+    Z
+  "/>
+  <!-- Facet 2: Top Arch Fold (Medium Jade) -->
+  <path fill="#15803D" d="
+    M 96 48
+    H 140
+    C 188 48, 220 78, 220 128
+    H 168
+    C 168 98, 152 88, 136 88
+    H 96
+    Z
+  "/>
+  <!-- Facet 3: Bottom Return Fold (Bright Accent Jade) -->
+  <path fill="#22C55E" d="
+    M 96 168
+    H 136
+    C 152 168, 168 158, 168 128
+    H 220
+    C 220 178, 188 208, 140 208
+    H 96
+    Z
+  "/>
+</svg>

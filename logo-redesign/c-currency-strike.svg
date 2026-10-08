@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Currency Strike D</title>
+  <!-- Pure geometric D with currency strike through stem -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 56 40
+    C 46 40, 40 46, 40 56
+    V 108
+    H 24
+    V 124
+    H 40
+    V 136
+    H 24
+    V 152
+    H 40
+    V 200
+    C 40 210, 46 216, 56 216
+    H 136
+    C 194 216, 228 182, 228 128
+    C 228 74, 194 40, 136 40
+    H 56
+    Z
+    M 88 80
+    H 132
+    C 166 80, 180 98, 180 128
+    C 180 158, 166 176, 132 176
+    H 88
+    Z
+  "/>
+  <!-- Highlight bars in Emerald -->
+  <rect x="24" y="108" width="16" height="16" fill="#22C55E"/>
+  <rect x="24" y="136" width="16" height="16" fill="#22C55E"/>
+</svg>

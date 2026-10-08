@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- D with ascending stairs counter -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 34 48
+    C 34 38, 42 32, 54 32
+    H 126
+    C 188 32, 222 70, 222 128
+    C 222 186, 188 224, 126 224
+    H 54
+    C 42 224, 34 218, 34 208
+    Z
+    M 174 74
+    H 134
+    V 110
+    H 104
+    V 146
+    H 74
+    V 182
+    H 174
+    Z
+  "/>
+</svg>

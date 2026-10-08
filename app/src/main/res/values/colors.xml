@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="jade_primary">#0F6B56</color>
+    <color name="jade_primary_dark">#094738</color>
+    <color name="jade_surface">#F7FAF8</color>
+    <color name="jade_border">#DCE5E0</color>
+    <color name="jade_text">#191C1B</color>
+</resources>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Left Inflow Bar (Deep Jade) -->
+  <path fill="#14532D" d="M 34 48 C 34 38, 42 32, 54 32 H 86 V 224 H 54 C 42 224, 34 218, 34 208 Z"/>
+  <!-- Right Curved Cashflow Surge (Emerald) -->
+  <path fill="#22C55E" fill-rule="evenodd" d="
+    M 98 32
+    H 130
+    C 188 32, 222 70, 222 128
+    C 222 186, 188 224, 130 224
+    H 98
+    V 176
+    H 126
+    C 158 176, 174 156, 174 128
+    C 174 100, 158 80, 126 80
+    H 98
+    Z
+  "/>
+  <!-- 45-deg Growth Wedge inside -->
+  <polygon fill="#14532D" points="98,80 148,80 98,130"/>
+</svg>

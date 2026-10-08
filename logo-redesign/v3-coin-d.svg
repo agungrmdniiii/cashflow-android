@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Sovereign Coin D</title>
+  <!-- Outer Minted Token (Jade Circle-D Hybrid) -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 128 32
+    A 96 96 0 0 1 224 128
+    A 96 96 0 0 1 128 224
+    H 56
+    C 44 224, 36 216, 36 204
+    V 52
+    C 36 40, 44 32, 56 32
+    H 128
+    Z
+    M 104 88
+    H 136
+    A 40 40 0 0 1 176 128
+    A 40 40 0 0 1 136 168
+    H 104
+    Z
+  "/>
+  <!-- Central Minted Diamond / Square Vault -->
+  <rect x="110" y="110" width="36" height="36" rx="6" fill="#22C55E"/>
+</svg>

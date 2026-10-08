@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Vault Door D -->
+  <path fill="#14532D" fill-rule="evenodd" d="
+    M 34 48
+    C 34 38, 42 32, 54 32
+    H 126
+    C 188 32, 222 70, 222 128
+    C 222 186, 188 224, 126 224
+    H 54
+    C 42 224, 34 218, 34 208
+    Z
+    M 86 80
+    H 124
+    C 156 80, 172 98, 172 128
+    C 172 158, 156 176, 124 176
+    H 86
+    Z
+  "/>
+  <!-- Centered Minted Vault Core Wheel -->
+  <circle cx="128" cy="128" r="32" fill="#22C55E"/>
+  <rect x="116" y="116" width="24" height="24" rx="4" fill="#14532D"/>
+</svg>

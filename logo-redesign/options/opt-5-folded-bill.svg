@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Facet 1: Vertical Spine (Deep Jade #14532D) -->
+  <path fill="#14532D" d="M 40 40 H 92 V 216 H 40 Z"/>
+  <!-- Facet 2: Upper Fold Arch (Medium Forest #15803D) -->
+  <path fill="#15803D" d="
+    M 92 40
+    H 138
+    C 188 40, 220 72, 220 128
+    H 168
+    C 168 96, 154 88, 136 88
+    H 92
+    Z
+  "/>
+  <!-- Facet 3: Lower Surplus Fold (Vibrant Emerald #22C55E) -->
+  <path fill="#22C55E" d="
+    M 92 168
+    H 136
+    C 154 168, 168 160, 168 128
+    H 220
+    C 220 184, 188 216, 138 216
+    H 92
+    Z
+  "/>
+</svg>

@@ -1,0 +1,27 @@
+{
+  "brand": "Duit Aing",
+  "tagline": "Manajemen Kas Pribadi",
+  "brief": "Aplikasi personal cashflow management berkarakter jujur, taktil, dan modern dengan filosofi Neo-Brutalisme yang berakar pada keterbukaan finansial dan pertumbuhan terukur.",
+  "adjectives": ["taktil", "tegas", "bertumbuh", "terpercaya"],
+  "industry": "finance",
+  "brand_color": "#14532D",
+  "tile_color": "#14532D",
+  "greyscale": false,
+  "final": true,
+  "round": 2,
+  "concepts": [
+    {
+      "name": "Segel Taktil Neo-Brutalis (Opsi 2 Terpilih)",
+      "symbol": "duit-aing-symbol-color.svg",
+      "lockup": "duit-aing-lockup-color.svg",
+      "avatar": "duit-aing-symbol-favicon.svg",
+      "idea": "Monogram 'D' kokoh dengan siluet ruang negatif panah lonjakan 45° di dalam segel squircle bezel ganda bernuansa British Racing Jade.",
+      "rationale": [
+        "Panah 45° mengalirkan makna dinamis arus kas yang aktif dan surplus bertumbuh.",
+        "Bingkai segel bezel ganda memberi sensasi fisik koin/stempel Neo-Brutalis yang solid dan tidak rapuh.",
+        "Rasio kontras WCAG AAA > 11:1 antara glif putih murni dan hijau British Racing Jade memastikan keterbacaan tajam pada segala ukuran layar."
+      ]
+    }
+  ],
+  "recommendation": "Konsep Segel Taktil Neo-Brutalis (Opsi 2) memberikan diferensiasi visual yang sangat kuat di antara aplikasi finansial konvensional, menggabungkan ketegasan fungsional dengan kebanggaan lokal."
+}

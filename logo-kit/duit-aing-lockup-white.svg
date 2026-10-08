@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 256" width="840" height="256" role="img" aria-labelledby="lockup-title">
+  <title id="lockup-title">Duit Aing Logo (Horizontal White)</title>
+  <!-- Brand Badge (Segel Taktil Neo-Brutalis) -->
+  <g id="badge">
+    <rect x="32" y="32" width="168" height="168" rx="39" fill="#FFFFFF"/>
+    <rect x="39.5" y="39.5" width="153" height="153" rx="33" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-opacity="0.3"/>
+    <g transform="translate(56, 54) scale(0.4875)">
+      <path fill="#000000" fill-rule="evenodd" d="M34 48C34 38 42 32 54 32H126C188 32 222 70 222 128C222 186 188 224 126 224H54C42 224 34 218 34 208ZM166 76L102 76L124 98L76 146L100 170L148 122L170 144Z"/>
+    </g>
+  </g>
+  <!-- Wordmark -->
+  <g id="wordmark">
+    <text x="240" y="132" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="64" letter-spacing="2" fill="#FFFFFF">DUIT AING</text>
+    <text x="242" y="168" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="700" font-size="16" letter-spacing="3" fill="#FFFFFF" opacity="0.8">MANAJEMEN KAS PRIBADI</text>
+  </g>
+</svg>

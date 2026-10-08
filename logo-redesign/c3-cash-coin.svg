@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Duit Aing - Sovereign Cash Coin</title>
+  <!-- Segment 1: Inflow / Top-Right Crescent -->
+  <path fill="#14532D" d="
+    M 128 32
+    A 96 96 0 0 1 224 128
+    A 96 96 0 0 1 196 196
+    L 172 172
+    A 62 62 0 0 0 190 128
+    A 62 62 0 0 0 128 66
+    A 62 62 0 0 0 84 84
+    L 60 60
+    A 96 96 0 0 1 128 32
+    Z
+  "/>
+  <!-- Segment 2: Outflow / Asset Reserve Crescent -->
+  <path fill="#22C55E" d="
+    M 128 224
+    A 96 96 0 0 1 32 128
+    A 96 96 0 0 1 60 60
+    L 84 84
+    A 62 62 0 0 0 66 128
+    A 62 62 0 0 0 128 190
+    A 62 62 0 0 0 172 172
+    L 196 196
+    A 96 96 0 0 1 128 224
+    Z
+  "/>
+  <!-- Central Sovereign Minted Square Core -->
+  <rect x="106" y="106" width="44" height="44" rx="8" fill="#14532D"/>
+</svg>

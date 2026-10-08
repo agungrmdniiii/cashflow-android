@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Duit Aing</string>
+    <string name="widget_name">Duit Aing - Sat-Set Kas</string>
+    <string name="widget_description">Tombol cepat 1-ketukan untuk rekam suara dan catat kas seketika.</string>
+    <string name="shortcut_voice_short">Rekam Suara</string>
+    <string name="shortcut_voice_long">Rekam Transaksi dengan Suara</string>
+    <string name="shortcut_add_short">Catat Kas</string>
+    <string name="shortcut_add_long">Catat Transaksi Manual</string>
+</resources>

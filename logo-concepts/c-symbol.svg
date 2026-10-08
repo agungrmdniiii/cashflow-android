@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-c">
+  <title id="title-c">Duit Aing — Konsep C: The Minted Banknote</title>
+  <!-- Tactile Banknote Silhouette with classic perforated notches and central D-coin core -->
+  <path fill="#121614" fill-rule="evenodd" d="
+    M 64 48
+    L 192 48
+    A 20 20 0 0 1 212 68
+    L 212 110
+    A 18 18 0 0 0 212 146
+    L 212 188
+    A 20 20 0 0 1 192 208
+    L 64 208
+    A 20 20 0 0 1 44 188
+    L 44 146
+    A 18 18 0 0 0 44 110
+    L 44 68
+    A 20 20 0 0 1 64 48
+    Z
+    M 96 90
+    L 132 90
+    A 38 38 0 0 1 170 128
+    A 38 38 0 0 1 132 166
+    L 96 166
+    Z
+    M 116 108
+    L 130 108
+    A 20 20 0 0 1 150 128
+    A 20 20 0 0 1 130 148
+    L 116 148
+    Z
+  "/>
+  <!-- Central Minted Token Dot -->
+  <circle cx="130" cy="128" r="9" fill="#121614"/>
+</svg>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <!-- Outer Minted Squircle Container (Deep British Racing Jade) -->
+    <path
+        android:fillColor="#14532D"
+        android:pathData="M68,16 H188 A52,52 0 0 1 240,68 V188 A52,52 0 0 1 188,240 H68 A52,52 0 0 1 16,188 V68 A52,52 0 0 1 68,16 Z" />
+    
+    <!-- Tactile Inner Double Bezel Rim (Vibrant Emerald) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22C55E"
+        android:strokeWidth="3.5"
+        android:strokeAlpha="0.45"
+        android:pathData="M70,26 H186 A44,44 0 0 1 230,70 V186 A44,44 0 0 1 186,230 H70 A44,44 0 0 1 26,186 V70 A44,44 0 0 1 70,26 Z" />
+    
+    <!-- Vector D: High-Contrast Pristine White with 45-deg Growth Arrow Negative Cut -->
+    <group
+        android:translateX="48"
+        android:translateY="45"
+        android:scaleX="0.65"
+        android:scaleY="0.65">
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M34,48 C34,38 42,32 54,32 H126 C188,32 222,70 222,128 C222,186 188,224 126,224 H54 C42,224 34,218 34,208 Z M166,76 L102,76 L124,98 L76,146 L100,170 L148,122 L170,144 Z" />
+    </group>
+</vector>
