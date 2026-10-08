@@ -41,9 +41,13 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        viewModel.onAppForegrounded()
+    }
+
     override fun onStop() {
         super.onStop()
-        // Lock app when user leaves if biometric is enabled
-        viewModel.lockApp()
+        viewModel.onAppBackgrounded()
     }
 }

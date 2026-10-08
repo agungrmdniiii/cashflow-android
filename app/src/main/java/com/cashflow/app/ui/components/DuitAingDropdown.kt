@@ -127,7 +127,7 @@ fun DuitAingSelectionSheet(
                         indication = null
                     ) { /* prevent click-through */ }
                     .border(
-                        BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
+                        BorderStroke(1.5.dp, DarkBorder),
                         RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                     ),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
@@ -1155,8 +1155,8 @@ fun DuitAingDatePickerField(
                 }
             },
             colors = DatePickerDefaults.colors(containerColor = PebbleSurface),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(12.dp))
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp))
         ) {
             DatePicker(
                 state = datePickerState,

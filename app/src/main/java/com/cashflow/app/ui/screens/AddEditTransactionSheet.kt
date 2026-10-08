@@ -1,7 +1,12 @@
 package com.cashflow.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,6 +54,35 @@ fun AddEditTransactionSheet(
     initialType: TransactionType = TransactionType.EXPENSE,
     onDismiss: () -> Unit
 ) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            AddEditTransactionContent(
+                viewModel = viewModel,
+                existingTx = existingTx,
+                initialType = initialType,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddEditTransactionContent(
+    viewModel: CashflowViewModel,
+    existingTx: Transaction? = null,
+    initialType: TransactionType = TransactionType.EXPENSE,
+    onDismiss: () -> Unit,
+    onBack: (() -> Unit)? = null
+) {
     val activeAssets by viewModel.activeAssets.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val defaultAsset by viewModel.defaultAsset.collectAsState()
@@ -92,12 +126,17 @@ fun AddEditTransactionSheet(
 
     var isSubmitting by remember { mutableStateOf(false) }
 
-    // Dynamic accent color depending on transaction type
-    val accentColor = when (selectedType) {
+    // Dynamic accent color with smooth animated transition
+    val targetAccentColor = when (selectedType) {
         TransactionType.EXPENSE -> if (isDebtPayment) CoralPrimary else StatusNegative
         TransactionType.INCOME -> JadePrimary
         TransactionType.TRANSFER -> StatusTransfer
     }
+    val accentColor by animateColorAsState(
+        targetValue = targetAccentColor,
+        animationSpec = tween(220),
+        label = "accentColor"
+    )
 
     // Filter categories based on selected type
     val relevantCategories = remember(selectedType, categories) {
@@ -125,23 +164,18 @@ fun AddEditTransactionSheet(
             currentSourceAsset != null &&
             amount > currentSourceAsset.currentBalance
 
-    Dialog(
-        onDismissRequest = { if (!isSubmitting) onDismiss() },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.92f)
+            .padding(vertical = 10.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.5.dp, DarkBorder),
+        colors = CardDefaults.cardColors(containerColor = PebbleSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.93f)
-                .padding(vertical = 10.dp)
-                .imePadding(),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
@@ -208,7 +242,7 @@ fun AddEditTransactionSheet(
                             .clickable(
                                 enabled = !isSubmitting,
                                 role = Role.Button,
-                                onClick = onDismiss
+                                onClick = { onBack?.invoke() ?: onDismiss() }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -398,7 +432,11 @@ fun AddEditTransactionSheet(
                     }
 
                     // 2. INTEGRATED DEBT REPAYMENT SECTION (Only in EXPENSE mode)
-                    if (selectedType == TransactionType.EXPENSE) {
+                    AnimatedVisibility(
+                        visible = selectedType == TransactionType.EXPENSE,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -700,7 +738,11 @@ fun AddEditTransactionSheet(
                     }
 
                     // 4. CATEGORY SELECTOR (Only for Income and Expense, if not Debt payment)
-                    if (selectedType != TransactionType.TRANSFER && !isDebtPayment) {
+                    AnimatedVisibility(
+                        visible = selectedType != TransactionType.TRANSFER && !isDebtPayment,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
                         Column {
                             Text(
                                 text = "KATEGORI",
@@ -779,7 +821,11 @@ fun AddEditTransactionSheet(
                     }
 
                     // 6. DESTINATION ASSET SELECTOR (For Transfer)
-                    if (selectedType == TransactionType.TRANSFER) {
+                    AnimatedVisibility(
+                        visible = selectedType == TransactionType.TRANSFER,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
                         Column {
                             Text(
                                 text = "ASET TUJUAN (KE)",
@@ -939,5 +985,4 @@ fun AddEditTransactionSheet(
                 )
             }
         }
-    }
 }

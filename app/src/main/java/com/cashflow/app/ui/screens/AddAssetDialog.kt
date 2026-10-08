@@ -1,5 +1,6 @@
 package com.cashflow.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,8 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.cashflow.app.data.model.Asset
 import com.cashflow.app.data.model.AssetType
 import com.cashflow.app.ui.CashflowViewModel
@@ -34,13 +38,41 @@ import java.util.UUID
 @Composable
 fun AddAssetDialog(
     viewModel: CashflowViewModel,
+    assetToEdit: Asset? = null,
     onDismiss: () -> Unit
 ) {
-    var nameInput by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(AssetType.BANK.displayName) }
-    var openingBalanceInput by remember { mutableStateOf("") }
-    var noteInput by remember { mutableStateOf("") }
-    var isDefaultChecked by remember { mutableStateOf(false) }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            AddAssetContent(
+                viewModel = viewModel,
+                assetToEdit = assetToEdit,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+@Composable
+fun AddAssetContent(
+    viewModel: CashflowViewModel,
+    assetToEdit: Asset? = null,
+    onDismiss: () -> Unit,
+    onBack: (() -> Unit)? = null
+) {
+    val isEditing = assetToEdit != null
+    var nameInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.name ?: "") }
+    var selectedType by remember(assetToEdit) { mutableStateOf(assetToEdit?.type ?: AssetType.BANK.displayName) }
+    var openingBalanceInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.let { it.currentBalance.toString() } ?: "") }
+    var noteInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.note ?: "") }
+    var isDefaultChecked by remember(assetToEdit) { mutableStateOf(assetToEdit?.isDefault ?: false) }
 
     val balance = openingBalanceInput.toLongOrNull() ?: 0L
 
@@ -55,35 +87,78 @@ fun AddAssetDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(14.dp),
+    Card(
         modifier = Modifier
-            .imePadding()
-            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
-        containerColor = PebbleSurface,
-        title = {
-            Column {
-                Text(
-                    text = "TAMBAH ASET BARU",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = DarkSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Kelola rekening, e-wallet, atau instrumen simpanan",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.92f)
+            .padding(vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.5.dp, DarkBorder),
+        colors = CardDefaults.cardColors(containerColor = PebbleSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = if (isEditing) "EDIT ASET" else "TAMBAH ASET BARU",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.5.sp,
+                            fontSize = 18.sp
+                        ),
+                        color = DarkSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (isEditing) "Perbarui informasi rekening atau instrumen simpanan" else "Kelola rekening, e-wallet, atau instrumen simpanan",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClick = { onBack?.invoke() ?: onDismiss() }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PebbleSurfaceVariant)
+                            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Tutup",
+                            tint = DarkSurface,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
-        },
-        text = {
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Scrollable Form Fields
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -135,12 +210,11 @@ fun AddAssetDialog(
                         nameSuggestions.forEach { suggestion ->
                             Box(
                                 modifier = Modifier
-                                    .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
                                     .clickable(role = Role.Button) { nameInput = suggestion }
-                                    .padding(horizontal = 9.dp, vertical = 4.dp),
+                                    .padding(horizontal = 9.dp, vertical = 5.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -206,7 +280,6 @@ fun AddAssetDialog(
                         ).forEach { (presetVal, chipText) ->
                             Box(
                                 modifier = Modifier
-                                    .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
@@ -267,41 +340,64 @@ fun AddAssetDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            DuitAingButton(
-                text = "SIMPAN ASET",
-                enabled = nameInput.isNotBlank(),
-                onClick = {
-                    if (nameInput.isNotBlank()) {
-                        val newAsset = Asset(
-                            id = "asset_${UUID.randomUUID()}",
-                            name = nameInput.trim(),
-                            type = selectedType,
-                            openingBalance = balance,
-                            currentBalance = balance,
-                            isDefault = isDefaultChecked,
-                            note = noteInput.trim()
-                        )
-                        viewModel.saveAsset(newAsset, isNew = true) {
-                            onDismiss()
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DuitAingButton(
+                    text = "BATAL",
+                    onClick = { onBack?.invoke() ?: onDismiss() },
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    modifier = Modifier.weight(1f),
+                    height = 44.dp,
+                    shadowOffset = 2.dp
+                )
+
+                DuitAingButton(
+                    text = if (isEditing) "SIMPAN PERUBAHAN" else "SIMPAN ASET",
+                    enabled = nameInput.isNotBlank(),
+                    onClick = {
+                        if (nameInput.isNotBlank()) {
+                            if (isEditing) {
+                                val updatedAsset = assetToEdit!!.copy(
+                                    name = nameInput.trim(),
+                                    type = selectedType,
+                                    openingBalance = balance,
+                                    currentBalance = balance,
+                                    isDefault = isDefaultChecked,
+                                    note = noteInput.trim(),
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                                viewModel.saveAsset(updatedAsset, isNew = false) {
+                                    onDismiss()
+                                }
+                            } else {
+                                val newAsset = Asset(
+                                    id = "asset_${UUID.randomUUID()}",
+                                    name = nameInput.trim(),
+                                    type = selectedType,
+                                    openingBalance = balance,
+                                    currentBalance = balance,
+                                    isDefault = isDefaultChecked,
+                                    note = noteInput.trim()
+                                )
+                                viewModel.saveAsset(newAsset, isNew = true) {
+                                    onDismiss()
+                                }
+                            }
                         }
-                    }
-                },
-                trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
-                variant = DuitAingButtonVariant.PRIMARY,
-                height = 42.dp,
-                shadowOffset = 2.dp
-            )
-        },
-        dismissButton = {
-            DuitAingButton(
-                text = "BATAL",
-                onClick = onDismiss,
-                variant = DuitAingButtonVariant.OUTLINE,
-                height = 42.dp,
-                shadowOffset = 2.dp
-            )
+                    },
+                    trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
+                    modifier = Modifier.weight(1.5f),
+                    variant = DuitAingButtonVariant.PRIMARY,
+                    height = 44.dp,
+                    shadowOffset = 2.dp
+                )
+            }
         }
-    )
+    }
 }

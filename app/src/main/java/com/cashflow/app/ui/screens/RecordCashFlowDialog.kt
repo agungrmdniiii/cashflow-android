@@ -118,8 +118,8 @@ fun RecordCashFlowDialog(
                 .fillMaxWidth(0.94f)
                 .wrapContentHeight()
                 .padding(vertical = 20.dp)
-                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(12.dp)),
-            shape = RoundedCornerShape(12.dp),
+                .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = PebbleSurface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {

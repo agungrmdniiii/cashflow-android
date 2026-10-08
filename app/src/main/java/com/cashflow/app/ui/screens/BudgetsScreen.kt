@@ -410,227 +410,26 @@ fun BudgetsScreen(
         }
     }
 
-    // Add / Edit Budget Dialog
-    if (showBudgetDialog) {
-        val isEditing = editingBudget != null
-        val amount = targetAmountInput.toLongOrNull() ?: 0L
-
-        AlertDialog(
-            onDismissRequest = { showBudgetDialog = false },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier
-                .imePadding()
-                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Column {
-                    Text(
-                        text = if (isEditing) "EDIT ANGGARAN" else "BUAT ANGGARAN BARU",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = DarkSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (isEditing) "Perbarui plafon atau periode batas belanja" else "Tetapkan batas belanja disiplin per kategori",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // 1. Period Selector (BULANAN vs MINGGUAN)
-                    Column {
-                        Text(
-                            text = "PERIODE ANGGARAN",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf("monthly" to "BULANAN", "weekly" to "MINGGUAN").forEach { (typeKey, label) ->
-                                val isSelected = periodTypeInput == typeKey
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .minimumInteractiveComponentSize()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(
-                                            if (isSelected) {
-                                                if (androidx.compose.foundation.isSystemInDarkTheme()) JadePrimary else LightDarkSurface
-                                            } else Color.Transparent
-                                        )
-                                        .clickable(role = Role.Tab) { periodTypeInput = typeKey }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                            fontSize = 11.sp
-                                        ),
-                                        color = if (isSelected) {
-                                            if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF101413) else TextOnDark
-                                        } else TextPrimary
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 2. Category Selector
-                    Column {
-                        Text(
-                            text = "PILIH KATEGORI",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        CategoryDropdownField(
-                            categories = expenseCategories,
-                            selectedCategoryId = selectedCategoryId,
-                            onCategorySelected = { selectedCategoryId = it.id },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    // 3. Target Amount with live Rupiah preview and quick chips
-                    Column {
-                        Text(
-                            text = "BATAS MAKSIMAL (PLAFON)",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = targetAmountInput,
-                            onValueChange = { targetAmountInput = it.filter { c -> c.isDigit() } },
-                            prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
-                            placeholder = { Text("0") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        if (amount > 0) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Terbaca: ${Formatters.formatRupiah(amount)}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                ),
-                                color = JadePrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Quick preset amount chips (+100rb, +500rb, +1jt, +2jt)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf(
-                                100_000L to "+100rb",
-                                500_000L to "+500rb",
-                                1_000_000L to "+1jt",
-                                2_000_000L to "+2jt"
-                            ).forEach { (presetAmount, chipLabel) ->
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .minimumInteractiveComponentSize()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(PebbleSurfaceVariant)
-                                        .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                        .clickable(role = Role.Button) {
-                                            val current = targetAmountInput.toLongOrNull() ?: 0L
-                                            targetAmountInput = (current + presetAmount).toString()
-                                        }
-                                        .padding(vertical = 5.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = chipLabel,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 10.5.sp
-                                        ),
-                                        color = DarkSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = if (isEditing) "SIMPAN PERUBAHAN" else "SIMPAN ANGGARAN",
-                    onClick = {
-                        if (selectedCategoryId.isNotBlank() && amount > 0) {
-                            if (isEditing) {
-                                val updated = editingBudget!!.copy(
-                                    categoryId = selectedCategoryId,
-                                    targetAmount = amount,
-                                    periodType = periodTypeInput
-                                )
-                                viewModel.updateBudget(updated) {
-                                    showBudgetDialog = false
-                                }
-                            } else {
-                                val newBudget = Budget(
-                                    id = "bgt_${selectedCategoryId}_${System.currentTimeMillis()}",
-                                    categoryId = selectedCategoryId,
-                                    targetAmount = amount,
-                                    periodType = periodTypeInput
-                                )
-                                viewModel.saveBudget(newBudget) {
-                                    showBudgetDialog = false
-                                }
-                            }
-                        }
-                    },
-                    variant = DuitAingButtonVariant.PRIMARY,
-                    height = 42.dp,
-                    shadowOffset = 2.dp
-                )
-            },
-            dismissButton = {
-                DuitAingButton(
-                    text = "BATAL",
-                    onClick = { showBudgetDialog = false },
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 42.dp,
-                    shadowOffset = 2.dp
-                )
+    // Add / Edit Budget Dialog (Unified & Animated)
+    BudgetFormDialog(
+        isOpen = showBudgetDialog,
+        editingBudget = editingBudget,
+        categories = categories,
+        onDismiss = {
+            showBudgetDialog = false
+            editingBudget = null
+        },
+        onSave = { newBudget ->
+            viewModel.saveBudget(newBudget) {
+                showBudgetDialog = false
+                editingBudget = null
             }
-        )
-    }
+        },
+        onUpdate = { updatedBudget ->
+            viewModel.updateBudget(updatedBudget) {
+                showBudgetDialog = false
+                editingBudget = null
+            }
+        }
+    )
 }

@@ -6,11 +6,14 @@ import android.content.Intent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cashflow.app.data.export.PdfReportGenerator
 import com.cashflow.app.data.model.*
 import com.cashflow.app.data.preferences.PreferenceManager
 import com.cashflow.app.data.repository.CashflowRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -30,8 +33,9 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         prefs.setThemeMode(mode)
     }
 
-    // Biometric Security State
+    // Biometric Security State & Session
     val isBiometricEnabled = MutableStateFlow(prefs.isBiometricEnabled())
+    val biometricTimeout = MutableStateFlow(prefs.getBiometricTimeout())
 
     fun setBiometricEnabled(enabled: Boolean) {
         isBiometricEnabled.value = enabled
@@ -41,10 +45,17 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setBiometricTimeout(timeout: BiometricTimeout) {
+        biometricTimeout.value = timeout
+        prefs.setBiometricTimeout(timeout)
+    }
+
     val isAppLocked = MutableStateFlow(prefs.isBiometricEnabled())
+    private var lastBackgroundTimestamp: Long = 0L
 
     fun unlockApp() {
         isAppLocked.value = false
+        lastBackgroundTimestamp = 0L
         pendingAction.value?.let { action ->
             pendingAction.value = null
             handleIntentAction(action)
@@ -54,6 +65,26 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     fun lockApp() {
         if (isBiometricEnabled.value) {
             isAppLocked.value = true
+        }
+    }
+
+    fun onAppBackgrounded() {
+        if (isBiometricEnabled.value && !isAppLocked.value) {
+            lastBackgroundTimestamp = System.currentTimeMillis()
+        }
+    }
+
+    fun onAppForegrounded() {
+        if (isBiometricEnabled.value) {
+            if (lastBackgroundTimestamp == 0L) {
+                return
+            }
+            val elapsed = System.currentTimeMillis() - lastBackgroundTimestamp
+            val timeoutMillis = biometricTimeout.value.durationMillis
+            if (elapsed >= timeoutMillis) {
+                isAppLocked.value = true
+            }
+            lastBackgroundTimestamp = 0L
         }
     }
 
@@ -432,6 +463,19 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun deleteAsset(assetId: String, onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = repository.deleteAsset(assetId)
+            if (res.isSuccess) {
+                showSnackbar("Aset berhasil dihapus.")
+                selectedAssetForDetail.value = null
+                onComplete?.invoke()
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menghapus aset")
+            }
+        }
+    }
+
     fun saveBudget(budget: Budget, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val res = repository.addBudget(budget)
@@ -541,6 +585,68 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 onSuccess(file, sendIntent, content)
             } catch (e: Exception) {
                 onError(e.message ?: "Gagal membuat file CSV")
+            }
+        }
+    }
+
+    fun exportPdfFile(
+        context: Context,
+        filteredOnly: Boolean = false,
+        onSuccess: (File, Intent) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val list = if (filteredOnly) periodTransactions.value else transactions.value
+                val catList = categories.value
+                val assetList = assets.value
+                val periodName = if (filteredOnly) selectedPeriod.value.displayName else "Semua Waktu"
+
+                val exportsDir = File(context.cacheDir, "exports")
+                if (!exportsDir.exists()) {
+                    exportsDir.mkdirs()
+                }
+
+                val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val fileName = if (filteredOnly) {
+                    "DuitAing_Laporan_${selectedPeriod.value.name.lowercase()}_$todayStr.pdf"
+                } else {
+                    "DuitAing_Laporan_Lengkap_$todayStr.pdf"
+                }
+                val file = File(exportsDir, fileName)
+
+                val result = withContext(Dispatchers.IO) {
+                    PdfReportGenerator.generatePdfReport(
+                        context = context,
+                        file = file,
+                        transactions = list,
+                        categories = catList,
+                        assets = assetList,
+                        periodTitle = periodName
+                    )
+                }
+
+                if (result.isSuccess) {
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, "Laporan Keuangan Duit Aing")
+                        putExtra(Intent.EXTRA_TEXT, "File laporan keuangan Duit Aing ($periodName).")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+
+                    onSuccess(file, sendIntent)
+                } else {
+                    onError(result.exceptionOrNull()?.message ?: "Gagal membuat dokumen PDF")
+                }
+            } catch (e: Exception) {
+                onError(e.message ?: "Terjadi kesalahan saat membuat PDF")
             }
         }
     }

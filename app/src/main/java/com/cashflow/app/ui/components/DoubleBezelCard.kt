@@ -199,7 +199,7 @@ fun EyebrowTag(
         EyebrowVariant.JADE -> JadePrimaryLight
         EyebrowVariant.POSITIVE -> StatusPositiveContainer
         EyebrowVariant.NEGATIVE -> StatusNegativeContainer
-        EyebrowVariant.DARK -> DarkSurface
+        EyebrowVariant.DARK -> Color.White.copy(alpha = 0.12f)
     }
 
     val textCol = when (variant) {
@@ -215,7 +215,7 @@ fun EyebrowTag(
         EyebrowVariant.JADE -> JadePrimary.copy(alpha = 0.35f)
         EyebrowVariant.POSITIVE -> StatusPositive.copy(alpha = 0.35f)
         EyebrowVariant.NEGATIVE -> StatusNegative.copy(alpha = 0.35f)
-        EyebrowVariant.DARK -> DarkBorder.copy(alpha = 0.30f)
+        EyebrowVariant.DARK -> Color.White.copy(alpha = 0.22f)
     }
 
     Box(

@@ -41,6 +41,7 @@ fun TransactionsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var showExportDialog by remember { mutableStateOf(false) }
     val transactions by viewModel.filteredTransactionsTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filterType by viewModel.filterType.collectAsState()
@@ -95,7 +96,7 @@ fun TransactionsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Quick CSV Export Button (Accessible >= 48dp touch target)
+                // Export Dialog Trigger Button (Accessible >= 48dp touch target)
                 Box(
                     modifier = Modifier
                         .minimumInteractiveComponentSize()
@@ -104,28 +105,13 @@ fun TransactionsScreen(
                         .background(PebbleSurface)
                         .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
                         .clickable(role = Role.Button) {
-                            viewModel.exportCsvFile(
-                                context = context,
-                                filteredOnly = true,
-                                onSuccess = { file, sendIntent, content ->
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("Cashflow Export CSV", content)
-                                    clipboard.setPrimaryClip(clip)
-                                    try {
-                                        context.startActivity(Intent.createChooser(sendIntent, "Bagikan CSV Transaksi"))
-                                    } catch (_: Exception) {}
-                                    viewModel.showSnackbar("CSV berhasil dibuat: ${file.name}")
-                                },
-                                onError = {
-                                    viewModel.showSnackbar("CSV gagal dibuat. Coba lagi.")
-                                }
-                            )
+                            showExportDialog = true
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Download,
-                        contentDescription = "Ekspor CSV",
+                        contentDescription = "Pilihan Ekspor (PDF / CSV)",
                         tint = DarkSurface,
                         modifier = Modifier.size(18.dp)
                     )
@@ -420,4 +406,12 @@ fun TransactionsScreen(
             }
         }
     }
+
+    ExportDataDialog(
+        isOpen = showExportDialog,
+        viewModel = viewModel,
+        hasActiveFilter = searchQuery.isNotBlank() || filterType != null || filterInputMethod != null,
+        filterName = "Data Terfilter",
+        onDismiss = { showExportDialog = false }
+    )
 }

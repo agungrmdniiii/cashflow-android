@@ -1,5 +1,7 @@
 package com.cashflow.app.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -384,14 +386,25 @@ fun ReportsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val currentBreakdown = if (reportChartType == "expense") categoryBreakdown else incomeCategoryBreakdown
-                val currentTotal = if (reportChartType == "expense") periodExpense else periodIncome
+                AnimatedContent(
+                    targetState = reportChartType,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                         scaleIn(initialScale = 0.96f, animationSpec = tween(220, easing = FastOutSlowInEasing)))
+                         .togetherWith(fadeOut(animationSpec = tween(150, easing = FastOutSlowInEasing)))
+                    },
+                    label = "ReportChartTransition"
+                ) { targetType ->
+                    val isExpense = targetType == "expense"
+                    val currentBreakdown = if (isExpense) categoryBreakdown else incomeCategoryBreakdown
+                    val currentTotal = if (isExpense) periodExpense else periodIncome
 
-                DonutExpenseChart(
-                    breakdownList = currentBreakdown,
-                    totalExpense = currentTotal,
-                    isExpense = (reportChartType == "expense")
-                )
+                    DonutExpenseChart(
+                        breakdownList = currentBreakdown,
+                        totalExpense = currentTotal,
+                        isExpense = isExpense
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(20.dp))
                 HorizontalDivider(color = PebbleBorder, thickness = 1.dp)

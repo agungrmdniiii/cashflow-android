@@ -1,7 +1,7 @@
 package com.cashflow.app.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -78,15 +78,13 @@ fun AssetsScreen(
     var goalTargetInput by remember { mutableStateOf("") }
     var goalDeadlineInput by remember { mutableStateOf("") }
 
-    LazyColumn(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(PebbleBackground),
-        contentPadding = PaddingValues(bottom = 90.dp)
+            .background(PebbleBackground)
     ) {
         // 1. Top Bar Header with spacious layout
-        item {
-            Row(
+        Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
@@ -132,11 +130,9 @@ fun AssetsScreen(
                     shadowOffset = 2.dp
                 )
             }
-        }
 
         // 2. Segmented Switcher (ASET SAYA | HUTANG SAYA) with accessible touch targets
-        item {
-            Row(
+        Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp)
@@ -233,10 +229,41 @@ fun AssetsScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
-        }
+        Spacer(modifier = Modifier.height(6.dp))
 
-        if (subTab == 0) {
+        AnimatedContent(
+            targetState = subTab,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    (slideInHorizontally(
+                        animationSpec = tween(220, easing = FastOutSlowInEasing),
+                        initialOffsetX = { fullWidth -> (fullWidth * 0.15f).toInt() }
+                    ) + fadeIn(tween(180))).togetherWith(
+                        slideOutHorizontally(
+                            animationSpec = tween(180, easing = FastOutSlowInEasing),
+                            targetOffsetX = { fullWidth -> (-fullWidth * 0.15f).toInt() }
+                        ) + fadeOut(tween(140))
+                    )
+                } else {
+                    (slideInHorizontally(
+                        animationSpec = tween(220, easing = FastOutSlowInEasing),
+                        initialOffsetX = { fullWidth -> (-fullWidth * 0.15f).toInt() }
+                    ) + fadeIn(tween(180))).togetherWith(
+                        slideOutHorizontally(
+                            animationSpec = tween(180, easing = FastOutSlowInEasing),
+                            targetOffsetX = { fullWidth -> (fullWidth * 0.15f).toInt() }
+                        ) + fadeOut(tween(140))
+                    )
+                }
+            },
+            label = "AssetsSubTabTransition",
+            modifier = Modifier.weight(1f)
+        ) { currentSubTab ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 90.dp)
+            ) {
+                if (currentSubTab == 0) {
             // 2. Total Wealth Focal Point with Concentric DarkDoubleBezelCard Architecture
             item {
             Box(
@@ -475,22 +502,31 @@ fun AssetsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(
                             text = "TARGET KEUANGAN",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 1.sp
+                                letterSpacing = 0.5.sp,
+                                fontSize = 15.sp
                             ),
-                            color = DarkSurface
+                            color = DarkSurface,
+                            maxLines = 1
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
                         EyebrowTag(
                             text = "${goals.size} TARGET",
                             variant = EyebrowVariant.DEFAULT
                         )
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "RENCANA & IMPIAN",
                         style = MaterialTheme.typography.labelSmall.copy(
@@ -511,7 +547,7 @@ fun AssetsScreen(
                     },
                     leadingIcon = Icons.Rounded.Add,
                     variant = DuitAingButtonVariant.SECONDARY,
-                    height = 40.dp,
+                    height = 38.dp,
                     shadowOffset = 2.dp
                 )
             }
@@ -630,24 +666,54 @@ fun AssetsScreen(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Text(
-                                text = "Terkumpul: ${if (isBalanceHidden) "••••••" else Formatters.formatRupiah(goal.currentAmount)}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 12.sp
-                                ),
-                                color = JadePrimary
-                            )
-                            Text(
-                                text = "Target: ${if (isBalanceHidden) "••••••" else Formatters.formatRupiah(goal.targetAmount)} (${(goal.progressPercentage * 100).toInt()}%)",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 11.5.sp
-                                ),
-                                color = TextSecondary
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "TERKUMPUL",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        letterSpacing = 0.5.sp
+                                    ),
+                                    color = TextTertiary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (isBalanceHidden) "••••••" else Formatters.formatRupiah(goal.currentAmount),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.5.sp
+                                    ),
+                                    color = JadePrimary
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                Text(
+                                    text = "TARGET (${(goal.progressPercentage * 100).toInt()}%)",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        letterSpacing = 0.5.sp
+                                    ),
+                                    color = TextTertiary,
+                                    textAlign = TextAlign.End
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (isBalanceHidden) "••••••" else Formatters.formatRupiah(goal.targetAmount),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = DarkSurface,
+                                    textAlign = TextAlign.End
+                                )
+                            }
                         }
                     }
                 }
@@ -655,7 +721,7 @@ fun AssetsScreen(
         }
     }
 
-    if (subTab == 1) {
+        if (currentSubTab == 1) {
         // 1. Debt Summary Card
         item {
             DebtSummaryCard(
@@ -684,16 +750,17 @@ fun AssetsScreen(
                     "PAID" to "LUNAS (${debts.count { it.status == DebtStatus.PAID.key }})"
                 )
 
+                val isDark = LocalIsDarkTheme.current
                 filters.forEach { (key, label) ->
                     val isSelected = selectedDebtFilter == key
                     Box(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) DarkSurface else PebbleSurface)
+                            .background(if (isSelected) JadePrimary else PebbleSurface)
                             .border(
                                 1.dp,
-                                if (isSelected) DarkBorder.copy(alpha = 0.35f) else DarkBorder.copy(alpha = 0.20f),
+                                if (isSelected) (if (isDark) JadePrimaryDark else DarkBorder.copy(alpha = 0.35f)) else DarkBorder.copy(alpha = 0.20f),
                                 RoundedCornerShape(8.dp)
                             )
                             .clickable(role = Role.Button) { viewModel.setDebtFilter(key) }
@@ -705,7 +772,7 @@ fun AssetsScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 11.sp
                             ),
-                            color = if (isSelected) TextOnDark else DarkSurface
+                            color = if (isSelected) (if (isDark) Color(0xFF13271E) else TextOnDark) else DarkSurface
                         )
                     }
                 }
@@ -803,23 +870,35 @@ fun AssetsScreen(
         }
     }
 }
+}
+}
 
     // Add Goal Dialog
     if (showAddGoalDialog) {
         AlertDialog(
             onDismissRequest = { showAddGoalDialog = false },
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .imePadding()
+                .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
             containerColor = PebbleSurface,
             title = {
-                Text(
-                    text = "TARGET KEUANGAN BARU",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    ),
-                    color = DarkSurface
-                )
+                Column {
+                    Text(
+                        text = "TARGET KEUANGAN BARU",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = DarkSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Tetapkan sasaran tabungan dan pantau progresnya",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -905,85 +984,33 @@ fun AssetsScreen(
         }
     )
 
-    // Delete Debt Confirmation Dialog
-    if (debtToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { debtToDelete = null },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Text(
-                    text = "HAPUS CATATAN HUTANG?",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = DarkSurface
-                )
-            },
-            text = {
-                Text(
-                    text = "Apakah Anda yakin ingin menghapus catatan hutang \"${debtToDelete?.title}\"? Tindakan ini tidak dapat dibatalkan.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = "HAPUS",
-                    variant = DuitAingButtonVariant.DESTRUCTIVE,
-                    height = 40.dp,
-                    shadowOffset = 2.dp,
-                    onClick = {
-                        debtToDelete?.let { viewModel.deleteDebt(it.id) }
-                        debtToDelete = null
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { debtToDelete = null }) {
-                    Text(text = "BATAL", color = TextSecondary, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
+    // Delete Debt Confirmation Dialog (Standardized Neo-Brutalist Frame)
+    val debtTitleToDelete = debtToDelete?.title ?: ""
+    DuitAingConfirmDialog(
+        isOpen = debtToDelete != null,
+        title = "HAPUS CATATAN HUTANG?",
+        message = "Apakah Anda yakin ingin menghapus catatan hutang \"$debtTitleToDelete\"? Tindakan ini tidak dapat dibatalkan.",
+        confirmText = "HAPUS",
+        confirmVariant = DuitAingButtonVariant.DANGER,
+        onConfirm = {
+            debtToDelete?.let { viewModel.deleteDebt(it.id) }
+            debtToDelete = null
+        },
+        onDismiss = { debtToDelete = null }
+    )
 
-    // Delete Financial Goal Confirmation Dialog
-    if (goalToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { goalToDelete = null },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Text(
-                    text = "HAPUS TARGET KEUANGAN?",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = DarkSurface
-                )
-            },
-            text = {
-                Text(
-                    text = "Apakah Anda yakin ingin menghapus target \"${goalToDelete?.name}\"? Progres tabungan Anda akan dihapus.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = "HAPUS",
-                    variant = DuitAingButtonVariant.DESTRUCTIVE,
-                    height = 40.dp,
-                    shadowOffset = 2.dp,
-                    onClick = {
-                        goalToDelete?.let { viewModel.deleteGoal(it.id) }
-                        goalToDelete = null
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { goalToDelete = null }) {
-                    Text(text = "BATAL", color = TextSecondary, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
+    // Delete Financial Goal Confirmation Dialog (Standardized Neo-Brutalist Frame)
+    val goalNameToDelete = goalToDelete?.name ?: ""
+    DuitAingConfirmDialog(
+        isOpen = goalToDelete != null,
+        title = "HAPUS TARGET KEUANGAN?",
+        message = "Apakah Anda yakin ingin menghapus target \"$goalNameToDelete\"? Progres tabungan Anda akan dihapus.",
+        confirmText = "HAPUS",
+        confirmVariant = DuitAingButtonVariant.DANGER,
+        onConfirm = {
+            goalToDelete?.let { viewModel.deleteGoal(it.id) }
+            goalToDelete = null
+        },
+        onDismiss = { goalToDelete = null }
+    )
 }

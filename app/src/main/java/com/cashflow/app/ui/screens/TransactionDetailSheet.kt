@@ -27,6 +27,7 @@ import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.CategoryIcon
 import com.cashflow.app.ui.components.DuitAingButton
 import com.cashflow.app.ui.components.DuitAingButtonVariant
+import com.cashflow.app.ui.components.DuitAingConfirmDialog
 import com.cashflow.app.ui.components.Formatters
 import com.cashflow.app.ui.theme.*
 
@@ -35,6 +36,25 @@ fun TransactionDetailSheet(
     viewModel: CashflowViewModel,
     transaction: Transaction,
     onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        TransactionDetailContent(
+            viewModel = viewModel,
+            transaction = transaction,
+            onDismiss = onDismiss
+        )
+    }
+}
+
+@Composable
+fun TransactionDetailContent(
+    viewModel: CashflowViewModel,
+    transaction: Transaction,
+    onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null
 ) {
     val categories by viewModel.categories.collectAsState()
     val assets by viewModel.activeAssets.collectAsState()
@@ -51,17 +71,13 @@ fun TransactionDetailSheet(
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .wrapContentHeight()
-                .padding(vertical = 16.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(0.94f)
+            .wrapContentHeight()
+            .padding(vertical = 16.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
             colors = CardDefaults.cardColors(containerColor = PebbleSurface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
@@ -243,9 +259,13 @@ fun TransactionDetailSheet(
                     DuitAingButton(
                         text = "EDIT",
                         onClick = {
-                            viewModel.editingTransaction.value = transaction
-                            viewModel.isAddTransactionOpen.value = true
-                            onDismiss()
+                            if (onEdit != null) {
+                                onEdit()
+                            } else {
+                                viewModel.editingTransaction.value = transaction
+                                viewModel.isAddTransactionOpen.value = true
+                                onDismiss()
+                            }
                         },
                         leadingIcon = Icons.Rounded.Edit,
                         trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
@@ -257,57 +277,22 @@ fun TransactionDetailSheet(
                 }
             }
         }
-    }
 
-    // Delete Confirmation Dialog (Neo-Brutalist Frame)
-    if (showDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(12.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Text(
-                    text = "HAPUS TRANSAKSI INI?",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    ),
-                    color = TextPrimary
-                )
-            },
-            text = {
-                Text(
-                    text = "Transaksi yang dihapus akan memengaruhi saldo aset dan laporan keuangan Anda.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = "HAPUS",
-                    onClick = {
-                        viewModel.deleteTransaction(transaction.id) {
-                            showDeleteConfirmDialog = false
-                            onDismiss()
-                        }
-                    },
-                    variant = DuitAingButtonVariant.DANGER,
-                    height = 40.dp,
-                    shadowOffset = 2.dp
-                )
-            },
-            dismissButton = {
-                DuitAingButton(
-                    text = "BATAL",
-                    onClick = { showDeleteConfirmDialog = false },
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 40.dp,
-                    shadowOffset = 2.dp
-                )
+    // Delete Confirmation Dialog (Standardized Neo-Brutalist Frame)
+    DuitAingConfirmDialog(
+        isOpen = showDeleteConfirmDialog,
+        title = "HAPUS TRANSAKSI INI?",
+        message = "Transaksi yang dihapus akan memengaruhi saldo aset dan laporan keuangan Anda.",
+        confirmText = "HAPUS",
+        confirmVariant = DuitAingButtonVariant.DANGER,
+        onConfirm = {
+            viewModel.deleteTransaction(transaction.id) {
+                showDeleteConfirmDialog = false
+                onDismiss()
             }
-        )
-    }
+        },
+        onDismiss = { showDeleteConfirmDialog = false }
+    )
 }
 
 @Composable

@@ -66,12 +66,7 @@ fun HomeScreen(
         categories.filter { it.type == "expense" && it.isActive }
     }
 
-    val totalBudgetTarget = remember(budgets) { budgets.sumOf { it.budget.targetAmount } }
-    val totalBudgetSpent = remember(budgets) { budgets.sumOf { it.spentAmount } }
-    val totalBudgetRemaining = remember(totalBudgetTarget, totalBudgetSpent) { totalBudgetTarget - totalBudgetSpent }
-    val aggregateProgress = remember(totalBudgetTarget, totalBudgetSpent) {
-        if (totalBudgetTarget > 0) (totalBudgetSpent.toFloat() / totalBudgetTarget.toFloat()).coerceIn(0f, 1f) else 0f
-    }
+
 
     val recentTransactions = remember(transactions) {
         transactions.take(5)
@@ -772,129 +767,11 @@ fun HomeScreen(
                 }
             }
         } else {
-            // Macro Plafon Overview Card (Compact & Streamlined)
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 2.dp)
-                ) {
-                    DoubleBezelCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        outerPadding = 2.dp,
-                        outerRadius = 12.dp,
-                        innerRadius = 10.dp,
-                        shadowOffset = 2.dp,
-                        innerColor = PebbleSurface
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 11.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (totalBudgetRemaining >= 0) "TOTAL SISA PLAFON" else "TOTAL DEFISIT PLAFON",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.ExtraBold,
-                                            letterSpacing = 0.6.sp,
-                                            fontSize = 9.5.sp
-                                        ),
-                                        color = TextSecondary
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "${(aggregateProgress * 100).toInt()}%",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 10.sp
-                                        ),
-                                        color = when {
-                                            aggregateProgress >= 1.0f -> StatusNegative
-                                            aggregateProgress >= 0.8f -> Color(0xFFD97706)
-                                            else -> JadePrimary
-                                        }
-                                    )
-                                }
-
-                                val aggregateStatusLabel = when {
-                                    aggregateProgress >= 1.0f -> "LEBIH BATAS"
-                                    aggregateProgress >= 0.8f -> "MENDEKATI BATAS"
-                                    else -> "DISIPLIN"
-                                }
-                                val aggregateStatusVariant = when {
-                                    aggregateProgress >= 1.0f -> EyebrowVariant.NEGATIVE
-                                    aggregateProgress >= 0.8f -> EyebrowVariant.DEFAULT
-                                    else -> EyebrowVariant.POSITIVE
-                                }
-                                EyebrowTag(text = aggregateStatusLabel, variant = aggregateStatusVariant)
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Bottom
-                            ) {
-                                Text(
-                                    text = if (isBalanceHidden) "Rp ••••••••" else {
-                                        if (totalBudgetRemaining >= 0) Formatters.formatRupiah(totalBudgetRemaining)
-                                        else "−" + Formatters.formatRupiah(-totalBudgetRemaining)
-                                    },
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 18.sp,
-                                        letterSpacing = (-0.5).sp
-                                    ),
-                                    color = if (totalBudgetRemaining >= 0) JadePrimary else StatusNegative
-                                )
-
-                                Text(
-                                    text = if (isBalanceHidden) "Plafon: ••••••" else "${Formatters.formatRupiah(totalBudgetSpent)} / ${Formatters.formatRupiah(totalBudgetTarget)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 10.5.sp
-                                    ),
-                                    color = TextSecondary
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            val animatedAggregateProgress by animateFloatAsState(
-                                targetValue = aggregateProgress,
-                                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
-                                label = "AggregateBudgetProgress"
-                            )
-
-                            LinearProgressIndicator(
-                                progress = { animatedAggregateProgress },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(2.dp)),
-                                color = when {
-                                    aggregateProgress >= 1.0f -> StatusNegative
-                                    aggregateProgress >= 0.8f -> Color(0xFFD97706)
-                                    else -> JadePrimary
-                                },
-                                trackColor = PebbleSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
             // List of Category Budgets (Capped to max 2 items by default)
             items(displayedBudgets, key = { it.budget.id }) { item ->
                 Box(
                     modifier = Modifier
+                        .animateItem()
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 3.dp)
                 ) {
@@ -1198,44 +1075,17 @@ fun HomeScreen(
         onDismiss = { showBudgetDialog = false }
     )
 
-    if (budgetToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { budgetToDelete = null },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Text(
-                    text = "HAPUS ANGGARAN?",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = DarkSurface
-                )
-            },
-            text = {
-                val catName = budgetToDelete?.category?.name ?: "ini"
-                Text(
-                    text = "Apakah Anda yakin ingin menghapus batas anggaran kategori \"$catName\"? Catatan pengeluaran Anda tetap aman.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = "HAPUS",
-                    variant = DuitAingButtonVariant.DESTRUCTIVE,
-                    height = 40.dp,
-                    shadowOffset = 2.dp,
-                    onClick = {
-                        budgetToDelete?.let { viewModel.deleteBudget(it.budget.id) }
-                        budgetToDelete = null
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { budgetToDelete = null }) {
-                    Text(text = "BATAL", color = TextSecondary, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
+    val catNameToDelete = budgetToDelete?.category?.name ?: "ini"
+    DuitAingConfirmDialog(
+        isOpen = budgetToDelete != null,
+        title = "HAPUS ANGGARAN?",
+        message = "Apakah Anda yakin ingin menghapus batas anggaran kategori \"$catNameToDelete\"? Catatan pengeluaran Anda tetap aman.",
+        confirmText = "HAPUS",
+        confirmVariant = DuitAingButtonVariant.DANGER,
+        onConfirm = {
+            budgetToDelete?.let { viewModel.deleteBudget(it.budget.id) }
+            budgetToDelete = null
+        },
+        onDismiss = { budgetToDelete = null }
+    )
 }

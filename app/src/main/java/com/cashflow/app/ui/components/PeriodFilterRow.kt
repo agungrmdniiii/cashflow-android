@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,20 +43,21 @@ fun PeriodFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val isDark = LocalIsDarkTheme.current
         PeriodFilter.entries.forEach { period ->
             val isSelected = period == selectedPeriod
             val bg by animateColorAsState(
-                targetValue = if (isSelected) DarkSurface else PebbleSurface,
+                targetValue = if (isSelected) JadePrimary else PebbleSurface,
                 animationSpec = tween(durationMillis = 180),
                 label = "chip_bg"
             )
             val textCol by animateColorAsState(
-                targetValue = if (isSelected) TextOnDark else TextSecondary,
+                targetValue = if (isSelected) (if (isDark) Color(0xFF13271E) else TextOnDark) else TextSecondary,
                 animationSpec = tween(durationMillis = 180),
                 label = "chip_text"
             )
             val borderCol by animateColorAsState(
-                targetValue = if (isSelected) DarkBorder.copy(alpha = 0.35f) else PebbleBorder,
+                targetValue = if (isSelected) (if (isDark) JadePrimaryDark else DarkBorder.copy(alpha = 0.35f)) else PebbleBorder,
                 animationSpec = tween(durationMillis = 180),
                 label = "chip_border"
             )

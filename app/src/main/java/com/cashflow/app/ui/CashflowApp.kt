@@ -30,6 +30,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.cashflow.app.data.model.Asset
+import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.ui.screens.*
 import com.cashflow.app.ui.theme.*
 
@@ -50,6 +54,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     val selectedAssetForDetail by viewModel.selectedAssetForDetail.collectAsState()
     val editingTx by viewModel.editingTransaction.collectAsState()
     val isAddAssetOpen by viewModel.isAddAssetOpen.collectAsState()
+    val editingAsset by viewModel.editingAsset.collectAsState()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsState()
 
     // Biometric Security Lock State
@@ -94,31 +99,49 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(PebbleSurface)
+                            .border(1.5.dp, DarkBorder, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = JadePrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = data.visuals.message,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                ),
+                                color = TextPrimary
+                            )
+                        }
+                    }
+                }
+            }
+        },
         bottomBar = {
             DuitAingBottomNavBar(
                 currentTab = currentTab,
                 onTabSelected = { viewModel.selectTab(it) }
             )
-        },
-        floatingActionButton = {
-            // Prominent Voice Record FAB on non-Home screens with tactile elevation
-            if (currentTab != 0) {
-                FloatingActionButton(
-                    onClick = { viewModel.isRecordVoiceOpen.value = true },
-                    containerColor = JadePrimary,
-                    contentColor = PebbleSurface,
-                    shape = RoundedCornerShape(14.dp),
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp, pressedElevation = 1.dp),
-                    modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Mic,
-                        contentDescription = "Record Cash Flow",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
         }
     ) { paddingValues ->
         Box(
@@ -129,35 +152,16 @@ fun CashflowApp(viewModel: CashflowViewModel) {
             AnimatedContent(
                 targetState = currentTab,
                 transitionSpec = {
-                    if (targetState > initialState) {
-                        (slideInHorizontally(
-                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-                            initialOffsetX = { fullWidth -> (fullWidth * 0.25f).toInt() }
-                        ) + fadeIn(
-                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                        )).togetherWith(
-                            slideOutHorizontally(
-                                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-                                targetOffsetX = { fullWidth -> (-fullWidth * 0.25f).toInt() }
-                            ) + fadeOut(
-                                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
-                            )
+                    (fadeIn(
+                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                    ) + scaleIn(
+                        initialScale = 0.97f,
+                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                    )).togetherWith(
+                        fadeOut(
+                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
                         )
-                    } else {
-                        (slideInHorizontally(
-                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-                            initialOffsetX = { fullWidth -> (-fullWidth * 0.25f).toInt() }
-                        ) + fadeIn(
-                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                        )).togetherWith(
-                            slideOutHorizontally(
-                                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-                                targetOffsetX = { fullWidth -> (fullWidth * 0.25f).toInt() }
-                            ) + fadeOut(
-                                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
-                            )
-                        )
-                    }
+                    )
                 },
                 label = "ScreenTransition"
             ) { targetTab ->
@@ -183,39 +187,191 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         )
     }
 
-    if (isAddTxOpen || editingTx != null) {
-        AddEditTransactionSheet(
-            viewModel = viewModel,
-            existingTx = editingTx,
-            initialType = addTxInitialType,
-            onDismiss = {
+    // 1. Unified Transaction Modal (Detail & Edit seamlessly animated with AnimatedContent)
+    val showTxModal = isAddTxOpen || editingTx != null || selectedTxForDetail != null
+    var lastViewedTx by remember { mutableStateOf<Transaction?>(null) }
+    if (selectedTxForDetail != null) {
+        lastViewedTx = selectedTxForDetail
+    }
+
+    if (showTxModal) {
+        val inEditMode = isAddTxOpen || editingTx != null
+        val activeTx = selectedTxForDetail ?: lastViewedTx
+
+        Dialog(
+            onDismissRequest = {
                 viewModel.isAddTransactionOpen.value = false
                 viewModel.editingTransaction.value = null
+                viewModel.selectedTransactionForDetail.value = null
+                lastViewedTx = null
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(
+                    targetState = inEditMode,
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                    transitionSpec = {
+                        if (targetState) {
+                            // Detail -> Edit transition (ketika ingin mengedit!)
+                            (slideInVertically(
+                                initialOffsetY = { (it * 0.12f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                            ) + fadeIn(tween(260)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))).togetherWith(
+                                slideOutVertically(
+                                    targetOffsetY = { (-it * 0.08f).toInt() },
+                                    animationSpec = tween(180, easing = FastOutSlowInEasing)
+                                ) + fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
+                            )
+                        } else {
+                            // Edit -> Detail transition (batal edit / kembali ke detail)
+                            (slideInVertically(
+                                initialOffsetY = { (-it * 0.08f).toInt() },
+                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                            ) + fadeIn(tween(220)) + scaleIn(initialScale = 0.94f, animationSpec = tween(220))).togetherWith(
+                                slideOutVertically(
+                                    targetOffsetY = { (it * 0.12f).toInt() },
+                                    animationSpec = tween(180, easing = FastOutSlowInEasing)
+                                ) + fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
+                            )
+                        }
+                    },
+                    label = "TransactionModalAnimatedContent"
+                ) { isEditing ->
+                    if (isEditing) {
+                        AddEditTransactionContent(
+                            viewModel = viewModel,
+                            existingTx = editingTx,
+                            initialType = addTxInitialType,
+                            onDismiss = {
+                                viewModel.isAddTransactionOpen.value = false
+                                viewModel.editingTransaction.value = null
+                                viewModel.selectedTransactionForDetail.value = null
+                                lastViewedTx = null
+                            },
+                            onBack = if (lastViewedTx != null && editingTx != null) {
+                                {
+                                    viewModel.isAddTransactionOpen.value = false
+                                    viewModel.editingTransaction.value = null
+                                    viewModel.selectedTransactionForDetail.value = lastViewedTx
+                                }
+                            } else null
+                        )
+                    } else if (activeTx != null) {
+                        TransactionDetailContent(
+                            viewModel = viewModel,
+                            transaction = activeTx,
+                            onDismiss = {
+                                viewModel.selectedTransactionForDetail.value = null
+                                lastViewedTx = null
+                            },
+                            onEdit = {
+                                viewModel.editingTransaction.value = activeTx
+                                viewModel.isAddTransactionOpen.value = true
+                            }
+                        )
+                    }
+                }
             }
-        )
+        }
     }
 
-    if (selectedTxForDetail != null) {
-        TransactionDetailSheet(
-            viewModel = viewModel,
-            transaction = selectedTxForDetail!!,
-            onDismiss = { viewModel.selectedTransactionForDetail.value = null }
-        )
-    }
-
+    // 2. Unified Asset Modal (Detail & Edit seamlessly animated with AnimatedContent)
+    val showAssetModal = isAddAssetOpen || editingAsset != null || selectedAssetForDetail != null
+    var lastViewedAsset by remember { mutableStateOf<Asset?>(null) }
     if (selectedAssetForDetail != null) {
-        AssetDetailSheet(
-            viewModel = viewModel,
-            asset = selectedAssetForDetail!!,
-            onDismiss = { viewModel.selectedAssetForDetail.value = null }
-        )
+        lastViewedAsset = selectedAssetForDetail
     }
 
-    if (isAddAssetOpen) {
-        AddAssetDialog(
-            viewModel = viewModel,
-            onDismiss = { viewModel.isAddAssetOpen.value = false }
-        )
+    if (showAssetModal) {
+        val inAssetEditMode = isAddAssetOpen || editingAsset != null
+        val activeAsset = selectedAssetForDetail ?: lastViewedAsset
+
+        Dialog(
+            onDismissRequest = {
+                viewModel.isAddAssetOpen.value = false
+                viewModel.editingAsset.value = null
+                viewModel.selectedAssetForDetail.value = null
+                lastViewedAsset = null
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(
+                    targetState = inAssetEditMode,
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                    transitionSpec = {
+                        if (targetState) {
+                            (slideInVertically(
+                                initialOffsetY = { (it * 0.12f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                            ) + fadeIn(tween(260)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))).togetherWith(
+                                slideOutVertically(
+                                    targetOffsetY = { (-it * 0.08f).toInt() },
+                                    animationSpec = tween(180, easing = FastOutSlowInEasing)
+                                ) + fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
+                            )
+                        } else {
+                            (slideInVertically(
+                                initialOffsetY = { (-it * 0.08f).toInt() },
+                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                            ) + fadeIn(tween(220)) + scaleIn(initialScale = 0.94f, animationSpec = tween(220))).togetherWith(
+                                slideOutVertically(
+                                    targetOffsetY = { (it * 0.12f).toInt() },
+                                    animationSpec = tween(180, easing = FastOutSlowInEasing)
+                                ) + fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
+                            )
+                        }
+                    },
+                    label = "AssetModalAnimatedContent"
+                ) { isEditing ->
+                    if (isEditing) {
+                        AddAssetContent(
+                            viewModel = viewModel,
+                            assetToEdit = editingAsset,
+                            onDismiss = {
+                                viewModel.isAddAssetOpen.value = false
+                                viewModel.editingAsset.value = null
+                                viewModel.selectedAssetForDetail.value = null
+                                lastViewedAsset = null
+                            },
+                            onBack = if (lastViewedAsset != null && editingAsset != null) {
+                                {
+                                    viewModel.isAddAssetOpen.value = false
+                                    viewModel.editingAsset.value = null
+                                    viewModel.selectedAssetForDetail.value = lastViewedAsset
+                                }
+                            } else null
+                        )
+                    } else if (activeAsset != null) {
+                        AssetDetailContent(
+                            viewModel = viewModel,
+                            asset = activeAsset,
+                            onDismiss = {
+                                viewModel.selectedAssetForDetail.value = null
+                                lastViewedAsset = null
+                            },
+                            onEdit = {
+                                viewModel.editingAsset.value = activeAsset
+                                viewModel.isAddAssetOpen.value = true
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 
     if (isSettingsOpen) {

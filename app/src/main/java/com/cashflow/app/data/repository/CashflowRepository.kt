@@ -452,6 +452,7 @@ class CashflowRepository(private val context: Context) {
                 put("type", asset.type)
                 put("is_default", if (asset.isDefault) 1 else 0)
                 put("note", asset.note)
+                put("current_balance", asset.currentBalance)
                 put("updated_at", System.currentTimeMillis())
             }
             db.update(DatabaseHelper.TABLE_ASSETS, cv, "id = ?", arrayOf(asset.id))

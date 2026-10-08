@@ -64,3 +64,17 @@ enum class ThemeMode(val value: String, val displayName: String) {
         }
     }
 }
+
+enum class BiometricTimeout(val value: String, val displayName: String, val durationMillis: Long) {
+    IMMEDIATE("immediate", "Segera", 0L),
+    ONE_MINUTE("1min", "1 Menit", 60_000L),
+    FIVE_MINUTES("5min", "5 Menit", 300_000L),
+    FIFTEEN_MINUTES("15min", "15 Menit", 900_000L);
+
+    companion object {
+        fun fromValue(value: String): BiometricTimeout {
+            return entries.firstOrNull { it.value.equals(value, ignoreCase = true) } ?: IMMEDIATE
+        }
+    }
+}
+

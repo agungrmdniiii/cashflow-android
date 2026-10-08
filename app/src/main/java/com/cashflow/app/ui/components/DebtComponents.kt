@@ -107,7 +107,7 @@ fun DebtSummaryCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     ),
-                    color = PebbleSurfaceVariant
+                    color = TextOnDarkSecondary
                 )
             }
 
@@ -425,10 +425,10 @@ fun AddDebtDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .imePadding()
-            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
+            .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
         containerColor = PebbleSurface,
         title = {
             Column {
@@ -713,10 +713,10 @@ fun PayDebtDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .imePadding()
-            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
+            .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
         containerColor = PebbleSurface,
         title = {
             Column {

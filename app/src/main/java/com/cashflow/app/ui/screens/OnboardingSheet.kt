@@ -39,8 +39,8 @@ fun OnboardingSheet(
                 .fillMaxWidth(0.92f)
                 .wrapContentHeight()
                 .padding(vertical = 20.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, DarkBorder),
             colors = CardDefaults.cardColors(containerColor = PebbleSurface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {

@@ -41,6 +41,25 @@ fun AssetDetailSheet(
     asset: Asset,
     onDismiss: () -> Unit
 ) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        AssetDetailContent(
+            viewModel = viewModel,
+            asset = asset,
+            onDismiss = onDismiss
+        )
+    }
+}
+
+@Composable
+fun AssetDetailContent(
+    viewModel: CashflowViewModel,
+    asset: Asset,
+    onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null
+) {
     val transactions by viewModel.transactions.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val activeAssets by viewModel.activeAssets.collectAsState()
@@ -74,20 +93,16 @@ fun AssetDetailSheet(
             .sumOf { it.amount }
     }
 
-    var showArchiveConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.92f)
-                .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurface),
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.92f)
+            .padding(vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.5.dp, DarkBorder),
+        colors = CardDefaults.cardColors(containerColor = PebbleSurface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -252,32 +267,55 @@ fun AssetDetailSheet(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Action Buttons: Set Default & Archive
-                Row(
+                // Action Buttons: Edit, Delete & Default
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (!asset.isDefault) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         DuitAingButton(
-                            text = "JADIKAN DEFAULT",
-                            onClick = { viewModel.setDefaultAsset(asset.id) },
-                            leadingIcon = Icons.Rounded.StarBorder,
+                            text = "EDIT ASET",
+                            onClick = {
+                                if (onEdit != null) {
+                                    onEdit()
+                                } else {
+                                    viewModel.editingAsset.value = asset
+                                    viewModel.isAddAssetOpen.value = true
+                                    onDismiss()
+                                }
+                            },
+                            leadingIcon = Icons.Rounded.Edit,
                             modifier = Modifier.weight(1f),
                             variant = DuitAingButtonVariant.SECONDARY,
                             height = 42.dp,
                             shadowOffset = 2.dp
                         )
+
+                        DuitAingButton(
+                            text = "HAPUS ASET",
+                            onClick = { showDeleteConfirmDialog = true },
+                            leadingIcon = Icons.Rounded.Delete,
+                            modifier = Modifier.weight(1f),
+                            variant = DuitAingButtonVariant.DANGER,
+                            height = 42.dp,
+                            shadowOffset = 2.dp
+                        )
                     }
 
-                    DuitAingButton(
-                        text = "ARSIPKAN ASET",
-                        onClick = { showArchiveConfirmDialog = true },
-                        leadingIcon = Icons.Rounded.Archive,
-                        modifier = Modifier.weight(1f),
-                        variant = DuitAingButtonVariant.DANGER,
-                        height = 42.dp,
-                        shadowOffset = 2.dp
-                    )
+                    if (!asset.isDefault) {
+                        DuitAingButton(
+                            text = "JADIKAN ASET UTAMA (DEFAULT)",
+                            onClick = { viewModel.setDefaultAsset(asset.id) },
+                            leadingIcon = Icons.Rounded.StarBorder,
+                            modifier = Modifier.fillMaxWidth(),
+                            variant = DuitAingButtonVariant.OUTLINE,
+                            height = 40.dp,
+                            shadowOffset = 2.dp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -330,57 +368,22 @@ fun AssetDetailSheet(
                 }
             }
         }
-    }
 
-    // Archive Confirmation Dialog (Neo-Brutalist Frame)
-    if (showArchiveConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showArchiveConfirmDialog = false },
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(12.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Text(
-                    text = "ARSIPKAN ASET \"${asset.name.uppercase()}\"?",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    ),
-                    color = TextPrimary
-                )
-            },
-            text = {
-                Text(
-                    text = "Aset ini tidak akan muncul lagi di daftar aktif, namun semua transaksi historis yang pernah dicatat tetap aman dan terjaga.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = "ARSIPKAN",
-                    onClick = {
-                        viewModel.archiveAsset(asset.id) {
-                            showArchiveConfirmDialog = false
-                            onDismiss()
-                        }
-                    },
-                    variant = DuitAingButtonVariant.DANGER,
-                    height = 40.dp,
-                    shadowOffset = 2.dp
-                )
-            },
-            dismissButton = {
-                DuitAingButton(
-                    text = "BATAL",
-                    onClick = { showArchiveConfirmDialog = false },
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 40.dp,
-                    shadowOffset = 2.dp
-                )
+    // Delete Confirmation Dialog (Standardized Neo-Brutalist Frame)
+    DuitAingConfirmDialog(
+        isOpen = showDeleteConfirmDialog,
+        title = "HAPUS ASET \"${asset.name.uppercase()}\"?",
+        message = "Apakah Anda yakin ingin menghapus aset ini? Jika memiliki riwayat transaksi, aset akan diarsipkan dengan aman agar catatan historis tetap utuh.",
+        confirmText = "HAPUS ASET",
+        confirmVariant = DuitAingButtonVariant.DANGER,
+        onConfirm = {
+            viewModel.deleteAsset(asset.id) {
+                showDeleteConfirmDialog = false
+                onDismiss()
             }
-        )
-    }
+        },
+        onDismiss = { showDeleteConfirmDialog = false }
+    )
 }
 
 /**
