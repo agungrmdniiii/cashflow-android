@@ -652,6 +652,132 @@ class CashflowRepository(private val context: Context) {
         }
     }
 
+    suspend fun depositToGoal(
+        goalId: String,
+        amount: Long,
+        sourceAssetId: String?,
+        note: String = ""
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            val goal = _goals.value.find { it.id == goalId }
+                ?: return@withContext Result.failure(IllegalArgumentException("Target tidak ditemukan"))
+
+            val newCurrent = goal.currentAmount + amount
+            val cvGoal = ContentValues().apply {
+                put("current_amount", newCurrent)
+                put("updated_at", System.currentTimeMillis())
+            }
+            db.update(DatabaseHelper.TABLE_GOALS, cvGoal, "id = ?", arrayOf(goalId))
+
+            if (!sourceAssetId.isNullOrBlank()) {
+                val asset = _assets.value.find { it.id == sourceAssetId }
+                if (asset != null) {
+                    val newBalance = asset.currentBalance - amount
+                    val cvAsset = ContentValues().apply {
+                        put("current_balance", newBalance)
+                    }
+                    db.update(DatabaseHelper.TABLE_ASSETS, cvAsset, "id = ?", arrayOf(sourceAssetId))
+
+                    val now = System.currentTimeMillis()
+                    val todayStr = LocalDate.now().toString()
+                    val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val savingsCatId = _categories.value.find { it.name.contains("tabung", ignoreCase = true) }?.id
+                        ?: _categories.value.firstOrNull { it.type == "expense" }?.id
+                        ?: "cat_lainnya_exp"
+
+                    val cvTx = ContentValues().apply {
+                        put("id", "tx_goal_${System.currentTimeMillis()}")
+                        put("type", TransactionType.EXPENSE.value)
+                        put("amount", amount)
+                        put("description", if (note.isNotBlank()) note else "Tabungan: ${goal.name}")
+                        put("category_id", savingsCatId)
+                        put("asset_id", sourceAssetId)
+                        put("destination_asset_id", null as String?)
+                        put("transaction_date", todayStr)
+                        put("transaction_time", timeStr)
+                        put("note", "Alokasi target: ${goal.name}")
+                        put("input_method", "manual")
+                        put("created_at", now)
+                        put("updated_at", now)
+                    }
+                    db.insert(DatabaseHelper.TABLE_TRANSACTIONS, null, cvTx)
+                }
+            }
+
+            db.setTransactionSuccessful()
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    suspend fun withdrawFromGoal(
+        goalId: String,
+        amount: Long,
+        destinationAssetId: String?,
+        note: String = ""
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            val goal = _goals.value.find { it.id == goalId }
+                ?: return@withContext Result.failure(IllegalArgumentException("Target tidak ditemukan"))
+
+            val newCurrent = (goal.currentAmount - amount).coerceAtLeast(0L)
+            val cvGoal = ContentValues().apply {
+                put("current_amount", newCurrent)
+                put("updated_at", System.currentTimeMillis())
+            }
+            db.update(DatabaseHelper.TABLE_GOALS, cvGoal, "id = ?", arrayOf(goalId))
+
+            if (!destinationAssetId.isNullOrBlank()) {
+                val asset = _assets.value.find { it.id == destinationAssetId }
+                if (asset != null) {
+                    val newBalance = asset.currentBalance + amount
+                    val cvAsset = ContentValues().apply {
+                        put("current_balance", newBalance)
+                    }
+                    db.update(DatabaseHelper.TABLE_ASSETS, cvAsset, "id = ?", arrayOf(destinationAssetId))
+
+                    val now = System.currentTimeMillis()
+                    val todayStr = LocalDate.now().toString()
+                    val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val incCatId = _categories.value.firstOrNull { it.type == "income" }?.id ?: "cat_lainnya_inc"
+
+                    val cvTx = ContentValues().apply {
+                        put("id", "tx_goal_wd_${System.currentTimeMillis()}")
+                        put("type", TransactionType.INCOME.value)
+                        put("amount", amount)
+                        put("description", if (note.isNotBlank()) note else "Pencairan: ${goal.name}")
+                        put("category_id", incCatId)
+                        put("asset_id", destinationAssetId)
+                        put("destination_asset_id", null as String?)
+                        put("transaction_date", todayStr)
+                        put("transaction_time", timeStr)
+                        put("note", "Pencairan target: ${goal.name}")
+                        put("input_method", "manual")
+                        put("created_at", now)
+                        put("updated_at", now)
+                    }
+                    db.insert(DatabaseHelper.TABLE_TRANSACTIONS, null, cvTx)
+                }
+            }
+
+            db.setTransactionSuccessful()
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     // --- DEBT OPERATIONS (STANDALONE TRACKER) ---
 
     suspend fun addDebt(

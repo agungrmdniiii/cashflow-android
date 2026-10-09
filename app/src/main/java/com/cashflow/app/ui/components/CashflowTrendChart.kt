@@ -18,8 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -226,22 +228,29 @@ fun CashflowTrendChart(
                                     ),
                                     color = JadePrimary
                                 )
-                                Box(
+                                IconButton(
+                                    onClick = {
+                                        selectedBucketIndex = null
+                                        lastHapticIndex = null
+                                    },
                                     modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            selectedBucketIndex = null
-                                            lastHapticIndex = null
-                                        },
-                                    contentAlignment = Alignment.Center
+                                        .minimumInteractiveComponentSize()
+                                        .size(32.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = "Tutup inspeksi",
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(PebbleSurfaceVariant),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = "Tutup inspeksi",
+                                            tint = TextSecondary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.height(3.dp))

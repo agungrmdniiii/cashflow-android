@@ -19,6 +19,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,8 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,64 +74,32 @@ fun BudgetFormDialog(
     }
 
     val amount = targetAmountInput.toLongOrNull() ?: 0L
+    val focusManager = LocalFocusManager.current
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
-        val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
-        AnimatedVisibility(
-            visibleState = transitionState,
-            enter = scaleIn(
-                initialScale = 0.92f,
-                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-            ) + fadeIn(animationSpec = tween(220)) +
-                    slideInVertically(
-                        initialOffsetY = { 60 },
-                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                    ),
-            exit = scaleOut(targetScale = 0.92f, animationSpec = tween(180)) +
-                    fadeOut(animationSpec = tween(180))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .navigationBarsPadding()
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .wrapContentHeight()
-                    .padding(vertical = 16.dp)
-                    .imePadding(),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.5.dp, DarkBorder),
-                colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                ) {
                     // Header Row with Title and Close button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = if (isEditing) "EDIT ANGGARAN" else "BUAT ANGGARAN BARU",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 0.5.sp,
-                                    fontSize = 18.sp
-                                ),
-                                color = DarkSurface
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (isEditing) "Perbarui batas belanja kategori terpilih" else "Tetapkan batas belanja disiplin per pos pengeluaran",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
-                        }
+                        Text(
+                            text = if (isEditing) "EDIT ANGGARAN" else "BUAT ANGGARAN BARU",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.5.sp,
+                                fontSize = 18.sp
+                            ),
+                            color = DarkSurface
+                        )
 
                         Box(
                             modifier = Modifier
@@ -257,7 +228,14 @@ fun BudgetFormDialog(
                                 },
                                 placeholder = { Text("0") },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = { focusManager.clearFocus() }
+                                ),
+                                visualTransformation = ThousandSeparatorVisualTransformation(),
                                 shape = RoundedCornerShape(10.dp),
                                 textStyle = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
@@ -373,7 +351,5 @@ fun BudgetFormDialog(
                     )
                 }
             }
-        }
     }
-}
 }

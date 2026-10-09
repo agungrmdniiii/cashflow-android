@@ -550,37 +550,17 @@ fun ReportsScreen(
 
         if (activeBreakdown.isEmpty()) {
             item {
-                Box(
+                AnimatedEmptyState(
+                    icon = if (isExpenseMode) Icons.Rounded.TrendingDown else Icons.Rounded.TrendingUp,
+                    title = if (isExpenseMode) "BELUM ADA PENGELUARAN" else "BELUM ADA PEMASUKAN",
+                    description = if (isExpenseMode)
+                        "Tidak ada catatan pengeluaran pada periode ${selectedPeriod.displayName.lowercase()}."
+                    else
+                        "Tidak ada catatan pemasukan pada periode ${selectedPeriod.displayName.lowercase()}.",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(PebbleSurface)
-                        .border(1.dp, PebbleBorder, RoundedCornerShape(8.dp))
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = if (isExpenseMode) "BELUM ADA PENGELUARAN" else "BELUM ADA PEMASUKAN",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = DarkSurface
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = if (isExpenseMode)
-                                "Tidak ada catatan pengeluaran pada periode ${selectedPeriod.displayName.lowercase()}."
-                            else
-                                "Tidak ada catatan pemasukan pada periode ${selectedPeriod.displayName.lowercase()}.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                )
             }
         } else {
             itemsIndexed(activeBreakdown) { index, (cat, amount, percent) ->
@@ -690,34 +670,14 @@ fun ReportsScreen(
 
         if (assetBreakdown.isEmpty()) {
             item {
-                Box(
+                AnimatedEmptyState(
+                    icon = Icons.Rounded.AccountBalanceWallet,
+                    title = "BELUM ADA PENGELUARAN ASET",
+                    description = "Belum ada transaksi pengeluaran tercatat untuk aset aktif pada periode ini.",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(PebbleSurface)
-                        .border(1.dp, PebbleBorder, RoundedCornerShape(8.dp))
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "BELUM ADA PENGELUARAN ASET",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = DarkSurface
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = "Belum ada transaksi pengeluaran tercatat untuk aset aktif.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                )
             }
         } else {
             items(

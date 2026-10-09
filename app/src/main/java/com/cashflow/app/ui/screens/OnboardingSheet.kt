@@ -15,10 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.cashflow.app.ui.components.DuitAingButton
-import com.cashflow.app.ui.components.DuitAingButtonVariant
-import com.cashflow.app.ui.components.DuitAingLogo
-import com.cashflow.app.ui.components.LogoVariant
+import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
 
 /**
@@ -30,71 +27,60 @@ import com.cashflow.app.ui.theme.*
 fun OnboardingSheet(
     onDismiss: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .wrapContentHeight()
-                .padding(vertical = 20.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, DarkBorder),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                .fillMaxWidth()
+                .padding(24.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.Start
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(28.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                DuitAingLogo(size = 56.dp, variant = LogoVariant.COLOR)
+            DuitAingLogo(size = 56.dp, variant = LogoVariant.COLOR)
 
-                Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-                Text(
-                    text = "CATAT DUIT.\nPAHAMI ARUSNYA.\nNGOMONG AJA.",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.5).sp,
-                        lineHeight = 32.sp
-                    ),
-                    color = DarkSurface
-                )
+            Text(
+                text = "CATAT DUIT.\nPAHAMI ARUSNYA.\nNGOMONG AJA.",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.5).sp,
+                    lineHeight = 32.sp
+                ),
+                color = DarkSurface
+            )
 
-                Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = "Kelola pemasukan, pengeluaran, aset, dan target keuangan harian tanpa ribet. Cukup tekan mikrofon dan sebutkan transaksi secara natural.",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        lineHeight = 22.sp
-                    ),
-                    color = TextSecondary
-                )
+            Text(
+                text = "Kelola pemasukan, pengeluaran, aset, dan target keuangan harian tanpa ribet. Cukup tekan mikrofon dan sebutkan transaksi secara natural.",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    lineHeight = 22.sp
+                ),
+                color = TextSecondary
+            )
 
-                Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-                // Feature Highlights in clean typography
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FeatureItem(text = "Input suara instan bahasa Indonesia")
-                    FeatureItem(text = "Total kekayaan & saldo aset real-time")
-                    FeatureItem(text = "100% offline-first & aman di perangkat Anda")
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                DuitAingButton(
-                    text = "MULAI",
-                    onClick = onDismiss,
-                    trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
-                    modifier = Modifier.fillMaxWidth(),
-                    variant = DuitAingButtonVariant.PRIMARY,
-                    height = 52.dp,
-                    shadowOffset = 3.dp
-                )
+            // Feature Highlights in clean typography
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FeatureItem(text = "Input suara instan bahasa Indonesia")
+                FeatureItem(text = "Total kekayaan & saldo aset real-time")
+                FeatureItem(text = "100% offline-first & aman di perangkat Anda")
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            DuitAingButton(
+                text = "MULAI",
+                onClick = onDismiss,
+                trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
+                modifier = Modifier.fillMaxWidth(),
+                variant = DuitAingButtonVariant.PRIMARY,
+                height = 52.dp,
+                shadowOffset = 3.dp
+            )
         }
     }
 }

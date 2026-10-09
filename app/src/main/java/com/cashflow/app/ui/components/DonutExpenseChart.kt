@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -350,7 +351,7 @@ fun DonutExpenseChart(
                             color = if (isSelected) DarkBorder else Color.Transparent,
                             shape = RoundedCornerShape(6.dp)
                         )
-                        .clickable {
+                        .clickable(role = Role.Button) {
                             selectedIndex = if (isSelected) null else index
                         }
                         .padding(horizontal = 8.dp, vertical = 6.dp),

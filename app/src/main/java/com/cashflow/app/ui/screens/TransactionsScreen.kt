@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
@@ -16,7 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +60,7 @@ fun TransactionsScreen(
     val groupedTransactions = remember(transactions) {
         transactions.groupBy { it.transactionDate }
     }
+    val focusManager = LocalFocusManager.current
 
     Column(
         modifier = modifier
@@ -163,6 +168,8 @@ fun TransactionsScreen(
                 }
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = PebbleSurface,
@@ -172,9 +179,9 @@ fun TransactionsScreen(
             )
         )
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Filter Chips Row
+        // 1. Transaction Type Filter Row (Jade Pebble Morning Tactile Pills)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,39 +199,63 @@ fun TransactionsScreen(
 
             typeOptions.forEach { (key, label) ->
                 val isSelected = filterType == key
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { viewModel.filterType.value = key },
-                    label = {
+                val activeBg = when (key) {
+                    "expense" -> StatusNegative
+                    "income" -> JadePrimary
+                    "transfer" -> StatusTransfer
+                    else -> DarkSurface
+                }
+                Box(
+                    modifier = Modifier
+                        .defaultMinSize(minHeight = 36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) activeBg else PebbleSurface)
+                        .border(
+                            width = 1.dp,
+                            color = if (isSelected) DarkBorder.copy(alpha = 0.35f) else PebbleBorder,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable(role = Role.Tab) { viewModel.filterType.value = key }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        if (key != "all") {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) TextOnDark else activeBg)
+                            )
+                        }
                         Text(
                             text = label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            letterSpacing = 0.5.sp
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                letterSpacing = 0.4.sp
+                            ),
+                            color = if (isSelected) TextOnDark else DarkSurface
                         )
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = when (key) {
-                            "expense" -> StatusNegative
-                            "income" -> JadePrimary
-                            "transfer" -> StatusTransfer
-                            else -> DarkSurface
-                        },
-                        selectedLabelColor = PebbleSurface,
-                        containerColor = PebbleSurface,
-                        labelColor = TextSecondary
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        borderColor = if (isSelected) DarkBorder.copy(alpha = 0.4f) else PebbleBorder,
-                        borderWidth = 1.dp,
-                        enabled = true,
-                        selected = isSelected
-                    )
-                )
+                    }
+                }
             }
+        }
 
-            // Input Method Filter (Suara vs Manual)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 2. Input Method Filter Row (SEMUA METODE | SUARA | MANUAL)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             val voiceFilterOptions = listOf(
                 "all" to "SEMUA METODE",
                 "voice" to "SUARA",
@@ -232,31 +263,50 @@ fun TransactionsScreen(
             )
             voiceFilterOptions.forEach { (key, label) ->
                 val isSelected = filterInputMethod == key
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { viewModel.filterInputMethod.value = key },
-                    label = {
+                Box(
+                    modifier = Modifier
+                        .defaultMinSize(minHeight = 32.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isSelected) JadePrimaryContainer else PebbleSurfaceVariant.copy(alpha = 0.6f))
+                        .border(
+                            width = 1.dp,
+                            color = if (isSelected) JadePrimary.copy(alpha = 0.5f) else DarkBorder.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                        .clickable(role = Role.Tab) { viewModel.filterInputMethod.value = key }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (key == "voice") {
+                            Icon(
+                                imageVector = Icons.Rounded.Mic,
+                                contentDescription = null,
+                                tint = if (isSelected) JadePrimary else TextSecondary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        } else if (key == "manual") {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null,
+                                tint = if (isSelected) JadePrimary else TextSecondary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
                         Text(
                             text = label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            letterSpacing = 0.5.sp
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                letterSpacing = 0.4.sp
+                            ),
+                            color = if (isSelected) JadePrimary else TextSecondary
                         )
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = JadePrimary,
-                        selectedLabelColor = PebbleSurface,
-                        containerColor = PebbleSurface,
-                        labelColor = TextSecondary
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        borderColor = if (isSelected) DarkBorder.copy(alpha = 0.4f) else PebbleBorder,
-                        borderWidth = 1.dp,
-                        enabled = true,
-                        selected = isSelected
-                    )
-                )
+                    }
+                }
             }
         }
 
@@ -268,93 +318,30 @@ fun TransactionsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
                 contentAlignment = Alignment.Center
             ) {
-                DoubleBezelCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    outerPadding = 3.dp,
-                    outerRadius = 16.dp,
-                    innerRadius = 13.dp,
-                    innerColor = PebbleSurface
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(54.dp)
-                                .clip(CircleShape)
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (hasActiveFilter) Icons.Rounded.SearchOff else Icons.AutoMirrored.Rounded.ReceiptLong,
-                                contentDescription = null,
-                                tint = DarkSurface,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            text = if (hasActiveFilter) "TIDAK ADA TRANSAKSI COCOK" else "BELUM ADA TRANSAKSI",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = DarkSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = if (hasActiveFilter)
-                                "Coba ubah kata kunci pencarian atau sesuaikan filter jenis transaksi Anda."
-                            else
-                                "Mulai rekam catatan pengeluaran atau pemasukan untuk memantau arus kas harian Anda.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
+                AnimatedEmptyState(
+                    icon = if (hasActiveFilter) Icons.Rounded.SearchOff else Icons.AutoMirrored.Rounded.ReceiptLong,
+                    title = if (hasActiveFilter) "TIDAK ADA TRANSAKSI COCOK" else "BELUM ADA TRANSAKSI",
+                    description = if (hasActiveFilter)
+                        "Coba ubah kata kunci pencarian atau sesuaikan filter jenis transaksi Anda."
+                    else
+                        "Mulai rekam catatan pengeluaran atau pemasukan untuk memantau arus kas harian Anda.",
+                    actionText = if (hasActiveFilter) "RESET FILTER" else "CATAT TRANSAKSI",
+                    actionIcon = if (hasActiveFilter) Icons.Rounded.FilterAltOff else Icons.Rounded.Add,
+                    onActionClick = {
                         if (hasActiveFilter) {
-                            DuitAingButton(
-                                text = "RESET FILTER",
-                                onClick = {
-                                    viewModel.searchQuery.value = ""
-                                    viewModel.filterType.value = "all"
-                                    viewModel.filterInputMethod.value = "all"
-                                },
-                                leadingIcon = Icons.Rounded.FilterAltOff,
-                                variant = DuitAingButtonVariant.SECONDARY,
-                                height = 44.dp,
-                                shadowOffset = 2.dp
-                            )
+                            viewModel.searchQuery.value = ""
+                            viewModel.filterType.value = "all"
+                            viewModel.filterInputMethod.value = "all"
                         } else {
-                            DuitAingButton(
-                                text = "CATAT TRANSAKSI",
-                                onClick = {
-                                    viewModel.addTransactionInitialType.value = TransactionType.EXPENSE
-                                    viewModel.editingTransaction.value = null
-                                    viewModel.isAddTransactionOpen.value = true
-                                },
-                                leadingIcon = Icons.Rounded.Add,
-                                variant = DuitAingButtonVariant.PRIMARY,
-                                height = 44.dp,
-                                shadowOffset = 2.dp
-                            )
+                            viewModel.addTransactionInitialType.value = TransactionType.EXPENSE
+                            viewModel.editingTransaction.value = null
+                            viewModel.isAddTransactionOpen.value = true
                         }
                     }
-                }
+                )
             }
         } else {
             LazyColumn(

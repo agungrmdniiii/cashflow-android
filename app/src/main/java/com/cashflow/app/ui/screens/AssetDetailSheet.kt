@@ -39,16 +39,17 @@ import java.time.LocalDate
 fun AssetDetailSheet(
     viewModel: CashflowViewModel,
     asset: Asset,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
         AssetDetailContent(
             viewModel = viewModel,
             asset = asset,
-            onDismiss = onDismiss
+            onDismiss = onDismiss,
+            modifier = modifier
         )
     }
 }
@@ -58,7 +59,8 @@ fun AssetDetailContent(
     viewModel: CashflowViewModel,
     asset: Asset,
     onDismiss: () -> Unit,
-    onEdit: (() -> Unit)? = null
+    onEdit: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -95,21 +97,12 @@ fun AssetDetailContent(
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(0.95f)
-            .fillMaxHeight(0.92f)
-            .padding(vertical = 12.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.5.dp, DarkBorder),
-        colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            ) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .navigationBarsPadding()
+    ) {
                 // Header Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -333,19 +326,12 @@ fun AssetDetailContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (assetTransactions.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Belum ada transaksi pada aset ini.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
+                    AnimatedEmptyState(
+                        icon = Icons.Rounded.ReceiptLong,
+                        title = "BELUM ADA TRANSAKSI",
+                        description = "Belum ada transaksi tercatat pada rekening / aset ini.",
+                        modifier = Modifier.weight(1f)
+                    )
                 } else {
                     LazyColumn(
                         modifier = Modifier
@@ -367,7 +353,6 @@ fun AssetDetailContent(
                     }
                 }
             }
-        }
 
     // Delete Confirmation Dialog (Standardized Neo-Brutalist Frame)
     DuitAingConfirmDialog(

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,8 +28,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,25 +55,19 @@ fun AddEditTransactionSheet(
     viewModel: CashflowViewModel,
     existingTx: Transaction? = null,
     initialType: TransactionType = TransactionType.EXPENSE,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxHeight(0.90f)
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding(),
-            contentAlignment = Alignment.Center
-        ) {
-            AddEditTransactionContent(
-                viewModel = viewModel,
-                existingTx = existingTx,
-                initialType = initialType,
-                onDismiss = onDismiss
-            )
-        }
+        AddEditTransactionContent(
+            viewModel = viewModel,
+            existingTx = existingTx,
+            initialType = initialType,
+            onDismiss = onDismiss,
+            modifier = modifier
+        )
     }
 }
 
@@ -81,7 +78,8 @@ fun AddEditTransactionContent(
     existingTx: Transaction? = null,
     initialType: TransactionType = TransactionType.EXPENSE,
     onDismiss: () -> Unit,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val activeAssets by viewModel.activeAssets.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -138,6 +136,8 @@ fun AddEditTransactionContent(
         label = "accentColor"
     )
 
+    val focusManager = LocalFocusManager.current
+
     // Filter categories based on selected type
     val relevantCategories = remember(selectedType, categories) {
         val typeStr = if (selectedType == TransactionType.INCOME) "income" else "expense"
@@ -164,21 +164,12 @@ fun AddEditTransactionContent(
             currentSourceAsset != null &&
             amount > currentSourceAsset.currentBalance
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(0.95f)
-            .fillMaxHeight(0.92f)
-            .padding(vertical = 10.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.5.dp, DarkBorder),
-        colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .navigationBarsPadding()
     ) {
-        Column(
-            modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            ) {
                 // Header Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -353,7 +344,14 @@ fun AddEditTransactionContent(
                                 ),
                                 placeholder = { Text("0", color = TextSecondary.copy(alpha = 0.5f)) },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = { focusManager.clearFocus() }
+                                ),
+                                visualTransformation = ThousandSeparatorVisualTransformation(),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -410,7 +408,7 @@ fun AddEditTransactionContent(
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(PebbleSurface)
                                             .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                                            .clickable {
+                                            .clickable(role = Role.Button) {
                                                 val cur = amountText.toLongOrNull() ?: 0L
                                                 amountText = (cur + presetVal).toString()
                                             }
@@ -458,7 +456,7 @@ fun AddEditTransactionContent(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable {
+                                        .clickable(role = Role.Checkbox) {
                                             isDebtPayment = !isDebtPayment
                                             if (isDebtPayment && selectedDebtId == null && unpaidDebts.isNotEmpty()) {
                                                 selectedDebtId = unpaidDebts.first().id
@@ -569,7 +567,7 @@ fun AddEditTransactionContent(
                                                             color = if (isSelected) CoralPrimary.copy(alpha = 0.6f) else DarkBorder.copy(alpha = 0.20f),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
-                                                        .clickable {
+                                                        .clickable(role = Role.RadioButton) {
                                                             selectedDebtId = debt.id
                                                             descriptionText = "Pembayaran Hutang: ${debt.title} (${debt.lenderName})"
                                                         }
@@ -614,7 +612,7 @@ fun AddEditTransactionContent(
                                                                     modifier = Modifier
                                                                         .clip(RoundedCornerShape(4.dp))
                                                                         .background(CoralPrimary)
-                                                                        .clickable {
+                                                                        .clickable(role = Role.Button) {
                                                                             amountText = debt.remainingAmount.toString()
                                                                         }
                                                                         .padding(horizontal = 8.dp, vertical = 3.dp)
@@ -687,6 +685,12 @@ fun AddEditTransactionContent(
                                 )
                             },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { focusManager.clearFocus() }
+                            ),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -720,7 +724,7 @@ fun AddEditTransactionContent(
                                         .clip(RoundedCornerShape(6.dp))
                                         .background(PebbleSurfaceVariant)
                                         .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-                                        .clickable { descriptionText = suggestion }
+                                        .clickable(role = Role.Button) { descriptionText = suggestion }
                                         .padding(horizontal = 9.dp, vertical = 5.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -984,5 +988,4 @@ fun AddEditTransactionContent(
                     shadowOffset = 3.dp
                 )
             }
-        }
 }

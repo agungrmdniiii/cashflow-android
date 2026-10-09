@@ -8,6 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,8 +19,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,10 +31,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.cashflow.app.data.model.Asset
 import com.cashflow.app.data.model.AssetType
 import com.cashflow.app.ui.CashflowViewModel
-import com.cashflow.app.ui.components.AssetTypeDropdownField
-import com.cashflow.app.ui.components.DuitAingButton
-import com.cashflow.app.ui.components.DuitAingButtonVariant
-import com.cashflow.app.ui.components.Formatters
+import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
 import java.util.UUID
 
@@ -39,24 +39,18 @@ import java.util.UUID
 fun AddAssetDialog(
     viewModel: CashflowViewModel,
     assetToEdit: Asset? = null,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxHeight(0.90f)
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding(),
-            contentAlignment = Alignment.Center
-        ) {
-            AddAssetContent(
-                viewModel = viewModel,
-                assetToEdit = assetToEdit,
-                onDismiss = onDismiss
-            )
-        }
+        AddAssetContent(
+            viewModel = viewModel,
+            assetToEdit = assetToEdit,
+            onDismiss = onDismiss,
+            modifier = modifier
+        )
     }
 }
 
@@ -65,7 +59,8 @@ fun AddAssetContent(
     viewModel: CashflowViewModel,
     assetToEdit: Asset? = null,
     onDismiss: () -> Unit,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val isEditing = assetToEdit != null
     var nameInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.name ?: "") }
@@ -75,6 +70,7 @@ fun AddAssetContent(
     var isDefaultChecked by remember(assetToEdit) { mutableStateOf(assetToEdit?.isDefault ?: false) }
 
     val balance = openingBalanceInput.toLongOrNull() ?: 0L
+    val focusManager = LocalFocusManager.current
 
     val nameSuggestions = remember(selectedType) {
         when (selectedType.lowercase()) {
@@ -87,44 +83,27 @@ fun AddAssetContent(
         }
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(0.95f)
-            .fillMaxHeight(0.92f)
-            .padding(vertical = 12.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.5.dp, DarkBorder),
-        colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .navigationBarsPadding()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
-        ) {
             // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = if (isEditing) "EDIT ASET" else "TAMBAH ASET BARU",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp,
-                            fontSize = 18.sp
-                        ),
-                        color = DarkSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (isEditing) "Perbarui informasi rekening atau instrumen simpanan" else "Kelola rekening, e-wallet, atau instrumen simpanan",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
+                Text(
+                    text = if (isEditing) "EDIT ASET" else "TAMBAH ASET BARU",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        fontSize = 18.sp
+                    ),
+                    color = DarkSurface
+                )
 
                 Box(
                     modifier = Modifier
@@ -196,6 +175,7 @@ fun AddAssetContent(
                         onValueChange = { nameInput = it },
                         placeholder = { Text("Contoh: BCA, GoPay, Dompet") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -247,7 +227,14 @@ fun AddAssetContent(
                         prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
                         placeholder = { Text("0") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { focusManager.clearFocus() }
+                        ),
+                        visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -399,5 +386,4 @@ fun AddAssetContent(
                 )
             }
         }
-    }
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -76,9 +77,8 @@ fun HomeScreen(
     var showBudgetDialog by remember { mutableStateOf(false) }
     var editingBudget by remember { mutableStateOf<Budget?>(null) }
     var budgetToDelete by remember { mutableStateOf<BudgetWithProgress?>(null) }
-    var showAllBudgets by remember { mutableStateOf(false) }
-    val displayedBudgets = remember(budgets, showAllBudgets) {
-        if (showAllBudgets) budgets else budgets.take(2)
+    val displayedBudgets = remember(budgets) {
+        budgets.take(2)
     }
     val isBalanceHidden by viewModel.isBalanceHidden.collectAsState()
 
@@ -652,7 +652,13 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(role = Role.Button) { viewModel.openBudgetsScreen() }
+                        .padding(vertical = 4.dp)
+                ) {
                     Text(
                         text = "ANGGARAN BELANJA",
                         style = MaterialTheme.typography.titleMedium.copy(
@@ -668,6 +674,13 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold
                         ),
                         color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = "Buka Halaman Anggaran",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
@@ -710,61 +723,20 @@ fun HomeScreen(
         // Empty state when 0 budgets exist
         if (budgets.isEmpty()) {
             item {
-                Card(
+                AnimatedEmptyState(
+                    icon = Icons.Rounded.PieChartOutline,
+                    title = "BELUM ADA ANGGARAN",
+                    description = "Tetapkan batas belanja disiplin per kategori agar keuangan Anda terencana dengan tenang.",
+                    actionText = "BUAT ANGGARAN PERTAMA",
+                    actionIcon = Icons.Rounded.Add,
+                    onActionClick = {
+                        editingBudget = null
+                        showBudgetDialog = true
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
-                    colors = CardDefaults.cardColors(containerColor = PebbleSurface)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(22.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Savings,
-                                contentDescription = null,
-                                tint = DarkSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Belum Ada Anggaran Ditetapkan",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = DarkSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Tetapkan batas belanja disiplin per kategori agar keuangan Anda terencana dengan tenang.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        DuitAingButton(
-                            text = "BUAT ANGGARAN PERTAMA",
-                            onClick = {
-                                editingBudget = null
-                                showBudgetDialog = true
-                            },
-                            leadingIcon = Icons.Rounded.Add,
-                            variant = DuitAingButtonVariant.PRIMARY,
-                            height = 44.dp
-                        )
-                    }
-                }
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
+                )
             }
         } else {
             // List of Category Budgets (Capped to max 2 items by default)
@@ -921,28 +893,39 @@ fun HomeScreen(
                 }
             }
 
-            // Compact overflow indicator / toggle when more than 2 budgets exist
+            // Compact navigation link to dedicated BudgetsScreen
             if (budgets.size > 2) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 2.dp),
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         TextButton(
-                            onClick = { showAllBudgets = !showAllBudgets },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            onClick = { viewModel.openBudgetsScreen() },
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
-                            Text(
-                                text = if (showAllBudgets) "TAMPILKAN 2 ANGGARAN SAJA" else "+ LIHAT SEMUA (${budgets.size}) ANGGARAN",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp,
-                                    fontSize = 11.sp
-                                ),
-                                color = JadePrimary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "LIHAT SEMUA (${budgets.size}) ANGGARAN",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 0.5.sp,
+                                        fontSize = 11.sp
+                                    ),
+                                    color = JadePrimary
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                    contentDescription = null,
+                                    tint = JadePrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1001,37 +984,17 @@ fun HomeScreen(
 
         if (recentTransactions.isEmpty()) {
             item {
-                Column(
+                AnimatedEmptyState(
+                    icon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                    title = "BELUM ADA TRANSAKSI",
+                    description = "Mulai catat transaksi pertama Anda dengan suara atau formulir manual.",
+                    actionText = "RECORD CASHFLOW",
+                    actionIcon = Icons.Rounded.Mic,
+                    onActionClick = { viewModel.isRecordVoiceOpen.value = true },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "BELUM ADA TRANSAKSI",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        ),
-                        color = DarkSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Mulai catat transaksi pertama Anda dengan suara atau formulir manual.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    DuitAingButton(
-                        text = "RECORD CASHFLOW",
-                        onClick = { viewModel.isRecordVoiceOpen.value = true },
-                        leadingIcon = Icons.Rounded.Mic,
-                        trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
-                        variant = DuitAingButtonVariant.PRIMARY,
-                        height = 48.dp,
-                        shadowOffset = 2.dp
-                    )
-                }
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                )
             }
         } else {
             items(recentTransactions, key = { it.id }) { tx ->

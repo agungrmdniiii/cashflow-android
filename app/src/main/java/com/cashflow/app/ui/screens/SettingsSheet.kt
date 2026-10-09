@@ -32,13 +32,7 @@ import com.cashflow.app.data.model.BiometricTimeout
 import com.cashflow.app.data.model.ThemeMode
 import com.cashflow.app.security.BiometricHelper
 import com.cashflow.app.ui.CashflowViewModel
-import com.cashflow.app.ui.components.AssetDropdownField
-import com.cashflow.app.ui.components.DuitAingButton
-import com.cashflow.app.ui.components.DuitAingButtonVariant
-import com.cashflow.app.ui.components.DuitAingConfirmDialog
-import com.cashflow.app.ui.components.DuitAingLogo
-import com.cashflow.app.ui.components.ExportDataDialog
-import com.cashflow.app.ui.components.LogoVariant
+import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
 
 /**
@@ -63,25 +57,15 @@ fun SettingsSheet(
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.92f)
-                .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.5.dp, DarkBorder),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .navigationBarsPadding()
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            ) {
                 // Header Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -176,18 +160,7 @@ fun SettingsSheet(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Text(
-                                text = "Aplikasi personal cashflow Android-first dengan arsitektur offline-first dan privasi 100% lokal di perangkat Anda.",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 12.sp,
-                                    lineHeight = 17.sp
-                                ),
-                                color = TextOnDarkSecondary
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
                             DuitAingButton(
                                 text = "BACA PANDUAN APLIKASI",
@@ -206,8 +179,7 @@ fun SettingsSheet(
 
                     // 2. Section: TEMA TAMPILAN
                     SettingsSection(
-                        title = "TEMA TAMPILAN",
-                        subtitle = "Pilih skema visual sesuai kenyamanan mata."
+                        title = "TEMA TAMPILAN"
                     ) {
                         Row(
                             modifier = Modifier
@@ -279,8 +251,7 @@ fun SettingsSheet(
 
                     // 3. Section: KEAMANAN & PRIVASI (With Biometric Session Handling)
                     SettingsSection(
-                        title = "KEAMANAN BIOMETRIK",
-                        subtitle = "Kunci aplikasi dengan sidik jari atau PIN perangkat."
+                        title = "KEAMANAN BIOMETRIK"
                     ) {
                         Column(
                             modifier = Modifier
@@ -439,8 +410,7 @@ fun SettingsSheet(
 
                     // 4. Section: PREFERENSI KEUANGAN
                     SettingsSection(
-                        title = "PREFERENSI KEUANGAN",
-                        subtitle = "Rekening utama dan format tampilan nilai kas."
+                        title = "PREFERENSI KEUANGAN"
                     ) {
                         Column(
                             modifier = Modifier
@@ -480,8 +450,7 @@ fun SettingsSheet(
 
                     // 5. Section: DATA & CADANGAN
                     SettingsSection(
-                        title = "DATA & CADANGAN",
-                        subtitle = "Ekspor berkas kas atau bersihkan basis data."
+                        title = "DATA & CADANGAN"
                     ) {
                         Column(
                             modifier = Modifier
@@ -492,12 +461,6 @@ fun SettingsSheet(
                                 .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                text = "Ekspor seluruh catatan kas ke Dokumen PDF resmi (tabel rapi & ringkasan) atau Spreadsheet CSV untuk Excel/Sheets.",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.sp),
-                                color = TextSecondary
-                            )
-
                             DuitAingButton(
                                 text = "EKSPOR LAPORAN (PDF / CSV)",
                                 onClick = { showExportDialog = true },
@@ -545,8 +508,7 @@ fun SettingsSheet(
 
                     // 6. Section: PINTASAN & WIDGET ANDROID
                     SettingsSection(
-                        title = "PINTASAN & WIDGET ANDROID",
-                        subtitle = "Catat kas cepat tanpa membuka aplikasi utama."
+                        title = "PINTASAN & WIDGET ANDROID"
                     ) {
                         Box(
                             modifier = Modifier
@@ -569,13 +531,13 @@ fun SettingsSheet(
                                     )
                                     Column {
                                         Text(
-                                            text = "Widget Layar Utama (Home Screen)",
+                                            text = "Widget Layar Utama",
                                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                             color = TextPrimary
                                         )
                                         Text(
-                                            text = "Tahan layar beranda Android -> pilih Widget -> 'Duit Aing' untuk tombol cepat Rekam Suara & Catat Kas.",
-                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+                                            text = "Pintasan Rekam Suara & Catat Kas di beranda.",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
                                             color = TextSecondary
                                         )
                                     }
@@ -600,8 +562,8 @@ fun SettingsSheet(
                                             color = TextPrimary
                                         )
                                         Text(
-                                            text = "Tekan lama ikon aplikasi Duit Aing untuk memunculkan pintasan langsung tanpa membuka aplikasi dulu.",
-                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+                                            text = "Akses cepat saat menekan lama ikon aplikasi.",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
                                             color = TextSecondary
                                         )
                                     }
@@ -614,28 +576,21 @@ fun SettingsSheet(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "DUIT AING v1.0.1 · OFFLINE-FIRST",
+                            text = "DUIT AING v1.0.1 · 100% OFFLINE-FIRST",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             ),
                             color = TextTertiary
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Privasi 100% terjaga. Data tersimpan aman di ponsel Anda.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
-                            color = TextTertiary
-                        )
                     }
                 }
             }
         }
-    }
 
     // Reset Confirmation Dialog
     DuitAingConfirmDialog(
@@ -663,12 +618,12 @@ fun SettingsSheet(
 @Composable
 private fun SettingsSection(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Column {
             Text(
@@ -680,12 +635,14 @@ private fun SettingsSection(
                 ),
                 color = JadePrimary
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                color = TextSecondary
-            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                    color = TextSecondary
+                )
+            }
         }
         content()
     }

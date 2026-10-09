@@ -1,33 +1,39 @@
 package com.cashflow.app.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.cashflow.app.ui.theme.*
+import com.cashflow.app.ui.theme.PebbleSurface
+import com.cashflow.app.ui.theme.TextPrimary
+import com.cashflow.app.ui.theme.TextSecondary
+import com.cashflow.app.ui.theme.TextTertiary
 
 /**
- * Standardized Neo-Brutalist Confirmation Dialog for "Duit Aing"
- * Guarantees 100% uniform design, typography, buttons, and silky-smooth spring animation.
+ * Standardized Neo-Brutalist Confirmation Bottom Sheet for "Duit Aing".
+ * Formatted as a uniform bottom sheet per design specifications.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DuitAingConfirmDialog(
     isOpen: Boolean,
@@ -41,85 +47,77 @@ fun DuitAingConfirmDialog(
 ) {
     if (!isOpen) return
 
-    Dialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
-        AnimatedVisibility(
-            visibleState = transitionState,
-            enter = scaleIn(
-                initialScale = 0.92f,
-                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-            ) + fadeIn(animationSpec = tween(200)) +
-                    slideInVertically(
-                        initialOffsetY = { 50 },
-                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                    ),
-            exit = scaleOut(targetScale = 0.92f, animationSpec = tween(160)) +
-                    fadeOut(animationSpec = tween(160))
-        ) {
-            Card(
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        containerColor = PebbleSurface,
+        scrimColor = Color.Black.copy(alpha = 0.55f),
+        dragHandle = {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.90f)
-                    .wrapContentHeight()
-                    .padding(vertical = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.5.dp, DarkBorder),
-                colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    .padding(top = 10.dp, bottom = 6.dp)
+                    .width(44.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(TextTertiary.copy(alpha = 0.4f))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                text = title.uppercase(),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.5.sp
+                ),
+                color = TextPrimary
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    lineHeight = 21.sp,
+                    fontSize = 13.5.sp
+                ),
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                ) {
-                    Text(
-                        text = title.uppercase(),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = TextPrimary
-                    )
+                DuitAingButton(
+                    text = dismissText,
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    height = 44.dp,
+                    shadowOffset = 2.dp
+                )
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 21.sp,
-                            fontSize = 13.5.sp
-                        ),
-                        color = TextSecondary
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        DuitAingButton(
-                            text = dismissText,
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            variant = DuitAingButtonVariant.OUTLINE,
-                            height = 42.dp,
-                            shadowOffset = 2.dp
-                        )
-
-                        DuitAingButton(
-                            text = confirmText,
-                            onClick = onConfirm,
-                            modifier = Modifier.weight(1.3f),
-                            variant = confirmVariant,
-                            height = 42.dp,
-                            shadowOffset = 2.dp
-                        )
-                    }
-                }
+                DuitAingButton(
+                    text = confirmText,
+                    onClick = {
+                        onConfirm()
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f),
+                    variant = confirmVariant,
+                    height = 44.dp,
+                    shadowOffset = 2.dp
+                )
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

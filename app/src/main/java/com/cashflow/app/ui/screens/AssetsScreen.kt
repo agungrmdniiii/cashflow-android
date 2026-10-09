@@ -73,10 +73,9 @@ fun AssetsScreen(
         }
     }
 
-    var showAddGoalDialog by remember { mutableStateOf(false) }
-    var goalNameInput by remember { mutableStateOf("") }
-    var goalTargetInput by remember { mutableStateOf("") }
-    var goalDeadlineInput by remember { mutableStateOf("") }
+    var showGoalFormSheet by remember { mutableStateOf(false) }
+    var goalToEdit by remember { mutableStateOf<FinancialGoal?>(null) }
+    var goalToDeposit by remember { mutableStateOf<FinancialGoal?>(null) }
 
     Column(
         modifier = modifier
@@ -344,14 +343,6 @@ fun AssetsScreen(
                                 softWrap = false
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "Konsolidasi saldo dari seluruh rekening, e-wallet, dan instrumen simpanan",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.5.sp),
-                            color = TextOnDarkSecondary
-                        )
                     }
                 }
             }
@@ -540,10 +531,8 @@ fun AssetsScreen(
                 DuitAingButton(
                     text = "BUAT TARGET",
                     onClick = {
-                        goalNameInput = ""
-                        goalTargetInput = ""
-                        goalDeadlineInput = "2026-12-31"
-                        showAddGoalDialog = true
+                        goalToEdit = null
+                        showGoalFormSheet = true
                     },
                     leadingIcon = Icons.Rounded.Add,
                     variant = DuitAingButtonVariant.SECONDARY,
@@ -556,41 +545,20 @@ fun AssetsScreen(
 
         if (goals.isEmpty()) {
             item {
-                Column(
+                AnimatedEmptyState(
+                    icon = Icons.Rounded.Savings,
+                    title = "BELUM ADA TARGET KEUANGAN",
+                    description = "Tetapkan sasaran tabungan, dana darurat, atau impian penting dan pantau progresnya setiap hari.",
+                    actionText = "BUAT TARGET PERTAMA",
+                    actionIcon = Icons.Rounded.Add,
+                    onActionClick = {
+                        goalToEdit = null
+                        showGoalFormSheet = true
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "BELUM ADA TARGET",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = DarkSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Tetapkan target dana darurat, liburan, atau pembelian penting.",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    DuitAingButton(
-                        text = "BUAT TARGET PERTAMA",
-                        onClick = {
-                            goalNameInput = ""
-                            goalTargetInput = ""
-                            goalDeadlineInput = "2026-12-31"
-                            showAddGoalDialog = true
-                        },
-                        leadingIcon = Icons.Rounded.Add,
-                        variant = DuitAingButtonVariant.SECONDARY,
-                        height = 44.dp,
-                        shadowOffset = 2.dp
-                    )
-                }
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                )
             }
         } else {
             items(goals, key = { it.id }) { goal ->
@@ -604,6 +572,38 @@ fun AssetsScreen(
                     innerRadius = 11.dp
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        if (goal.progressPercentage >= 1.0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(JadePrimaryLight)
+                                    .border(1.dp, JadePrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Celebration,
+                                        contentDescription = null,
+                                        tint = JadePrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "🎉 TARGET TERCAPAI 100%!",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = JadePrimary
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -634,18 +634,40 @@ fun AssetsScreen(
                                 )
                             }
 
-                            IconButton(
-                                onClick = { goalToDelete = goal },
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .size(44.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.DeleteOutline,
-                                    contentDescription = "Hapus Target Keuangan",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                IconButton(
+                                    onClick = {
+                                        goalToEdit = goal
+                                        showGoalFormSheet = true
+                                    },
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Edit,
+                                        contentDescription = "Edit Target Keuangan",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { goalToDelete = goal },
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.DeleteOutline,
+                                        contentDescription = "Hapus Target Keuangan",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -715,6 +737,18 @@ fun AssetsScreen(
                                 )
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        DuitAingButton(
+                            text = if (goal.progressPercentage >= 1.0f) "+ TAMBAH DANA LAGI" else "+ NABUNG SEKARANG",
+                            onClick = { goalToDeposit = goal },
+                            leadingIcon = Icons.Rounded.Savings,
+                            variant = DuitAingButtonVariant.SECONDARY,
+                            height = 38.dp,
+                            shadowOffset = 2.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
@@ -873,94 +907,54 @@ fun AssetsScreen(
 }
 }
 
-    // Add Goal Dialog
-    if (showAddGoalDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddGoalDialog = false },
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .imePadding()
-                .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
-            containerColor = PebbleSurface,
-            title = {
-                Column {
-                    Text(
-                        text = "TARGET KEUANGAN BARU",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = DarkSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Tetapkan sasaran tabungan dan pantau progresnya",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = goalNameInput,
-                        onValueChange = { goalNameInput = it },
-                        label = { Text("Nama Target (misal: Liburan)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = goalTargetInput,
-                        onValueChange = { goalTargetInput = it.filter { c -> c.isDigit() } },
-                        label = { Text("Nominal Target (Rp)") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    DuitAingDatePickerField(
-                        dateIsoString = goalDeadlineInput.ifBlank { LocalDate.now().plusMonths(3).toString() },
-                        onDateSelected = { goalDeadlineInput = it },
-                        label = "Tenggat Waktu / Deadline",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                DuitAingButton(
-                    text = "SIMPAN TARGET",
-                    onClick = {
-                        val amount = goalTargetInput.toLongOrNull() ?: 0L
-                        if (goalNameInput.isNotBlank() && amount > 0) {
-                            val newGoal = FinancialGoal(
-                                id = "goal_${System.currentTimeMillis()}",
-                                name = goalNameInput,
-                                targetAmount = amount,
-                                currentAmount = 0L,
-                                deadline = goalDeadlineInput.ifBlank { "2026-12-31" }
-                            )
-                            viewModel.saveGoal(newGoal, isNew = true) {
-                                showAddGoalDialog = false
-                            }
-                        }
-                    },
-                    variant = DuitAingButtonVariant.PRIMARY,
-                    height = 42.dp,
-                    shadowOffset = 2.dp
+    // Goal Form Sheet (Create / Edit Financial Goal)
+    GoalFormSheet(
+        isOpen = showGoalFormSheet,
+        goalToEdit = goalToEdit,
+        assets = activeAssets,
+        onDismiss = {
+            showGoalFormSheet = false
+            goalToEdit = null
+        },
+        onSave = { name, targetAmount, currentAmount, deadline, assetId, note ->
+            val goal = if (goalToEdit != null) {
+                goalToEdit!!.copy(
+                    name = name,
+                    targetAmount = targetAmount,
+                    currentAmount = currentAmount,
+                    deadline = deadline,
+                    assetId = assetId,
+                    note = note
                 )
-            },
-            dismissButton = {
-                DuitAingButton(
-                    text = "BATAL",
-                    onClick = { showAddGoalDialog = false },
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 42.dp,
-                    shadowOffset = 2.dp
+            } else {
+                FinancialGoal(
+                    id = "goal_${System.currentTimeMillis()}",
+                    name = name,
+                    targetAmount = targetAmount,
+                    currentAmount = currentAmount,
+                    deadline = deadline,
+                    assetId = assetId,
+                    note = note
                 )
             }
-        )
-    }
+            viewModel.saveGoal(goal, isNew = goalToEdit == null) {
+                showGoalFormSheet = false
+                goalToEdit = null
+            }
+        }
+    )
+
+    // Deposit Goal Sheet (Save money towards goal, optional asset balance deduction)
+    DepositGoalSheet(
+        goal = goalToDeposit,
+        assets = activeAssets,
+        onDismiss = { goalToDeposit = null },
+        onConfirmDeposit = { goalId, amount, sourceAssetId, note ->
+            viewModel.depositToGoal(goalId, amount, sourceAssetId, note) {
+                goalToDeposit = null
+            }
+        }
+    )
 
     // Add Debt Dialog
     AddDebtDialog(

@@ -1,5 +1,6 @@
 package com.cashflow.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,8 +42,13 @@ import com.cashflow.app.ui.theme.*
 @Composable
 fun BudgetsScreen(
     viewModel: CashflowViewModel,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    if (onBack != null) {
+        BackHandler(enabled = true) { onBack() }
+    }
+
     val budgets by viewModel.budgets.collectAsState()
     val categories by viewModel.categories.collectAsState()
 
@@ -68,26 +75,48 @@ fun BudgetsScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 12.dp)
+                    .padding(end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "ANGGARAN",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.3).sp
-                    ),
-                    color = DarkSurface,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                EyebrowTag(
-                    text = "${budgets.size} KATEGORI DITETAPKAN",
-                    variant = EyebrowVariant.DEFAULT
-                )
+                if (onBack != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PebbleSurface)
+                            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .clickable(role = Role.Button, onClick = onBack),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Kembali ke Beranda",
+                            tint = DarkSurface,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Column {
+                    Text(
+                        text = "ANGGARAN",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = (-0.3).sp
+                        ),
+                        color = DarkSurface,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    EyebrowTag(
+                        text = "${budgets.size} KATEGORI DITETAPKAN",
+                        variant = EyebrowVariant.DEFAULT
+                    )
+                }
             }
 
             DuitAingButton(
@@ -112,79 +141,25 @@ fun BudgetsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
                 contentAlignment = Alignment.Center
             ) {
-                DoubleBezelCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    outerPadding = 3.dp,
-                    outerRadius = 16.dp,
-                    innerRadius = 13.dp,
-                    innerColor = PebbleSurface
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(54.dp)
-                                .clip(CircleShape)
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Savings,
-                                contentDescription = null,
-                                tint = DarkSurface,
-                                modifier = Modifier.size(26.dp)
-                            )
+                AnimatedEmptyState(
+                    icon = Icons.Rounded.PieChartOutline,
+                    title = "KENDALIKAN ARUS KAS",
+                    description = "Tetapkan batas per pos belanja agar pengeluaran terukur.",
+                    actionText = "BUAT ANGGARAN PERTAMA",
+                    actionIcon = Icons.Rounded.Add,
+                    onActionClick = {
+                        editingBudget = null
+                        if (expenseCategories.isNotEmpty()) {
+                            selectedCategoryId = expenseCategories.first().id
                         }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            text = "KENDALIKAN ARUS KAS",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = DarkSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "Anggaran adalah kompas belanja Anda. Tetapkan batas per pos agar pengeluaran terukur dan tabungan bertumbuh tenang.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        DuitAingButton(
-                            text = "BUAT ANGGARAN PERTAMA",
-                            onClick = {
-                                editingBudget = null
-                                if (expenseCategories.isNotEmpty()) {
-                                    selectedCategoryId = expenseCategories.first().id
-                                }
-                                targetAmountInput = ""
-                                periodTypeInput = "monthly"
-                                showBudgetDialog = true
-                            },
-                            leadingIcon = Icons.Rounded.Add,
-                            variant = DuitAingButtonVariant.PRIMARY,
-                            height = 44.dp,
-                            shadowOffset = 2.dp
-                        )
+                        targetAmountInput = ""
+                        periodTypeInput = "monthly"
+                        showBudgetDialog = true
                     }
-                }
+                )
             }
         } else {
             LazyColumn(

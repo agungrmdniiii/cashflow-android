@@ -50,3 +50,7 @@ Thumbs.db
 .agent/
 .impeccable/
 .superpowers/
+
+# Sensitive or temporary scratch files
+recovery-codes.txt
+json/

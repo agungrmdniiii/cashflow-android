@@ -10,6 +10,7 @@ import com.cashflow.app.data.export.PdfReportGenerator
 import com.cashflow.app.data.model.*
 import com.cashflow.app.data.preferences.PreferenceManager
 import com.cashflow.app.data.repository.CashflowRepository
+import com.cashflow.app.ui.components.Formatters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -19,6 +20,12 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+
+data class SnackbarEvent(
+    val message: String,
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null
+)
 
 class CashflowViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -143,17 +150,26 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val filterAssetId = MutableStateFlow<String?>(null)
     val filterInputMethod = MutableStateFlow<String?>("all") // "all", "manual", "voice"
 
-    // Snackbar notification state
+    // Snackbar notification state & event
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
 
-    fun showSnackbar(message: String) {
+    private val _snackbarEvent = MutableSharedFlow<SnackbarEvent>(extraBufferCapacity = 4)
+    val snackbarEvent = _snackbarEvent.asSharedFlow()
+
+    fun showSnackbar(message: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
         _snackbarMessage.value = message
+        _snackbarEvent.tryEmit(SnackbarEvent(message, actionLabel, onAction))
     }
 
     fun clearSnackbar() {
         _snackbarMessage.value = null
     }
+
+    // Navigation state for dedicated Budgets Screen
+    val isBudgetsScreenOpen = MutableStateFlow(false)
+    fun openBudgetsScreen() { isBudgetsScreenOpen.value = true }
+    fun closeBudgetsScreen() { isBudgetsScreenOpen.value = false }
 
     // Modal / Sheet States
     val isRecordVoiceOpen = MutableStateFlow(false)
@@ -425,6 +441,27 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun deleteTransactionWithUndo(transaction: Transaction, onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = repository.deleteTransaction(transaction.id)
+            if (res.isSuccess) {
+                selectedTransactionForDetail.value = null
+                onComplete?.invoke()
+                showSnackbar(
+                    message = "Transaksi dihapus",
+                    actionLabel = "BATALKAN",
+                    onAction = {
+                        viewModelScope.launch {
+                            repository.addTransaction(transaction)
+                        }
+                    }
+                )
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menghapus transaksi")
+            }
+        }
+    }
+
     fun saveAsset(asset: Asset, isNew: Boolean, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val res = if (isNew) repository.addAsset(asset) else repository.updateAsset(asset)
@@ -532,6 +569,42 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 showSnackbar("Target keuangan berhasil dihapus.")
             } else {
                 showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menghapus target")
+            }
+        }
+    }
+
+    fun depositToGoal(
+        goalId: String,
+        amount: Long,
+        sourceAssetId: String?,
+        note: String = "",
+        onComplete: (() -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            val res = repository.depositToGoal(goalId, amount, sourceAssetId, note)
+            if (res.isSuccess) {
+                showSnackbar("Tabungan sebesar ${Formatters.formatRupiah(amount)} berhasil disimpan!")
+                onComplete?.invoke()
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menabung ke target")
+            }
+        }
+    }
+
+    fun withdrawFromGoal(
+        goalId: String,
+        amount: Long,
+        destinationAssetId: String?,
+        note: String = "",
+        onComplete: (() -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            val res = repository.withdrawFromGoal(goalId, amount, destinationAssetId, note)
+            if (res.isSuccess) {
+                showSnackbar("Pencairan dana target sebesar ${Formatters.formatRupiah(amount)} berhasil.")
+                onComplete?.invoke()
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal mencairkan dana target")
             }
         }
     }

@@ -35,6 +35,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.cashflow.app.data.model.Asset
 import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.ui.screens.*
+import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
 
 @Composable
@@ -56,16 +57,23 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     val isAddAssetOpen by viewModel.isAddAssetOpen.collectAsState()
     val editingAsset by viewModel.editingAsset.collectAsState()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsState()
+    val isBudgetsScreenOpen by viewModel.isBudgetsScreenOpen.collectAsState()
 
     // Biometric Security Lock State
     val isAppLocked by viewModel.isAppLocked.collectAsState()
     val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
 
-    // Handle Snackbar messages
-    LaunchedEffect(snackbarMessage) {
-        snackbarMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearSnackbar()
+    // Handle Snackbar messages & actions (with BATALKAN undo action support)
+    LaunchedEffect(Unit) {
+        viewModel.snackbarEvent.collect { event ->
+            val result = snackbarHostState.showSnackbar(
+                message = event.message,
+                actionLabel = event.actionLabel,
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                event.onAction?.invoke()
+            }
         }
     }
 
@@ -83,9 +91,15 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         return
     }
 
+    // Android Back Handler for dedicated Budgets screen
+    BackHandler(enabled = isBudgetsScreenOpen) {
+        viewModel.closeBudgetsScreen()
+    }
+
     // Android Back Handler: If not on Home tab (tab 0) and no sheet is open, back takes to Home
     BackHandler(
         enabled = currentTab != 0 &&
+                !isBudgetsScreenOpen &&
                 !isRecordVoiceOpen &&
                 !isAddTxOpen &&
                 selectedTxForDetail == null &&
@@ -132,6 +146,24 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                 ),
                                 color = TextPrimary
                             )
+                            data.visuals.actionLabel?.let { actionLabel ->
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = actionLabel,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.5.sp
+                                    ),
+                                    color = JadePrimary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable(role = Role.Button) {
+                                            data.performAction()
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -176,6 +208,25 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                     3 -> AssetsScreen(viewModel = viewModel)
                 }
             }
+
+            // Dedicated Budgets Screen (Slide-in transition from Home)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isBudgetsScreenOpen,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(260, easing = FastOutSlowInEasing)
+                ) + fadeIn(tween(260)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(200, easing = FastOutSlowInEasing)
+                ) + fadeOut(tween(200))
+            ) {
+                BudgetsScreen(
+                    viewModel = viewModel,
+                    onBack = { viewModel.closeBudgetsScreen() },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 
@@ -198,25 +249,30 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         val inEditMode = isAddTxOpen || editingTx != null
         val activeTx = selectedTxForDetail ?: lastViewedTx
 
-        Dialog(
+        DuitAingModalBottomSheet(
             onDismissRequest = {
                 viewModel.isAddTransactionOpen.value = false
                 viewModel.editingTransaction.value = null
                 viewModel.selectedTransactionForDetail.value = null
                 lastViewedTx = null
-            },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            }
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding(),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .imePadding()
+                    .animateContentSize(
+                        animationSpec = spring(
+                            dampingRatio = 0.82f,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ),
+                contentAlignment = Alignment.TopCenter
             ) {
                 AnimatedContent(
                     targetState = inEditMode,
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter,
                     transitionSpec = {
                         if (targetState) {
                             // Detail -> Edit transition (ketika ingin mengedit!)
@@ -261,7 +317,8 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                     viewModel.editingTransaction.value = null
                                     viewModel.selectedTransactionForDetail.value = lastViewedTx
                                 }
-                            } else null
+                            } else null,
+                            modifier = Modifier.fillMaxHeight(0.90f)
                         )
                     } else if (activeTx != null) {
                         TransactionDetailContent(
@@ -274,7 +331,8 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                             onEdit = {
                                 viewModel.editingTransaction.value = activeTx
                                 viewModel.isAddTransactionOpen.value = true
-                            }
+                            },
+                            modifier = Modifier.wrapContentHeight()
                         )
                     }
                 }
@@ -293,25 +351,30 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         val inAssetEditMode = isAddAssetOpen || editingAsset != null
         val activeAsset = selectedAssetForDetail ?: lastViewedAsset
 
-        Dialog(
+        DuitAingModalBottomSheet(
             onDismissRequest = {
                 viewModel.isAddAssetOpen.value = false
                 viewModel.editingAsset.value = null
                 viewModel.selectedAssetForDetail.value = null
                 lastViewedAsset = null
-            },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            }
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding(),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .imePadding()
+                    .animateContentSize(
+                        animationSpec = spring(
+                            dampingRatio = 0.82f,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ),
+                contentAlignment = Alignment.TopCenter
             ) {
                 AnimatedContent(
                     targetState = inAssetEditMode,
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter,
                     transitionSpec = {
                         if (targetState) {
                             (slideInVertically(
@@ -353,7 +416,8 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                     viewModel.editingAsset.value = null
                                     viewModel.selectedAssetForDetail.value = lastViewedAsset
                                 }
-                            } else null
+                            } else null,
+                            modifier = Modifier.fillMaxHeight(0.90f)
                         )
                     } else if (activeAsset != null) {
                         AssetDetailContent(
@@ -366,7 +430,8 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                             onEdit = {
                                 viewModel.editingAsset.value = activeAsset
                                 viewModel.isAddAssetOpen.value = true
-                            }
+                            },
+                            modifier = Modifier.fillMaxHeight(0.90f)
                         )
                     }
                 }

@@ -423,35 +423,35 @@ fun AddDebtDialog(
 
     val amount = amountText.toLongOrNull() ?: 0L
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .imePadding()
-            .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
-        containerColor = PebbleSurface,
-        title = {
-            Column {
-                Text(
-                    text = "CATAT HUTANG BARU",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = DarkSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Rekam kewajiban pinjaman dan jadwalkan cicilan",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
-            }
-        },
-        text = {
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                text = "CATAT HUTANG BARU",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = DarkSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Rekam kewajiban pinjaman dan jadwalkan cicilan",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -515,6 +515,7 @@ fun AddDebtDialog(
                         placeholder = { Text("0") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -550,7 +551,7 @@ fun AddDebtDialog(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                    .clickable {
+                                    .clickable(role = Role.Button) {
                                         val current = amountText.toLongOrNull() ?: 0L
                                         amountText = (current + presetVal).toString()
                                     }
@@ -592,7 +593,7 @@ fun AddDebtDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { receiveToAsset = !receiveToAsset }
+                                .clickable(role = Role.Checkbox) { receiveToAsset = !receiveToAsset }
                         ) {
                             Checkbox(
                                 checked = receiveToAsset,
@@ -645,41 +646,48 @@ fun AddDebtDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
-            DuitAingButton(
-                text = "SIMPAN HUTANG",
-                variant = DuitAingButtonVariant.PRIMARY,
-                height = 42.dp,
-                shadowOffset = 2.dp,
-                onClick = {
-                    if (title.isBlank() || lender.isBlank()) {
-                        errorMessage = "Nama pinjaman dan pemberi pinjaman wajib diisi"
-                        return@DuitAingButton
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DuitAingButton(
+                    text = "BATAL",
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    height = 44.dp,
+                    shadowOffset = 2.dp
+                )
+
+                DuitAingButton(
+                    text = "SIMPAN HUTANG",
+                    variant = DuitAingButtonVariant.PRIMARY,
+                    modifier = Modifier.weight(1.3f),
+                    height = 44.dp,
+                    shadowOffset = 2.dp,
+                    onClick = {
+                        if (title.isBlank() || lender.isBlank()) {
+                            errorMessage = "Nama pinjaman dan pemberi pinjaman wajib diisi"
+                            return@DuitAingButton
+                        }
+                        if (amount <= 0) {
+                            errorMessage = "Nominal pinjaman harus lebih dari 0"
+                            return@DuitAingButton
+                        }
+                        if (receiveToAsset && selectedReceiveAssetId.isBlank()) {
+                            errorMessage = "Pilih aset penerima dana pinjaman"
+                            return@DuitAingButton
+                        }
+                        val targetAsset = if (receiveToAsset) selectedReceiveAssetId else null
+                        onSave(title, lender, amount, dueDate, note, targetAsset)
                     }
-                    if (amount <= 0) {
-                        errorMessage = "Nominal pinjaman harus lebih dari 0"
-                        return@DuitAingButton
-                    }
-                    if (receiveToAsset && selectedReceiveAssetId.isBlank()) {
-                        errorMessage = "Pilih aset penerima dana pinjaman"
-                        return@DuitAingButton
-                    }
-                    val targetAsset = if (receiveToAsset) selectedReceiveAssetId else null
-                    onSave(title, lender, amount, dueDate, note, targetAsset)
-                }
-            )
-        },
-        dismissButton = {
-            DuitAingButton(
-                text = "BATAL",
-                onClick = onDismiss,
-                variant = DuitAingButtonVariant.OUTLINE,
-                height = 42.dp,
-                shadowOffset = 2.dp
-            )
+                )
+            }
         }
-    )
+    }
 }
 
 /**
@@ -711,37 +719,37 @@ fun PayDebtDialog(
         assets.firstOrNull { it.id == selectedAssetId }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .imePadding()
-            .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
-        containerColor = PebbleSurface,
-        title = {
-            Column {
-                Text(
-                    text = "CATAT PEMBAYARAN CICILAN",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = DarkSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${debt.title} • ${debt.lenderName}",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontWeight = FontWeight.Medium
-                    ),
-                    color = TextSecondary
-                )
-            }
-        },
-        text = {
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                text = "CATAT PEMBAYARAN CICILAN",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = DarkSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "${debt.title} • ${debt.lenderName}",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -828,6 +836,7 @@ fun PayDebtDialog(
                         placeholder = { Text("0") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -857,7 +866,7 @@ fun PayDebtDialog(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(JadePrimaryLight)
                                 .border(1.dp, JadePrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                .clickable { paymentAmountText = debt.remainingAmount.toString() }
+                                .clickable(role = Role.Button) { paymentAmountText = debt.remainingAmount.toString() }
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -878,7 +887,7 @@ fun PayDebtDialog(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                    .clickable { paymentAmountText = (debt.remainingAmount / 2).toString() }
+                                    .clickable(role = Role.Button) { paymentAmountText = (debt.remainingAmount / 2).toString() }
                                     .padding(vertical = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -903,7 +912,7 @@ fun PayDebtDialog(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                    .clickable {
+                                    .clickable(role = Role.Button) {
                                         val cur = paymentAmountText.toLongOrNull() ?: 0L
                                         val next = (cur + presetAmount).coerceAtMost(debt.remainingAmount)
                                         paymentAmountText = next.toString()
@@ -949,38 +958,45 @@ fun PayDebtDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
-            DuitAingButton(
-                text = "CATAT PEMBAYARAN",
-                variant = DuitAingButtonVariant.PRIMARY,
-                height = 42.dp,
-                shadowOffset = 2.dp,
-                onClick = {
-                    if (selectedAssetId.isBlank()) {
-                        errorMessage = "Pilih aset/rekening sumber pembayaran"
-                        return@DuitAingButton
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DuitAingButton(
+                    text = "BATAL",
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    height = 44.dp,
+                    shadowOffset = 2.dp
+                )
+
+                DuitAingButton(
+                    text = "CATAT PEMBAYARAN",
+                    variant = DuitAingButtonVariant.PRIMARY,
+                    modifier = Modifier.weight(1.4f),
+                    height = 44.dp,
+                    shadowOffset = 2.dp,
+                    onClick = {
+                        if (selectedAssetId.isBlank()) {
+                            errorMessage = "Pilih aset/rekening sumber pembayaran"
+                            return@DuitAingButton
+                        }
+                        if (payAmount <= 0) {
+                            errorMessage = "Nominal pembayaran harus lebih dari 0"
+                            return@DuitAingButton
+                        }
+                        if (payAmount > debt.remainingAmount) {
+                            errorMessage = "Nominal melebihi sisa hutang (${Formatters.formatRupiah(debt.remainingAmount)})"
+                            return@DuitAingButton
+                        }
+                        onConfirmPay(debt.id, payAmount, selectedAssetId, paymentDate, note)
                     }
-                    if (payAmount <= 0) {
-                        errorMessage = "Nominal pembayaran harus lebih dari 0"
-                        return@DuitAingButton
-                    }
-                    if (payAmount > debt.remainingAmount) {
-                        errorMessage = "Nominal melebihi sisa hutang (${Formatters.formatRupiah(debt.remainingAmount)})"
-                        return@DuitAingButton
-                    }
-                    onConfirmPay(debt.id, payAmount, selectedAssetId, paymentDate, note)
-                }
-            )
-        },
-        dismissButton = {
-            DuitAingButton(
-                text = "BATAL",
-                onClick = onDismiss,
-                variant = DuitAingButtonVariant.OUTLINE,
-                height = 42.dp,
-                shadowOffset = 2.dp
-            )
+                )
+            }
         }
-    )
+    }
 }

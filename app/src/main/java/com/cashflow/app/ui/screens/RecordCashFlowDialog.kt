@@ -109,26 +109,16 @@ fun RecordCashFlowDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    DuitAingModalBottomSheet(
+        onDismissRequest = onDismiss
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .wrapContentHeight()
-                .padding(vertical = 20.dp)
-                .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
                 // Header Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -259,7 +249,6 @@ fun RecordCashFlowDialog(
             }
         }
     }
-}
 
 @Composable
 private fun VoiceRecordingView(
@@ -694,6 +683,7 @@ private fun VoiceConfirmationView(
                         placeholder = { Text("Ketik nominal (Rp)") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
