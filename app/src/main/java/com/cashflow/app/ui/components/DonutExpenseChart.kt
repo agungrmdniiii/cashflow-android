@@ -47,31 +47,18 @@ data class CategorySliceData(
     val color: Color
 )
 
-// Curated harmonious Jade Pebble Morning chart palette (no rainbow slop)
+// Curated Reference Fintech Forest Green gradient palette
 val DonutChartPalette = listOf(
-    LightJadePrimary,           // #0C6B55 (Signature Jade)
-    LightDarkSurface,           // #141A17 (Deep Charcoal)
-    Color(0xFF108569),     // Jade Medium
-    AccentAmber,           // #E66A23 (Warm Editorial Accent)
-    Color(0xFF2B8A3E),     // Forest Green
-    StatusTransfer,        // #1864AB (High-contrast Slate Blue)
-    Color(0xFF495057),     // Deep Mineral Slate
-    Color(0xFF084839),     // Deep Jade
-    Color(0xFF868E96),     // Pebble Slate Neutral
-    Color(0xFFD9480F)      // Terracotta
+    Color(0xFF133E2B),     // Reference Deep Forest (Slice 1)
+    Color(0xFF2D6A4F),     // Medium Forest (Slice 2)
+    Color(0xFF52B788),     // Mint Sage (Slice 3)
+    Color(0xFF74C69D),     // Light Mint (Slice 4)
+    Color(0xFFA3D9A5),     // Pale Mint (Slice 5)
+    Color(0xFFE5E4DC)      // Warm Pebble Gray (Others)
 )
 
 /**
- * Immersive Interactive Neo-Brutalist Donut Chart for Expense Distribution
- *
- * Implements Sections 27-32 of the Master Product Specification:
- * - Uses ACTUAL expense transactions only (transfers & incomes excluded)
- * - Jade Pebble Morning harmonious palette
- * - Center of Donut:
- *     Default: "TOTAL PENGELUARAN" + formatted total
- *     On Tap: Category Name (uppercase) + formatted amount + percentage (e.g. 26,2%)
- * - Interactive slice selection with smooth entrance animation
- * - Empty state handling
+ * Immersive Interactive Fintech Donut Chart for Expense Distribution
  */
 @Composable
 fun DonutExpenseChart(
@@ -79,17 +66,47 @@ fun DonutExpenseChart(
     totalExpense: Long,
     modifier: Modifier = Modifier,
     chartSize: Dp = 220.dp,
-    isExpense: Boolean = true
+    isExpense: Boolean = true,
+    isBalanceHidden: Boolean = false
 ) {
-    // Map data to slice models with colors
-    val slices = remember(breakdownList) {
-        breakdownList.mapIndexed { index, (cat, amount, pct) ->
-            CategorySliceData(
-                category = cat,
-                name = cat?.name ?: "Lainnya",
-                amount = amount,
-                percentage = pct,
-                color = DonutChartPalette[index % DonutChartPalette.size]
+    val isDark = LocalIsDarkTheme.current
+
+    // Map data to slice models with colors: Top 5 + aggregate "Lainnya" (Max 6 segments total)
+    val slices = remember(breakdownList, isDark) {
+        if (breakdownList.size <= 5) {
+            breakdownList.map { (cat, amount, pct) ->
+                val sliceColor = cat?.icon?.let { getCategoryColor(it, isDark) }
+                    ?: (if (isDark) Color(0xFF90A4AE) else Color(0xFF4A5550))
+                CategorySliceData(
+                    category = cat,
+                    name = cat?.name ?: "Lainnya",
+                    amount = amount,
+                    percentage = pct,
+                    color = sliceColor
+                )
+            }
+        } else {
+            val top5 = breakdownList.take(5).map { (cat, amount, pct) ->
+                val sliceColor = cat?.icon?.let { getCategoryColor(it, isDark) }
+                    ?: (if (isDark) Color(0xFF90A4AE) else Color(0xFF4A5550))
+                CategorySliceData(
+                    category = cat,
+                    name = cat?.name ?: "Lainnya",
+                    amount = amount,
+                    percentage = pct,
+                    color = sliceColor
+                )
+            }
+            val remaining = breakdownList.drop(5)
+            val othersAmount = remaining.sumOf { it.second }
+            val othersPct = remaining.sumOf { it.third.toDouble() }.toFloat()
+            val othersColor = if (isDark) Color(0xFF78909C) else Color(0xFF64748B)
+            top5 + CategorySliceData(
+                category = null,
+                name = "Lainnya",
+                amount = othersAmount,
+                percentage = othersPct,
+                color = othersColor
             )
         }
     }
@@ -217,6 +234,21 @@ fun DonutExpenseChart(
 
                 var startAngle = -90f
 
+                // Draw subtle track ring for visual depth, especially when only 1 category exists
+                drawArc(
+                    color = if (slices.size == 1) {
+                        slices[0].color.copy(alpha = if (isDark) 0.20f else 0.12f)
+                    } else {
+                        if (isDark) Color(0xFF162822) else Color(0xFFECEAE0)
+                    },
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                )
+
                 slices.forEachIndexed { index, slice ->
                     val sweepAngle = (slice.percentage / 100f) * 360f * animationProgress.value
                     val isSelected = selectedIndex == index
@@ -235,171 +267,226 @@ fun DonutExpenseChart(
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = currentStroke, cap = StrokeCap.Butt)
+                        style = Stroke(width = currentStroke, cap = if (slices.size == 1) StrokeCap.Round else StrokeCap.Butt)
                     )
 
                     startAngle += sweepAngle
                 }
             }
 
-            // 2. DONUT CENTER DISPLAY (Section 29)
+            // 2. DONUT CENTER DISPLAY (Matching reference: Amount on top, Total Spent below)
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.68f)
-                    .padding(horizontal = 4.dp),
+                    .fillMaxWidth(0.85f)
+                    .padding(horizontal = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 val selectedSlice = selectedIndex?.let { slices.getOrNull(it) }
 
-                if (selectedSlice != null) {
+                if (slices.size == 1) {
+                    val single = slices[0]
                     Text(
-                        text = selectedSlice.name.uppercase(),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            fontSize = 11.sp
+                        text = Formatters.formatRupiah(single.amount),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 19.sp,
+                            letterSpacing = (-0.4).sp
                         ),
-                        color = selectedSlice.color,
+                        color = TextPrimary,
+                        textAlign = TextAlign.Center,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
+                        softWrap = false
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    val prefix = if (isExpense) "−" else "+"
-                    val amountColor = if (isExpense) StatusNegative else StatusPositive
                     Text(
-                        text = prefix + Formatters.formatRupiah(selectedSlice.amount),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.5).sp
+                        text = single.name,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
                         ),
-                        color = amountColor,
+                        color = single.color,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = String.format(java.util.Locale.US, "%.1f%%", selectedSlice.percentage),
+                        text = "100% Porsi",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp
                         ),
                         color = TextSecondary,
                         textAlign = TextAlign.Center
+                    )
+                } else if (selectedSlice != null) {
+                    Text(
+                        text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(selectedSlice.amount),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 19.sp,
+                            letterSpacing = (-0.4).sp
+                        ),
+                        color = TextPrimary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${selectedSlice.name} (${String.format(java.util.Locale.US, "%.0f%%", selectedSlice.percentage)})",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp
+                        ),
+                        color = selectedSlice.color,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 } else {
                     Text(
-                        text = if (isExpense) "TOTAL PENGELUARAN" else "TOTAL PEMASUKAN",
-                        style = MaterialTheme.typography.labelSmall.copy(
+                        text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(totalExpense),
+                        style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            fontSize = 10.sp
-                        ),
-                        color = TextSecondary,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    val prefix = if (isExpense) "−" else "+"
-                    val amountColor = if (isExpense) StatusNegative else StatusPositive
-                    Text(
-                        text = prefix + Formatters.formatRupiah(totalExpense),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 19.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = amountColor,
+                        color = TextPrimary,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        softWrap = false
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${slices.size} KATEGORI",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp,
-                            fontSize = 10.sp
+                        text = if (isExpense) "Total Pengeluaran" else "Total Pemasukan",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 12.sp
                         ),
-                        color = TextTertiary,
-                        textAlign = TextAlign.Center
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // 3. Interactive Category Legend Items (Section 30)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            slices.forEachIndexed { index, slice ->
-                val isSelected = selectedIndex == index
-
+        // 3. Highlight Card for 1 Category OR 2-Column Legend for Multiple
+        if (slices.size == 1) {
+            val single = slices[0]
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(PebbleSurface)
+                    .border(1.dp, PebbleBorder, RoundedCornerShape(16.dp))
+                    .padding(14.dp)
+            ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (isSelected) PebbleSurfaceVariant else Color.Transparent)
-                        .border(
-                            width = if (isSelected) 1.5.dp else 0.dp,
-                            color = if (isSelected) DarkBorder else Color.Transparent,
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                        .clickable(role = Role.Button) {
-                            selectedIndex = if (isSelected) null else index
-                        }
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(slice.color)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(3.dp))
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = slice.name,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold
-                            ),
-                            color = DarkSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = String.format(java.util.Locale.US, "%.1f%%", slice.percentage),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = TextSecondary
+                        CategoryIcon(
+                            iconName = single.category?.icon ?: "category",
+                            size = 38.dp,
+                            iconSize = 19.dp,
+                            backgroundColor = single.color.copy(alpha = if (isDark) 0.25f else 0.15f),
+                            tintColor = single.color
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        val prefix = if (isExpense) "−" else "+"
-                        val amountColor = if (isExpense) StatusNegative else StatusPositive
-                        Text(
-                            text = prefix + Formatters.formatRupiah(slice.amount),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.ExtraBold
-                            ),
-                            color = amountColor
-                        )
+                        Column {
+                            Text(
+                                text = single.name,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.5.sp
+                                ),
+                                color = DarkSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (isExpense) "100% dari seluruh pengeluaran" else "100% dari seluruh pemasukan",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(single.amount),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.5.sp
+                        ),
+                        color = single.color
+                    )
+                }
+            }
+        } else {
+            val chunkedSlices = remember(slices) { slices.chunked(2) }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                chunkedSlices.forEach { rowSlices ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        rowSlices.forEach { slice ->
+                            val index = slices.indexOf(slice)
+                            val isSelected = selectedIndex == index
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable(role = Role.Button) {
+                                        selectedIndex = if (isSelected) null else index
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(slice.color)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = slice.name,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    ),
+                                    color = if (isSelected) TextPrimary else TextSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = String.format(java.util.Locale.US, "%.0f%%", slice.percentage),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    ),
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                        if (rowSlices.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }

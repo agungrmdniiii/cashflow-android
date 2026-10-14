@@ -22,4 +22,26 @@
             android:targetPackage="com.cashflow.app"
             android:targetClass="com.cashflow.app.MainActivity" />
     </shortcut>
+    <shortcut
+        android:shortcutId="add_expense"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_expense_short"
+        android:shortcutLongLabel="@string/shortcut_expense_long">
+        <intent
+            android:action="com.cashflow.app.ACTION_ADD_EXPENSE"
+            android:targetPackage="com.cashflow.app"
+            android:targetClass="com.cashflow.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="add_income"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_income_short"
+        android:shortcutLongLabel="@string/shortcut_income_long">
+        <intent
+            android:action="com.cashflow.app.ACTION_ADD_INCOME"
+            android:targetPackage="com.cashflow.app"
+            android:targetClass="com.cashflow.app.MainActivity" />
+    </shortcut>
 </shortcuts>

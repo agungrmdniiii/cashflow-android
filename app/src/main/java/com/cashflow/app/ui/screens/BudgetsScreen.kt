@@ -34,6 +34,8 @@ import com.cashflow.app.data.model.BudgetStatus
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
+import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * Editorial Monthly Budgeting for "Duit Aing"
@@ -85,6 +87,7 @@ fun BudgetsScreen(
                 if (onBack != null) {
                     Box(
                         modifier = Modifier
+                            .minimumInteractiveComponentSize()
                             .size(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(PebbleSurface)
@@ -102,25 +105,29 @@ fun BudgetsScreen(
                 }
                 Column {
                     Text(
-                        text = "ANGGARAN",
+                        text = "Anggaran",
                         style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.3).sp
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            letterSpacing = (-0.5).sp
                         ),
                         color = DarkSurface,
                         maxLines = 1,
                         softWrap = false
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    EyebrowTag(
-                        text = "${budgets.size} KATEGORI DITETAPKAN",
-                        variant = EyebrowVariant.DEFAULT
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${budgets.size} pos belanja aktif",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp
+                        ),
+                        color = TextSecondary
                     )
                 }
             }
 
             DuitAingButton(
-                text = "TAMBAH",
+                text = "Tambah",
                 onClick = {
                     editingBudget = null
                     if (expenseCategories.isNotEmpty()) {
@@ -132,8 +139,62 @@ fun BudgetsScreen(
                 },
                 leadingIcon = Icons.Rounded.Add,
                 variant = DuitAingButtonVariant.PRIMARY,
-                height = 44.dp,
-                shadowOffset = 2.dp
+                height = 44.dp
+            )
+        }
+
+        // Rollover Toggle & Info Row
+        val isRolloverEnabled by viewModel.isBudgetRolloverEnabled.collectAsState()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(PebbleSurface)
+                .border(1.dp, PebbleBorder, RoundedCornerShape(12.dp))
+                .clickable(role = Role.Switch) {
+                    viewModel.setBudgetRolloverEnabled(!isRolloverEnabled)
+                }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Autorenew,
+                    contentDescription = null,
+                    tint = if (isRolloverEnabled) JadePrimary else TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column {
+                    Text(
+                        text = "Rollover Sisa Bulan Lalu",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp
+                        ),
+                        color = DarkSurface
+                    )
+                    Text(
+                        text = if (isRolloverEnabled) "Aktif • Sisa unspent bulan lalu menambah plafon" else "Nonaktif • Plafon direset tetap tiap bulan",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.5.sp
+                        ),
+                        color = TextSecondary
+                    )
+                }
+            }
+            Switch(
+                checked = isRolloverEnabled,
+                onCheckedChange = { viewModel.setBudgetRolloverEnabled(it) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = JadePrimary
+                )
             )
         }
 
@@ -146,9 +207,10 @@ fun BudgetsScreen(
             ) {
                 AnimatedEmptyState(
                     icon = Icons.Rounded.PieChartOutline,
+                    lottieRawRes = com.cashflow.app.R.raw.lottie_shopping_cart,
                     title = "KENDALIKAN ARUS KAS",
                     description = "Tetapkan batas per pos belanja agar pengeluaran terukur.",
-                    actionText = "BUAT ANGGARAN PERTAMA",
+                    actionText = "Buat Anggaran Pertama",
                     actionIcon = Icons.Rounded.Add,
                     onActionClick = {
                         editingBudget = null
@@ -164,7 +226,7 @@ fun BudgetsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 90.dp, top = 12.dp)
+                contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
             ) {
                 items(budgets, key = { it.budget.id }) { item ->
                     Box(
@@ -203,11 +265,10 @@ fun BudgetsScreen(
                                     item.status.displayName
                                 }
 
-                                val progressColor = when (item.status) {
-                                    BudgetStatus.SAFE -> JadePrimary
-                                    BudgetStatus.WARNING -> Color(0xFFD97706)
-                                    BudgetStatus.NEAR_LIMIT -> Color(0xFFEA580C)
-                                    BudgetStatus.EXCEEDED -> StatusNegative
+                                val progressColor = when {
+                                    item.progressPercentage >= 1.0f -> StatusNegative
+                                    item.progressPercentage >= 0.80f -> Color(0xFFE89A3C)
+                                    else -> JadePrimary
                                 }
 
                                 val animatedProgress by animateFloatAsState(
@@ -350,7 +411,14 @@ fun BudgetsScreen(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Row 4: Subtle Contextual Footer (Terpakai & Plafon)
+                                val daysRemaining = remember {
+                                    val now = LocalDate.now()
+                                    val ym = YearMonth.from(now)
+                                    (ym.lengthOfMonth() - now.dayOfMonth + 1).coerceAtLeast(1)
+                                }
+                                val dailyRemaining = (item.remainingAmount / daysRemaining).coerceAtLeast(0L)
+
+                                // Row 4: Subtle Contextual Footer (Terpakai & Sisa Harian)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -367,12 +435,12 @@ fun BudgetsScreen(
                                         softWrap = false
                                     )
                                     Text(
-                                        text = "Batas: " + Formatters.formatRupiah(item.budget.targetAmount),
+                                        text = "Sisa ${Formatters.formatCompact(dailyRemaining)}/hari ($daysRemaining hari lagi)",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 11.sp
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.5.sp
                                         ),
-                                        color = TextSecondary,
+                                        color = progressColor,
                                         maxLines = 1,
                                         softWrap = false
                                     )

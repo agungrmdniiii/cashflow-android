@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 
 /**
  * Section 36: Tactile Mechanical Rolling Odometer Engine (Impeccable Polish)
@@ -36,11 +37,18 @@ fun AnimatedNumberText(
     modifier: Modifier = Modifier,
     prefix: String = "",
     withPrefix: Boolean = true,
+    dimThousands: Boolean = false,
     maxLines: Int = 1,
     softWrap: Boolean = false
 ) {
     val tabularStyle = remember(style) {
         style.copy(fontFeatureSettings = "tnum")
+    }
+
+    val dimmedTabularStyle = remember(tabularStyle) {
+        tabularStyle.copy(
+            fontSize = (tabularStyle.fontSize.value * 0.72f).sp
+        )
     }
 
     val formatted = remember(value, prefix, withPrefix) {
@@ -62,11 +70,15 @@ fun AnimatedNumberText(
                 val indexFromLeft = currentDigitFromLeft
                 currentDigitFromLeft++
 
+                val isDimmed = dimThousands && digitPlaceFromRight < 3
+                val effectiveStyle = if (isDimmed) dimmedTabularStyle else tabularStyle
+                val effectiveColor = if (isDimmed) color.copy(alpha = 0.65f) else color
+
                 key("odometer_digit_$digitPlaceFromRight") {
                     OdometerDigitSlot(
                         digit = char,
-                        style = tabularStyle,
-                        color = color,
+                        style = effectiveStyle,
+                        color = effectiveColor,
                         indexFromLeft = indexFromLeft
                     )
                 }
@@ -75,11 +87,15 @@ fun AnimatedNumberText(
                 for (i in index + 1 until len) {
                     if (formatted[i].isDigit()) digitsToRight++
                 }
+                val isDimmed = dimThousands && digitsToRight < 3
+                val effectiveStyle = if (isDimmed) dimmedTabularStyle else tabularStyle
+                val effectiveColor = if (isDimmed) color.copy(alpha = 0.65f) else color
+
                 key("odometer_dot_$digitsToRight") {
                     Text(
                         text = ".",
-                        style = tabularStyle,
-                        color = color,
+                        style = effectiveStyle,
+                        color = effectiveColor,
                         maxLines = 1,
                         softWrap = false
                     )

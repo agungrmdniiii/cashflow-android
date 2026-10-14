@@ -38,14 +38,14 @@ import com.cashflow.app.ui.theme.*
 @Composable
 fun DoubleBezelCard(
     modifier: Modifier = Modifier,
-    outerPadding: Dp = 4.dp,
-    outerRadius: Dp = 18.dp,
-    innerRadius: Dp = 14.dp,
+    outerPadding: Dp = 0.dp,
+    outerRadius: Dp = 22.dp,
+    innerRadius: Dp = 22.dp,
     shadowOffset: Dp = 0.dp,
-    outerColor: Color = PebbleSurfaceVariant,
-    outerBorderColor: Color = DarkBorder.copy(alpha = 0.20f),
+    outerColor: Color = Color.Transparent,
+    outerBorderColor: Color = Color.Transparent,
     innerColor: Color = PebbleSurface,
-    innerBorderColor: Color = DarkBorder.copy(alpha = 0.18f),
+    innerBorderColor: Color = PebbleBorder,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -127,23 +127,24 @@ fun DoubleBezelCard(
 @Composable
 fun DarkDoubleBezelCard(
     modifier: Modifier = Modifier,
-    outerPadding: Dp = 4.dp,
-    outerRadius: Dp = 20.dp,
-    innerRadius: Dp = 16.dp,
-    shadowOffset: Dp = 3.dp,
+    outerPadding: Dp = 0.dp,
+    outerRadius: Dp = 24.dp,
+    innerRadius: Dp = 22.dp,
+    shadowOffset: Dp = 0.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDark = LocalIsDarkTheme.current
     DoubleBezelCard(
         modifier = modifier,
         outerPadding = outerPadding,
         outerRadius = outerRadius,
         innerRadius = innerRadius,
         shadowOffset = shadowOffset,
-        outerColor = DarkBorder.copy(alpha = 0.12f),
-        outerBorderColor = DarkBorder.copy(alpha = 0.22f),
-        innerColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF161C19) else LightDarkSurface,
-        innerBorderColor = DarkBorder.copy(alpha = 0.20f),
+        outerColor = Color.Transparent,
+        outerBorderColor = Color.Transparent,
+        innerColor = if (isDark) PebbleSurfaceDark else FintechPrimary,
+        innerBorderColor = if (isDark) PebbleBorderDark else FintechSecondary.copy(alpha = 0.5f),
         onClick = onClick,
         content = content
     )

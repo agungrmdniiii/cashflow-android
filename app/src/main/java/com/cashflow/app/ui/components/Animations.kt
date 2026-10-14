@@ -37,8 +37,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.fillMaxSize
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.cashflow.app.ui.theme.DarkBorder
 import com.cashflow.app.ui.theme.JadePrimary
+import com.cashflow.app.ui.theme.JadePrimaryLight
 import com.cashflow.app.ui.theme.PebbleSurface
 import com.cashflow.app.ui.theme.PebbleSurfaceVariant
 import com.cashflow.app.ui.theme.TextPrimary
@@ -86,6 +93,7 @@ fun AnimatedEmptyState(
     title: String,
     description: String,
     modifier: Modifier = Modifier,
+    lottieRawRes: Int? = null,
     actionText: String? = null,
     actionIcon: ImageVector? = null,
     onActionClick: (() -> Unit)? = null
@@ -94,10 +102,10 @@ fun AnimatedEmptyState(
 
     // Smooth vertical floating animation (simulating buoyancy)
     val floatOffset by infiniteTransition.animateFloat(
-        initialValue = -5f,
-        targetValue = 5f,
+        initialValue = -4f,
+        targetValue = 4f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1800, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "emptyStateFloat"
@@ -127,49 +135,89 @@ fun AnimatedEmptyState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 28.dp),
+            .padding(horizontal = 24.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Floating Tactile Icon Container with Breathing Aura
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(96.dp)
-                .offset(y = floatOffset.dp)
-        ) {
-            // Concentric Breathing Glow Ring
-            Box(
-                modifier = Modifier
-                    .size(92.dp)
-                    .scale(pulseScale)
-                    .clip(CircleShape)
-                    .background(JadePrimary.copy(alpha = pulseAlpha))
+        if (lottieRawRes != null) {
+            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(lottieRawRes))
+            val progress by animateLottieCompositionAsState(
+                composition = composition,
+                iterations = LottieConstants.IterateForever,
+                speed = 1.0f
             )
 
-            // Inner Accent Ring
             Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(76.dp)
-                    .clip(CircleShape)
-                    .background(PebbleSurfaceVariant.copy(alpha = 0.5f))
-            )
-
-            // Main Neo-Brutalist Icon Container with Solid Border
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(PebbleSurface)
-                    .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
+                    .size(140.dp)
+                    .offset(y = floatOffset.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = JadePrimary,
-                    modifier = Modifier.size(28.dp)
+                if (composition != null) {
+                    LottieAnimation(
+                        composition = composition,
+                        progress = { progress },
+                        enableMergePaths = true,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(JadePrimaryLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = JadePrimary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+        } else {
+            // Floating Tactile Icon Container with Breathing Aura
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(96.dp)
+                    .offset(y = floatOffset.dp)
+            ) {
+                // Concentric Breathing Glow Ring
+                Box(
+                    modifier = Modifier
+                        .size(92.dp)
+                        .scale(pulseScale)
+                        .clip(CircleShape)
+                        .background(JadePrimary.copy(alpha = pulseAlpha))
                 )
+
+                // Inner Accent Ring
+                Box(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .clip(CircleShape)
+                        .background(PebbleSurfaceVariant.copy(alpha = 0.5f))
+                )
+
+                // Main Neo-Brutalist Icon Container with Solid Border
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(PebbleSurface)
+                        .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = JadePrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
 

@@ -24,6 +24,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,8 +67,21 @@ fun AssetsScreen(
     val selectedDebtFilter by viewModel.selectedDebtFilter.collectAsState()
     val isAddDebtOpen by viewModel.isAddDebtOpen.collectAsState()
     val payingDebt by viewModel.payingDebt.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
     var debtToDelete by remember { mutableStateOf<Debt?>(null) }
     var goalToDelete by remember { mutableStateOf<FinancialGoal?>(null) }
+
+    val avg3MonthSavings = remember(transactions) {
+        val now = java.time.YearMonth.now()
+        var totalNet = 0L
+        for (i in 0..2) {
+            val ym = now.minusMonths(i.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
+            val inc = transactions.filter { it.type == "income" && it.transactionDate.startsWith(ym) }.sumOf { it.amount }
+            val exp = transactions.filter { it.type == "expense" && it.transactionDate.startsWith(ym) }.sumOf { it.amount }
+            totalNet += (inc - exp)
+        }
+        (totalNet / 3).coerceAtLeast(0L)
+    }
 
     val filteredDebts = remember(debts, selectedDebtFilter) {
         when (selectedDebtFilter) {
@@ -73,6 +91,7 @@ fun AssetsScreen(
         }
     }
 
+    val isDark = LocalIsDarkTheme.current
     var showGoalFormSheet by remember { mutableStateOf(false) }
     var goalToEdit by remember { mutableStateOf<FinancialGoal?>(null) }
     var goalToDeposit by remember { mutableStateOf<FinancialGoal?>(null) }
@@ -96,25 +115,28 @@ fun AssetsScreen(
                         .padding(end = 12.dp)
                 ) {
                     Text(
-                        text = "ASET & HUTANG",
+                        text = "Aset & Hutang",
                         style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.3).sp,
-                            fontSize = 22.sp
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            letterSpacing = (-0.5).sp
                         ),
                         color = DarkSurface,
                         maxLines = 1,
                         softWrap = false
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    EyebrowTag(
-                        text = if (subTab == 0) "${activeAssets.size} ASET AKTIF" else "$activeDebtsCount KEWAJIBAN AKTIF",
-                        variant = EyebrowVariant.DEFAULT
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (subTab == 0) "${activeAssets.size} akun aktif" else "$activeDebtsCount kewajiban aktif",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp
+                        ),
+                        color = TextSecondary
                     )
                 }
 
                 DuitAingButton(
-                    text = if (subTab == 0) "TAMBAH ASET" else "TAMBAH HUTANG",
+                    text = if (subTab == 0) "Tambah Aset" else "Tambah Hutang",
                     onClick = {
                         if (subTab == 0) {
                             viewModel.editingAsset.value = null
@@ -130,104 +152,16 @@ fun AssetsScreen(
                 )
             }
 
-        // 2. Segmented Switcher (ASET SAYA | HUTANG SAYA) with accessible touch targets
-        Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(PebbleSurface)
-                    .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(10.dp))
-                    .padding(3.dp)
-            ) {
-                // Tab 0: ASET SAYA
-                val tab0Bg by animateColorAsState(
-                    targetValue = if (subTab == 0) JadePrimary else Color.Transparent,
-                    animationSpec = tween(durationMillis = 180, easing = DuitAingMotion.SubtleEasing),
-                    label = "Tab0Bg"
-                )
-                val tab0TextCol by animateColorAsState(
-                    targetValue = if (subTab == 0) TextOnDark else DarkSurface,
-                    animationSpec = tween(durationMillis = 180, easing = DuitAingMotion.SubtleEasing),
-                    label = "Tab0Text"
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .defaultMinSize(minHeight = 44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(tab0Bg)
-                        .clickable(role = Role.Tab) { viewModel.setAssetScreenSubTab(0) }
-                        .padding(vertical = 9.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "ASET SAYA",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.5.sp,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = tab0TextCol
-                    )
-                }
-
-                // Tab 1: HUTANG SAYA
-                val tab1Bg by animateColorAsState(
-                    targetValue = if (subTab == 1) JadePrimary else Color.Transparent,
-                    animationSpec = tween(durationMillis = 180, easing = DuitAingMotion.SubtleEasing),
-                    label = "Tab1Bg"
-                )
-                val tab1TextCol by animateColorAsState(
-                    targetValue = if (subTab == 1) TextOnDark else DarkSurface,
-                    animationSpec = tween(durationMillis = 180, easing = DuitAingMotion.SubtleEasing),
-                    label = "Tab1Text"
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .defaultMinSize(minHeight = 44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(tab1Bg)
-                        .clickable(role = Role.Tab) { viewModel.setAssetScreenSubTab(1) }
-                        .padding(vertical = 9.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "HUTANG SAYA",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.5.sp,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = tab1TextCol
-                        )
-                        if (activeDebtsCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(if (subTab == 1) TextOnDark else DarkBorder)
-                                    .padding(horizontal = 6.dp, vertical = 1.dp)
-                            ) {
-                                Text(
-                                    text = "$activeDebtsCount",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.5.sp
-                                    ),
-                                    color = if (subTab == 1) JadePrimary else PebbleSurface
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        // 2. Segmented Switcher (ASET SAYA | HUTANG SAYA) with unified tactile control
+        DuitAingSegmentedControl(
+            items = listOf(
+                SegmentItem(value = 0, label = "ASET SAYA"),
+                SegmentItem(value = 1, label = "HUTANG SAYA", badgeCount = activeDebtsCount)
+            ),
+            selectedValue = subTab,
+            onValueChange = { viewModel.setAssetScreenSubTab(it) },
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+        )
         Spacer(modifier = Modifier.height(6.dp))
 
         AnimatedContent(
@@ -260,7 +194,7 @@ fun AssetsScreen(
         ) { currentSubTab ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 90.dp)
+                contentPadding = PaddingValues(bottom = 100.dp)
             ) {
                 if (currentSubTab == 0) {
             // 2. Total Wealth Focal Point with Concentric DarkDoubleBezelCard Architecture
@@ -406,9 +340,14 @@ fun AssetsScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(JadePrimaryLight),
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isDark) Color(0xFF162822) else JadePrimaryLight)
+                            .border(
+                                width = 1.dp,
+                                color = if (isDark) Color(0xFF223730) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -421,7 +360,7 @@ fun AssetsScreen(
                                 else -> Icons.Rounded.Wallet
                             },
                             contentDescription = null,
-                            tint = JadePrimary,
+                            tint = if (isDark) Color(0xFFA3D9A5) else FintechPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -725,7 +664,7 @@ fun AssetsScreen(
                                     color = TextTertiary,
                                     textAlign = TextAlign.End
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
+                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = if (isBalanceHidden) "••••••" else Formatters.formatRupiah(goal.targetAmount),
                                     style = MaterialTheme.typography.titleSmall.copy(
@@ -734,6 +673,35 @@ fun AssetsScreen(
                                     ),
                                     color = DarkSurface,
                                     textAlign = TextAlign.End
+                                )
+                            }
+                        }
+
+                        // 3-Month Savings Projection (4E)
+                        val remainingToSave = (goal.targetAmount - goal.currentAmount).coerceAtLeast(0L)
+                        if (goal.progressPercentage < 1.0f && remainingToSave > 0L) {
+                            val projectionText = if (avg3MonthSavings > 0L) {
+                                val estMonths = kotlin.math.ceil(remainingToSave.toDouble() / avg3MonthSavings.toDouble()).toInt()
+                                "⏱ Proyeksi: ~$estMonths bln lagi (surplus rata-rata 3 bln: ${Formatters.formatCompact(avg3MonthSavings)}/bln)"
+                            } else {
+                                "⏱ Belum ada surplus 3 bln terakhir untuk proyeksi target"
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(PebbleSurfaceVariant.copy(alpha = 0.6f))
+                                    .border(0.5.dp, PebbleBorder, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = projectionText,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = TextSecondary
                                 )
                             }
                         }
@@ -790,15 +758,15 @@ fun AssetsScreen(
                     Box(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) JadePrimary else PebbleSurface)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (isSelected) (if (isDark) FintechAccentLight else FintechPrimary) else PebbleSurface)
                             .border(
                                 1.dp,
-                                if (isSelected) (if (isDark) JadePrimaryDark else DarkBorder.copy(alpha = 0.35f)) else DarkBorder.copy(alpha = 0.20f),
-                                RoundedCornerShape(8.dp)
+                                if (isSelected) Color.Transparent else PebbleBorder,
+                                RoundedCornerShape(999.dp)
                             )
                             .clickable(role = Role.Button) { viewModel.setDebtFilter(key) }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
                     ) {
                         Text(
                             text = label,
@@ -806,7 +774,7 @@ fun AssetsScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 11.sp
                             ),
-                            color = if (isSelected) (if (isDark) Color(0xFF13271E) else TextOnDark) else DarkSurface
+                            color = if (isSelected) (if (isDark) PebbleBackgroundDark else TextOnDark) else DarkSurface
                         )
                     }
                 }
@@ -834,24 +802,47 @@ fun AssetsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        // Celebratory Minted Seal Badge
+                        // Lottie Calm Zen Motion
+                        val zenComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(com.cashflow.app.R.raw.lottie_calm_zen))
+                        val zenProgress by animateLottieCompositionAsState(
+                            composition = zenComposition,
+                            iterations = LottieConstants.IterateForever,
+                            speed = 1.0f
+                        )
+
                         Box(
                             modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(JadePrimaryLight)
-                                .border(1.dp, JadePrimary.copy(alpha = 0.35f), CircleShape),
+                                .size(130.dp)
+                                .padding(bottom = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Verified,
-                                contentDescription = null,
-                                tint = JadePrimary,
-                                modifier = Modifier.size(30.dp)
-                            )
+                            if (zenComposition != null) {
+                                LottieAnimation(
+                                    composition = zenComposition,
+                                    progress = { zenProgress },
+                                    enableMergePaths = true,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(JadePrimaryLight)
+                                        .border(1.dp, JadePrimary.copy(alpha = 0.35f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Verified,
+                                        contentDescription = null,
+                                        tint = JadePrimary,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // Status Tag
                         EyebrowTag(

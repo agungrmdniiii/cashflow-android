@@ -3,7 +3,8 @@ package com.cashflow.app.data.model
 enum class TransactionType(val value: String, val displayName: String) {
     INCOME("income", "Pemasukan"),
     EXPENSE("expense", "Pengeluaran"),
-    TRANSFER("transfer", "Transfer");
+    TRANSFER("transfer", "Transfer"),
+    ADJUSTMENT("adjustment", "Penyesuaian Saldo");
 
     companion object {
         fun fromValue(value: String): TransactionType {
@@ -29,7 +30,8 @@ enum class AssetType(val value: String, val displayName: String) {
 
 enum class InputMethod(val value: String, val displayName: String) {
     MANUAL("manual", "Manual"),
-    VOICE("voice", "Suara");
+    VOICE("voice", "Suara"),
+    OCR("ocr", "Scan Struk");
 
     companion object {
         fun fromValue(value: String): InputMethod {

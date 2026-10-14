@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -61,146 +62,138 @@ fun DuitAingButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     height: Dp = 50.dp,
-    shadowOffset: Dp = 3.dp,
-    shapeRadius: Dp = 8.dp
+    shadowOffset: Dp = 0.dp,
+    shapeRadius: Dp = 999.dp,
+    containerColor: Color? = null,
+    contentColorOverride: Color? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // Tactile press offset animation: Spring physics (dampingRatio = 0.7f, stiffness = 450f)
-    val pressShift by animateDpAsState(
-        targetValue = if (isPressed && enabled && !isLoading) shadowOffset else 0.dp,
+    val pressScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPressed && enabled && !isLoading) 0.97f else 1.0f,
         animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
-        label = "ButtonPressShift"
+        label = "ButtonPressScale"
     )
 
     val shape = RoundedCornerShape(shapeRadius)
 
+    val isDark = LocalIsDarkTheme.current
     val surfaceColor = when {
         !enabled -> PebbleBorder
-        variant == DuitAingButtonVariant.PRIMARY -> JadePrimary
-        variant == DuitAingButtonVariant.DARK -> DarkSurface
+        containerColor != null -> containerColor
+        variant == DuitAingButtonVariant.PRIMARY -> if (isDark) FintechAccentLight else FintechPrimary
+        variant == DuitAingButtonVariant.DARK -> if (isDark) PebbleSurfaceDark else FintechPrimary
         variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> PebbleSurface
         variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> StatusNegative
-        else -> JadePrimary
+        else -> if (isDark) FintechAccentLight else FintechPrimary
     }
 
     val contentColor = when {
         !enabled -> TextTertiary
+        contentColorOverride != null -> contentColorOverride
+        containerColor != null -> {
+            val luminance = (0.299 * containerColor.red + 0.587 * containerColor.green + 0.114 * containerColor.blue)
+            if (luminance > 0.55) PebbleBackgroundDark else Color.White
+        }
         variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> TextPrimary
+        variant == DuitAingButtonVariant.PRIMARY && isDark -> PebbleBackgroundDark
         else -> TextOnDark
     }
 
     val borderColor = when {
-        !enabled -> DarkBorder.copy(alpha = 0.15f)
-        variant == DuitAingButtonVariant.PRIMARY -> JadePrimaryDark.copy(alpha = 0.40f)
-        variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> DarkBorder.copy(alpha = 0.22f)
-        variant == DuitAingButtonVariant.DARK -> DarkBorder.copy(alpha = 0.35f)
-        variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> StatusNegative.copy(alpha = 0.40f)
-        else -> DarkBorder.copy(alpha = 0.22f)
+        !enabled -> Color.Transparent
+        variant == DuitAingButtonVariant.PRIMARY -> Color.Transparent
+        variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> PebbleBorder
+        variant == DuitAingButtonVariant.DARK -> Color.Transparent
+        variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> Color.Transparent
+        else -> Color.Transparent
     }
 
     val isCompact = height <= 48.dp
     val actualIconSize = if (isCompact) 16.dp else 18.dp
     val actualIconSpacing = if (isCompact) 6.dp else 8.dp
-    val actualPadding = if (isCompact) 10.dp else 16.dp
-    val actualFontSize = if (isCompact) 11.5.sp else 13.sp
+    val actualPadding = if (isCompact) 14.dp else 20.dp
+    val actualFontSize = if (isCompact) 12.sp else 13.5.sp
 
-    // Outer container with padding allocated for the tactile offset shadow
     Box(
         modifier = modifier
             .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-            .height(height + shadowOffset)
-            .padding(end = shadowOffset, bottom = shadowOffset),
-        propagateMinConstraints = true
-    ) {
-        // 1. TACTILE OFFSET SHADOW LAYER (Soft blended shadow)
-        if (enabled && shadowOffset > 0.dp) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = shadowOffset, y = shadowOffset)
-                    .clip(shape)
-                    .background(DarkBorder.copy(alpha = 0.18f))
+            .height(height)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .clip(shape)
+            .background(surfaceColor)
+            .then(if (borderColor != Color.Transparent) Modifier.border(1.dp, borderColor, shape) else Modifier)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled && !isLoading,
+                role = Role.Button,
+                onClick = onClick
             )
-        }
+            .padding(horizontal = actualPadding),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
+                color = contentColor,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (leadingIcon != null) {
+                    Icon(
+                        imageVector = leadingIcon,
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(actualIconSize)
+                    )
+                    Spacer(modifier = Modifier.width(actualIconSpacing))
+                }
 
-        // 2. MAIN BUTTON SURFACE LAYER
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .offset(x = pressShift, y = pressShift)
-                .clip(shape)
-                .background(surfaceColor)
-                .border(1.dp, borderColor, shape)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null, // Custom tactile mechanical shift replaces generic ripple
-                    enabled = enabled && !isLoading,
-                    role = Role.Button,
-                    onClick = onClick
-                )
-                .padding(horizontal = actualPadding),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.8.sp,
+                        fontSize = actualFontSize
+                    ),
                     color = contentColor,
-                    strokeWidth = 2.dp
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    if (leadingIcon != null) {
+
+                if (trailingIcon != null) {
+                    Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 10.dp))
+                    val badgeBg = when (variant) {
+                        DuitAingButtonVariant.PRIMARY -> Color.White.copy(alpha = 0.18f)
+                        DuitAingButtonVariant.DARK -> Color.White.copy(alpha = 0.15f)
+                        DuitAingButtonVariant.DESTRUCTIVE, DuitAingButtonVariant.DANGER -> Color.White.copy(alpha = 0.2f)
+                        else -> DarkBorder.copy(alpha = 0.08f)
+                    }
+                    val badgeSize = if (isCompact) 20.dp else 24.dp
+                    val badgeIconSize = if (isCompact) 11.dp else 13.dp
+                    Box(
+                        modifier = Modifier
+                            .size(badgeSize)
+                            .clip(CircleShape)
+                            .background(badgeBg),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
-                            imageVector = leadingIcon,
+                            imageVector = trailingIcon,
                             contentDescription = null,
                             tint = contentColor,
-                            modifier = Modifier.size(actualIconSize)
+                            modifier = Modifier.size(badgeIconSize)
                         )
-                        Spacer(modifier = Modifier.width(actualIconSpacing))
-                    }
-
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.8.sp,
-                            fontSize = actualFontSize
-                        ),
-                        color = contentColor,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    if (trailingIcon != null) {
-                        Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 10.dp))
-                        val badgeBg = when (variant) {
-                            DuitAingButtonVariant.PRIMARY -> Color.White.copy(alpha = 0.18f)
-                            DuitAingButtonVariant.DARK -> Color.White.copy(alpha = 0.15f)
-                            DuitAingButtonVariant.DESTRUCTIVE, DuitAingButtonVariant.DANGER -> Color.White.copy(alpha = 0.2f)
-                            else -> DarkBorder.copy(alpha = 0.08f)
-                        }
-                        val badgeSize = if (isCompact) 20.dp else 24.dp
-                        val badgeIconSize = if (isCompact) 11.dp else 13.dp
-                        Box(
-                            modifier = Modifier
-                                .size(badgeSize)
-                                .clip(CircleShape)
-                                .background(badgeBg),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = trailingIcon,
-                                contentDescription = null,
-                                tint = contentColor,
-                                modifier = Modifier.size(badgeIconSize)
-                            )
-                        }
                     }
                 }
             }

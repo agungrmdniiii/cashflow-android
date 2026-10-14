@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,10 +59,15 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     val editingAsset by viewModel.editingAsset.collectAsState()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsState()
     val isBudgetsScreenOpen by viewModel.isBudgetsScreenOpen.collectAsState()
+    val isRecurringScreenOpen by viewModel.isRecurringScreenOpen.collectAsState()
 
     // Biometric Security Lock State
     val isAppLocked by viewModel.isAppLocked.collectAsState()
     val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
+
+    // Fresh install / empty assets setup state
+    val activeAssets by viewModel.activeAssets.collectAsState()
+    val isInitialSetupCompleted by viewModel.isInitialSetupCompleted.collectAsState()
 
     // Handle Snackbar messages & actions (with BATALKAN undo action support)
     LaunchedEffect(Unit) {
@@ -91,15 +97,26 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         return
     }
 
+    if (activeAssets.isEmpty() && !isInitialSetupCompleted) {
+        InitialSetupScreen(viewModel = viewModel)
+        return
+    }
+
     // Android Back Handler for dedicated Budgets screen
     BackHandler(enabled = isBudgetsScreenOpen) {
         viewModel.closeBudgetsScreen()
+    }
+
+    // Android Back Handler for dedicated Recurring Transactions screen
+    BackHandler(enabled = isRecurringScreenOpen) {
+        viewModel.isRecurringScreenOpen.value = false
     }
 
     // Android Back Handler: If not on Home tab (tab 0) and no sheet is open, back takes to Home
     BackHandler(
         enabled = currentTab != 0 &&
                 !isBudgetsScreenOpen &&
+                !isRecurringScreenOpen &&
                 !isRecordVoiceOpen &&
                 !isAddTxOpen &&
                 selectedTxForDetail == null &&
@@ -172,7 +189,8 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         bottomBar = {
             DuitAingBottomNavBar(
                 currentTab = currentTab,
-                onTabSelected = { viewModel.selectTab(it) }
+                onTabSelected = { viewModel.selectTab(it) },
+                onAddTransactionClick = { viewModel.openAddTransaction() }
             )
         }
     ) { paddingValues ->
@@ -224,6 +242,25 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                 BudgetsScreen(
                     viewModel = viewModel,
                     onBack = { viewModel.closeBudgetsScreen() },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // Dedicated Recurring Transactions Screen (Slide-in transition)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isRecurringScreenOpen,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(260, easing = FastOutSlowInEasing)
+                ) + fadeIn(tween(260)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(200, easing = FastOutSlowInEasing)
+                ) + fadeOut(tween(200))
+            ) {
+                RecurringTransactionsScreen(
+                    viewModel = viewModel,
+                    onBack = { viewModel.isRecurringScreenOpen.value = false },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -464,32 +501,36 @@ fun CashflowApp(viewModel: CashflowViewModel) {
 @Composable
 private fun DuitAingBottomNavBar(
     currentTab: Int,
-    onTabSelected: (Int) -> Unit
+    onTabSelected: (Int) -> Unit,
+    onAddTransactionClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val navItems = listOf(
+    val isDark = LocalIsDarkTheme.current
+    val navBarShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+
+    val leftTabs = listOf(
         Triple(0, "Beranda", Icons.Rounded.Home),
-        Triple(1, "Transaksi", Icons.AutoMirrored.Rounded.ReceiptLong),
+        Triple(1, "Transaksi", Icons.AutoMirrored.Rounded.ReceiptLong)
+    )
+    val rightTabs = listOf(
         Triple(2, "Laporan", Icons.Rounded.BarChart),
         Triple(3, "Aset", Icons.Rounded.AccountBalanceWallet)
     )
-
-    val navBarShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 16.dp,
+                elevation = 14.dp,
                 shape = navBarShape,
-                ambientColor = Color(0x181E2322),
-                spotColor = Color(0x351E2322)
+                ambientColor = Color(0x150F3D2E),
+                spotColor = Color(0x250F3D2E)
             )
             .clip(navBarShape)
             .background(PebbleSurface)
             .border(
                 width = 1.dp,
-                color = DarkBorder.copy(alpha = 0.15f),
+                color = PebbleBorder,
                 shape = navBarShape
             )
             .navigationBarsPadding()
@@ -497,121 +538,171 @@ private fun DuitAingBottomNavBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .height(72.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            navItems.forEach { (index, title, icon) ->
+            // Left 2 tabs
+            leftTabs.forEach { (index, title, icon) ->
                 val isSelected = currentTab == index
-
-                // Spring bouncy scale for icon
-                val iconScale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.20f else 1.0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    ),
-                    label = "NavIconScale"
+                BottomNavTabItem(
+                    title = title,
+                    icon = icon,
+                    isSelected = isSelected,
+                    onSelect = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(index)
+                    },
+                    modifier = Modifier.weight(1f)
                 )
-
-                // Playful tilt on select
-                val iconRotation by animateFloatAsState(
-                    targetValue = if (isSelected) -4f else 0f,
-                    animationSpec = spring(
-                        dampingRatio = 0.6f,
-                        stiffness = 500f
-                    ),
-                    label = "NavIconRotation"
-                )
-
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) JadePrimary else TextSecondary,
-                    animationSpec = tween(durationMillis = 180),
-                    label = "NavTextColor"
-                )
-                val iconColor by animateColorAsState(
-                    targetValue = if (isSelected) JadePrimary else TextSecondary,
-                    animationSpec = tween(durationMillis = 180),
-                    label = "NavIconColor"
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(14.dp))
-                        .semantics { selected = isSelected }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Tab
-                        ) {
-                            if (!isSelected) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onTabSelected(index)
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        // Tactile indicator container with soft shadow and refined border
-                        val pillShape = RoundedCornerShape(12.dp)
-                        Box(
-                            modifier = Modifier
-                                .then(
-                                    if (isSelected) {
-                                        Modifier.shadow(
-                                            elevation = 2.dp,
-                                            shape = pillShape,
-                                            ambientColor = Color(0x101E2322),
-                                            spotColor = Color(0x201E2322)
-                                        )
-                                    } else Modifier
-                                )
-                                .clip(pillShape)
-                                .background(if (isSelected) JadePrimaryContainer else Color.Transparent)
-                                .then(
-                                    if (isSelected) {
-                                        Modifier.border(
-                                            1.dp,
-                                            JadePrimary.copy(alpha = 0.35f),
-                                            pillShape
-                                        )
-                                    } else Modifier
-                                )
-                                .padding(horizontal = 14.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = title,
-                                tint = iconColor,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .graphicsLayer {
-                                        scaleX = iconScale
-                                        scaleY = iconScale
-                                        rotationZ = iconRotation
-                                    }
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = title.uppercase(),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                fontSize = 9.sp,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = textColor,
-                            maxLines = 1
-                        )
-                    }
-                }
             }
+
+            // Center FAB (Prominent Round Fintech Button)
+            val centerInteractionSource = remember { MutableInteractionSource() }
+            val centerPressed by centerInteractionSource.collectIsPressedAsState()
+            val centerScale by animateFloatAsState(
+                targetValue = if (centerPressed) 0.92f else 1.0f,
+                animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
+                label = "CenterFabScale"
+            )
+
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .size(54.dp)
+                    .graphicsLayer {
+                        scaleX = centerScale
+                        scaleY = centerScale
+                    }
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        ambientColor = Color(0x250F3D2E),
+                        spotColor = Color(0x450F3D2E)
+                    )
+                    .clip(CircleShape)
+                    .background(FintechPrimary)
+                    .clickable(
+                        interactionSource = centerInteractionSource,
+                        indication = null,
+                        role = Role.Button
+                    ) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAddTransactionClick()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = "Tambah Transaksi",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            // Right 2 tabs
+            rightTabs.forEach { (index, title, icon) ->
+                val isSelected = currentTab == index
+                BottomNavTabItem(
+                    title = title,
+                    icon = icon,
+                    isSelected = isSelected,
+                    onSelect = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(index)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavTabItem(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isDark = LocalIsDarkTheme.current
+    val activeColor = if (isDark) FintechAccentMint else FintechPrimary
+    val inactiveColor = if (isDark) TextSecondaryDark else TextSecondary
+
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.08f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
+        label = "NavTabIconScale"
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) activeColor else inactiveColor,
+        animationSpec = tween(durationMillis = 180),
+        label = "NavTabTextColor"
+    )
+    val iconColor by animateColorAsState(
+        targetValue = if (isSelected) activeColor else inactiveColor,
+        animationSpec = tween(durationMillis = 180),
+        label = "NavTabIconColor"
+    )
+
+    val indicatorWidth by animateDpAsState(
+        targetValue = if (isSelected) 18.dp else 0.dp,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 450f),
+        label = "NavIndicatorWidth"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(16.dp))
+            .semantics { selected = isSelected }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Tab,
+                onClick = onSelect
+            )
+            .padding(vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isSelected) activeColor.copy(alpha = if (isDark) 0.12f else 0.08f) else Color.Transparent)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = iconColor,
+                modifier = Modifier
+                    .size(23.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 11.5.sp
+                ),
+                color = textColor,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Box(
+                modifier = Modifier
+                    .width(indicatorWidth)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(if (isSelected) activeColor else Color.Transparent)
+            )
         }
     }
 }

@@ -13,6 +13,11 @@ data class Transaction(
     val note: String = "",
     val attachment: String? = null,
     val inputMethod: String = "manual", // "manual", "voice"
+    val debtId: String? = null,
+    val goalId: String? = null,
+    val isSample: Boolean = false,
+    val tags: String = "",
+    val isAdjustment: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

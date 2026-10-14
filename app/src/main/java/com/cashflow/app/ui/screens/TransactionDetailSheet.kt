@@ -1,6 +1,8 @@
 package com.cashflow.app.ui.screens
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -273,10 +276,27 @@ fun TransactionDetailContent(
                 HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
 
                 DetailRowItem(
-                    icon = if (transaction.inputMethod == "voice") Icons.Rounded.Mic else Icons.Rounded.EditNote,
+                    icon = when (transaction.inputMethod) {
+                        "voice" -> Icons.Rounded.Mic
+                        "ocr" -> Icons.Rounded.DocumentScanner
+                        else -> Icons.Rounded.EditNote
+                    },
                     label = "METODE INPUT",
-                    value = if (transaction.inputMethod == "voice") "Input Suara (Voice AI)" else "Input Manual"
+                    value = when (transaction.inputMethod) {
+                        "voice" -> "Input Suara (Voice AI)"
+                        "ocr" -> "Pemindai Struk (ML Kit OCR)"
+                        else -> "Input Manual"
+                    }
                 )
+
+                if (transaction.tags.isNotBlank()) {
+                    HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                    DetailRowItem(
+                        icon = Icons.Rounded.Label,
+                        label = "TAG / LABEL",
+                        value = transaction.tags
+                    )
+                }
 
                 if (transaction.note.isNotBlank()) {
                     HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
@@ -286,15 +306,100 @@ fun TransactionDetailContent(
                         value = transaction.note
                     )
                 }
+
+                if (!transaction.attachment.isNullOrBlank()) {
+                    val bitmap = remember(transaction.attachment) {
+                        try {
+                            BitmapFactory.decodeFile(transaction.attachment)
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                    if (bitmap != null) {
+                        HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(PebbleBackground)
+                                        .border(1.dp, PebbleBorder, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Receipt,
+                                        contentDescription = null,
+                                        tint = DarkSurface,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "FOTO STRUK",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.5.sp,
+                                        letterSpacing = 0.5.sp
+                                    ),
+                                    color = TextSecondary
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(1.dp, PebbleBorder, RoundedCornerShape(8.dp))
+                            ) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Foto Struk",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 4. ACTION BUTTONS: Hapus & Edit
+        // 4. ACTION BUTTONS: Hapus, Duplikat & Edit
+        DuitAingButton(
+            text = "SIMPAN SEBAGAI FAVORIT",
+            onClick = {
+                val template = com.cashflow.app.data.model.FavoriteTemplate(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = transaction.description,
+                    type = transaction.type,
+                    amount = transaction.amount,
+                    categoryId = transaction.categoryId,
+                    assetId = transaction.assetId,
+                    destinationAssetId = transaction.destinationAssetId,
+                    note = transaction.note
+                )
+                viewModel.saveFavoriteTemplate(template)
+            },
+            leadingIcon = Icons.Rounded.Star,
+            modifier = Modifier.fillMaxWidth(),
+            variant = DuitAingButtonVariant.OUTLINE,
+            height = 44.dp
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             DuitAingButton(
                 text = "HAPUS",
@@ -302,6 +407,25 @@ fun TransactionDetailContent(
                 leadingIcon = Icons.Rounded.DeleteOutline,
                 modifier = Modifier.weight(1f),
                 variant = DuitAingButtonVariant.DANGER,
+                height = 46.dp,
+                shadowOffset = 2.dp
+            )
+
+            DuitAingButton(
+                text = "SALIN",
+                onClick = {
+                    viewModel.editingTransaction.value = transaction.copy(
+                        id = java.util.UUID.randomUUID().toString(),
+                        transactionDate = java.time.LocalDate.now().toString(),
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    viewModel.isAddTransactionOpen.value = true
+                    onDismiss()
+                },
+                leadingIcon = Icons.Rounded.ContentCopy,
+                modifier = Modifier.weight(1f),
+                variant = DuitAingButtonVariant.SECONDARY,
                 height = 46.dp,
                 shadowOffset = 2.dp
             )
@@ -318,8 +442,7 @@ fun TransactionDetailContent(
                     }
                 },
                 leadingIcon = Icons.Rounded.Edit,
-                trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
-                modifier = Modifier.weight(1.3f),
+                modifier = Modifier.weight(1.1f),
                 variant = DuitAingButtonVariant.PRIMARY,
                 height = 46.dp,
                 shadowOffset = 2.dp
@@ -328,11 +451,25 @@ fun TransactionDetailContent(
     }
 
     // Delete Confirmation Dialog (Standardized Neo-Brutalist Frame)
+    val deleteConfirmMessage = remember(transaction, sourceAsset, destAsset) {
+        val amountStr = Formatters.formatRupiah(transaction.amount)
+        when (transaction.type) {
+            TransactionType.TRANSFER.value ->
+                "Hapus transfer $amountStr dari '${sourceAsset?.name ?: "Aset Asal"}' ke '${destAsset?.name ?: "Aset Tujuan"}'? Saldo kedua aset akan dikembalikan otomatis."
+            TransactionType.EXPENSE.value ->
+                "Hapus pengeluaran $amountStr dari '${sourceAsset?.name ?: "Aset"}'? Saldo aset akan dikembalikan otomatis."
+            TransactionType.INCOME.value ->
+                "Hapus pemasukan $amountStr ke '${sourceAsset?.name ?: "Aset"}'? Saldo aset akan dikurangi otomatis."
+            else ->
+                "Hapus transaksi $amountStr dari '${sourceAsset?.name ?: "Aset"}'? Saldo aset akan disesuaikan otomatis."
+        }
+    }
+
     DuitAingConfirmDialog(
         isOpen = showDeleteConfirmDialog,
         title = "HAPUS TRANSAKSI INI?",
-        message = "Transaksi yang dihapus akan memengaruhi saldo aset dan laporan keuangan Anda.",
-        confirmText = "HAPUS",
+        message = deleteConfirmMessage,
+        confirmText = "HAPUS TRANSAKSI",
         confirmVariant = DuitAingButtonVariant.DANGER,
         onConfirm = {
             viewModel.deleteTransactionWithUndo(transaction) {

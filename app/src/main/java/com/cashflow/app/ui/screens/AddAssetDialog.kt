@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -176,6 +177,7 @@ fun AddAssetContent(
                         placeholder = { Text("Contoh: BCA, GoPay, Dompet") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -295,6 +297,9 @@ fun AddAssetContent(
                     value = noteInput,
                     onValueChange = { noteInput = it },
                     label = { Text("Catatan (Opsional)") },
+                    singleLine = false,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )

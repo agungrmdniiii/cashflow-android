@@ -8,53 +8,71 @@ import androidx.compose.ui.graphics.Color
 val LocalIsDarkTheme = compositionLocalOf { false }
 
 // ============================================================================
-// MATCHA OAT & CALM SAGE PALETTE (Soft, Gentle, Eye-Friendly Design System)
+// FINTECH DEEP GREEN & OFF-WHITE DESIGN SYSTEM
 // ============================================================================
 
-// Light Palette Constants (Warm Oat Milk Cream & Soft Muted Matcha Sage)
-val LightJadePrimary = Color(0xFF386652)          // Soft Matcha Sage (Restful & AA compliant)
-val LightJadePrimaryDark = Color(0xFF264839)      // Deeper Matcha for contrast
-val LightJadePrimaryLight = Color(0xFFE4EEE8)     // Gentle matcha milk wash
-val LightJadePrimaryContainer = Color(0xFFD6E7DE) // Soothing sage container
-val LightJadeOnPrimaryContainer = Color(0xFF13271E)
+// Brand Colors matching Reference Fintech Design
+val FintechPrimary = Color(0xFF133E2B)           // Reference Deep Forest Green
+val FintechPrimaryDark = Color(0xFF0C261B)
+val FintechSecondary = Color(0xFF2D6A4F)         // Secondary Forest Green
+val FintechAccentMint = Color(0xFFA3D9A5)        // Reference Luminous Mint ("Better Days" & Delta)
+val FintechAccentLight = Color(0xFFA3D9A5)
+val FintechAccentSoft = Color(0xFFDDEBD8)        // Soft Mint Wash
+val FintechBorderDark = Color(0xFF1C3A2D)
 
-val LightPebbleBackground = Color(0xFFF7F5F0)     // Warm Oat Milk (Anti-glare, replaces harsh white)
-val LightPebbleSurface = Color(0xFFFFFFFF)        // Clean silky surface
-val LightPebbleSurfaceVariant = Color(0xFFEFECE4) // Soft oatmeal card variant
-val LightPebbleBorder = Color(0xFFDAD6CA)         // Gentle tactile hairline border
-val LightDarkBorder = Color(0xFF1C2721)
-val LightDarkSurface = Color(0xFF19231E)
-val LightDarkSurfaceVariant = Color(0xFF23302A)
+// Reference Canvas & Card Colors
+val FintechCanvasLight = Color(0xFFF7F6F0)       // Reference Warm Creamy Off-White Canvas
+val FintechActionSquareLight = Color(0xFFEBEBE3) // Reference Quick Action Square background
+val FintechActionSquareDark = Color(0xFF182E23)
+val FintechInsightCardLight = Color(0xFFEBF5ED)  // Reference Pale Mint Sprout Banner
+val FintechInsightCardDark = Color(0xFF132A1F)
+val FintechBarMutedLight = Color(0xFFCCD7D0)     // Reference Inactive Trend Bars
+val FintechBarMutedDark = Color(0xFF243B30)
 
-val LightTextPrimary = Color(0xFF1B2620)          // Deep warm charcoal (Gentle on retinas)
-val LightTextSecondary = Color(0xFF485850)        // Soft muted sage charcoal
-val LightTextTertiary = Color(0xFF6E7E76)         // Subtle contextual metadata
-val LightTextOnDark = Color(0xFFF7F5F0)           // Warm oat milk text on dark cards
-val LightTextOnDarkSecondary = Color(0xFFAAB8B0)
+// Light Palette Constants
+val LightJadePrimary = FintechPrimary
+val LightJadePrimaryDark = FintechPrimaryDark
+val LightJadePrimaryLight = Color(0xFFDDEBD8)
+val LightJadePrimaryContainer = Color(0xFFDDEBD8)
+val LightJadeOnPrimaryContainer = FintechPrimary
 
-// Dark Palette Constants (Deep Velvety Olive-Charcoal & Glowing Muted Sage)
-val JadePrimaryDarkTheme = Color(0xFF7EA693)      // Soft glowing sage (Gentle, zero harsh neon glare)
-val PebbleBackgroundDark = Color(0xFF141917)      // Deep olive-charcoal (Eye-comfort dark mode)
-val PebbleSurfaceDark = Color(0xFF1C2320)         // Elevated soft dark pebble
-val PebbleSurfaceVariantDark = Color(0xFF232D29)  // Secondary elevated card surface
-val PebbleBorderDark = Color(0xFF2D3933)          // Soft muted hairline border
-val DarkBorderDarkTheme = Color(0xFF35443D)
-val DarkSurfaceDarkTheme = Color(0xFFE8ECE9)
-val TextPrimaryDark = Color(0xFFE8ECE9)           // Soft oat white
-val TextSecondaryDark = Color(0xFFA2B2AA)         // Calming misty sage
-val TextTertiaryDark = Color(0xFF74857D)          // Subtle dark metadata
+val LightPebbleBackground = Color(0xFFF6F5EF)   // Mode Terang Background #F6F5EF
+val LightPebbleSurface = Color(0xFFFFFFFF)      // Surface Putih #FFFFFF
+val LightPebbleSurfaceVariant = Color(0xFFF0EFE7)
+val LightPebbleBorder = Color(0xFFECEAE0)       // Border #ECEAE0
+val LightDarkBorder = FintechPrimary
+val LightDarkSurface = Color(0xFF121A16)        // Text #121A16
+val LightDarkSurfaceVariant = Color(0xFF2B3A33)
 
-// Shared Editorial Accents (Softened for Eye Comfort)
-val AccentAmber = Color(0xFFD97736)               // Warm soft caramel
-val AccentAmberLight = Color(0xFFFDF0E6)
-val StatusPositive = Color(0xFF387B58)            // Soft eucalyptus green
-val StatusPositiveContainer = Color(0xFFE3F3EB)
-val StatusNegative = Color(0xFFBF4842)            // Soft terracotta rose (Comforting, not angry red)
-val StatusNegativeContainer = Color(0xFFFCEEED)
+val LightTextPrimary = Color(0xFF121A16)        // Contrast 15.2:1 (AAA)
+val LightTextSecondary = Color(0xFF4A5C54)      // Contrast 6.1:1 (AA)
+val LightTextTertiary = Color(0xFF62746C)       // Contrast 4.6:1 (AA)
+val LightTextOnDark = Color(0xFFFFFFFF)         // Crisp white on dark cards
+val LightTextOnDarkSecondary = Color(0xFFA3D9A5)
+
+// Dark Palette Constants
+val JadePrimaryDarkTheme = Color(0xFFA3D9A5)
+val PebbleBackgroundDark = Color(0xFF0B1512)    // Mode Gelap Background #0B1512
+val PebbleSurfaceDark = Color(0xFF12201B)       // Mode Gelap Surface #12201B
+val PebbleSurfaceVariantDark = Color(0xFF162822)// Mode Gelap Surface Variant #162822
+val PebbleBorderDark = Color(0xFF223730)       // Mode Gelap Border #223730
+val DarkBorderDarkTheme = Color(0xFF223730)
+val DarkSurfaceDarkTheme = Color(0xFFF2F5F1)
+val TextPrimaryDark = Color(0xFFF2F5F1)        // Mode Gelap Teks #F2F5F1 (Contrast 16.5:1)
+val TextSecondaryDark = Color(0xFF9DB2A8)      // Mode Gelap Teks Sekunder #9DB2A8 (Contrast 8.5:1)
+val TextTertiaryDark = Color(0xFF7A9187)       // Metadata text (Contrast 4.8:1)
+
+// Semantic Colors
+val AccentAmber = Color(0xFFE5A83B)               // Amber for Transport/Gold
+val AccentAmberLight = Color(0xFFFDF4E5)
+val StatusPositive = Color(0xFF2D6A4F)            // Forest Emerald
+val StatusPositiveContainer = Color(0xFFDDEBD8)
+val StatusNegative = Color(0xFFDF5B55)            // Soft Coral Red
+val StatusNegativeContainer = Color(0xFFFDEEED)
 val CoralPrimary = StatusNegative
 val CoralLight = StatusNegativeContainer
-val StatusTransfer = Color(0xFF476C8E)            // Soft dusk slate blue
-val StatusTransferContainer = Color(0xFFECF2F8)
+val StatusTransfer = Color(0xFF3D7E9A)            // Cyan Slate Teal
+val StatusTransferContainer = Color(0xFFEEF5F8)
 
 // Reactive Theme Tokens (Seamlessly adapts between Light and Dark mode)
 val JadePrimary: Color
@@ -110,7 +128,7 @@ val DarkBorder: Color
 val DarkSurface: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) DarkSurfaceDarkTheme else LightDarkSurface
+    get() = if (LocalIsDarkTheme.current) TextPrimaryDark else LightDarkSurface
 
 val DarkSurfaceVariant: Color
     @Composable

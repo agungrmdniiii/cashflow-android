@@ -1,7 +1,10 @@
 package com.cashflow.app.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
@@ -13,7 +16,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -69,6 +75,7 @@ fun RecordCashFlowDialog(
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         )
     }
+    var isPermissionDenied by remember { mutableStateOf(false) }
 
     // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -76,7 +83,10 @@ fun RecordCashFlowDialog(
     ) { isGranted ->
         hasMicPermission = isGranted
         if (isGranted) {
+            isPermissionDenied = false
             voiceManager.startListening()
+        } else {
+            isPermissionDenied = true
         }
     }
 
@@ -98,8 +108,6 @@ fun RecordCashFlowDialog(
     LaunchedEffect(Unit) {
         if (hasMicPermission) {
             voiceManager.startListening()
-        } else {
-            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -213,14 +221,40 @@ fun RecordCashFlowDialog(
                         }
                     )
                 } else {
+                    val openAppSettings = {
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null)
+                            ).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            viewModel.showSnackbar("Buka Pengaturan HP > Aplikasi > Duit Aing > Izin Mikrofon")
+                        }
+                    }
+
+                    val retryListening = {
+                        voiceManager.reset()
+                        if (hasMicPermission) {
+                            voiceManager.startListening()
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+
                     // RECORDING / LISTENING STATE
                     VoiceRecordingView(
                         voiceState = voiceState,
                         audioRms = audioRms,
                         hasPermission = hasMicPermission,
+                        isPermissionDenied = isPermissionDenied,
                         onRequestPermission = {
                             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         },
+                        onOpenSettings = openAppSettings,
+                        onRetryListening = retryListening,
                         onStopListening = {
                             voiceManager.stopListening()
                         },
@@ -255,7 +289,10 @@ private fun VoiceRecordingView(
     voiceState: VoiceState,
     audioRms: Float,
     hasPermission: Boolean,
+    isPermissionDenied: Boolean,
     onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRetryListening: () -> Unit,
     onStopListening: () -> Unit,
     onSimulate: (String) -> Unit,
     onManualClick: () -> Unit,
@@ -316,9 +353,9 @@ private fun VoiceRecordingView(
 
     // Title State
     when {
-        !hasPermission -> {
+        !hasPermission && isPermissionDenied -> {
             Text(
-                text = "AKSES MICROPHONE DIPERLUKAN",
+                text = "IZIN MIKROFON DITOLAK",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
@@ -326,22 +363,75 @@ private fun VoiceRecordingView(
                 color = StatusNegative,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Izinkan akses microphone untuk mencatat transaksi dengan suara.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Akses mikrofon ditolak atau belum aktif. Buka Pengaturan Aplikasi untuk mengizinkan mikrofon, atau tetap gunakan pencatatan manual di bawah.",
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
                 color = TextSecondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(14.dp))
-            DuitAingButton(
-                text = "IZINKAN AKSES",
-                onClick = onRequestPermission,
-                leadingIcon = Icons.Rounded.Mic,
-                variant = DuitAingButtonVariant.PRIMARY,
-                height = 44.dp,
-                shadowOffset = 2.dp
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DuitAingButton(
+                    text = "PENGATURAN",
+                    onClick = onOpenSettings,
+                    leadingIcon = Icons.Rounded.Settings,
+                    variant = DuitAingButtonVariant.PRIMARY,
+                    height = 42.dp,
+                    shadowOffset = 2.dp
+                )
+                DuitAingButton(
+                    text = "CATAT MANUAL",
+                    onClick = onManualClick,
+                    leadingIcon = Icons.Rounded.Edit,
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    height = 42.dp,
+                    shadowOffset = 2.dp
+                )
+            }
+        }
+        !hasPermission -> {
+            Text(
+                text = "IZINKAN AKSES MIKROFON",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = DarkSurface,
+                textAlign = TextAlign.Center
             )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Duit Aing membutuhkan akses mikrofon untuk mendeteksi transaksi suara Anda. Semua data suara diproses offline dan aman di perangkat.",
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
+                color = TextSecondary,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DuitAingButton(
+                    text = "IZINKAN MIKROFON",
+                    onClick = onRequestPermission,
+                    leadingIcon = Icons.Rounded.Mic,
+                    variant = DuitAingButtonVariant.PRIMARY,
+                    height = 42.dp,
+                    shadowOffset = 2.dp
+                )
+                DuitAingButton(
+                    text = "CATAT MANUAL",
+                    onClick = onManualClick,
+                    leadingIcon = Icons.Rounded.Edit,
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    height = 42.dp,
+                    shadowOffset = 2.dp
+                )
+            }
         }
         voiceState is VoiceState.Processing -> {
             Text(
@@ -361,11 +451,43 @@ private fun VoiceRecordingView(
         }
         voiceState is VoiceState.Error -> {
             Text(
-                text = (voiceState as VoiceState.Error).message,
-                style = MaterialTheme.typography.bodyMedium,
+                text = "GAGAL MENDENGAR",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
+                ),
                 color = StatusNegative,
                 textAlign = TextAlign.Center
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = (voiceState as VoiceState.Error).message,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
+                color = TextSecondary,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DuitAingButton(
+                    text = "COBA LAGI",
+                    onClick = onRetryListening,
+                    leadingIcon = Icons.Rounded.Refresh,
+                    variant = DuitAingButtonVariant.PRIMARY,
+                    height = 42.dp,
+                    shadowOffset = 2.dp
+                )
+                DuitAingButton(
+                    text = "CATAT MANUAL",
+                    onClick = onManualClick,
+                    leadingIcon = Icons.Rounded.Edit,
+                    variant = DuitAingButtonVariant.OUTLINE,
+                    height = 42.dp,
+                    shadowOffset = 2.dp
+                )
+            }
         }
         else -> {
             Text(
@@ -573,6 +695,7 @@ private fun VoiceConfirmationView(
     var editedAmount by remember(result) { mutableStateOf(result.amount?.toString() ?: "") }
     var selectedAsset by remember(result) { mutableStateOf(result.matchedAsset) }
     var selectedDestAsset by remember(result) { mutableStateOf(result.destinationAsset) }
+    val focusManager = LocalFocusManager.current
 
     val amountLong = editedAmount.toLongOrNull() ?: 0L
     val isReadyToSave = amountLong > 0 && selectedAsset != null &&
@@ -682,7 +805,8 @@ private fun VoiceConfirmationView(
                         onValueChange = { editedAmount = it.filter { c -> c.isDigit() } },
                         placeholder = { Text("Ketik nominal (Rp)") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                         visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.fillMaxWidth()

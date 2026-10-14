@@ -6,11 +6,17 @@ import android.content.Intent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cashflow.app.data.backup.BackupManager
+import com.cashflow.app.data.backup.BackupSummary
+import com.cashflow.app.data.backup.BackupValidationResult
 import com.cashflow.app.data.export.PdfReportGenerator
 import com.cashflow.app.data.model.*
 import com.cashflow.app.data.preferences.PreferenceManager
 import com.cashflow.app.data.repository.CashflowRepository
+import com.cashflow.app.data.repository.LedgerRecalculateResult
+import com.cashflow.app.data.service.*
 import com.cashflow.app.ui.components.Formatters
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -20,12 +26,22 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+import java.util.UUID
 
 data class SnackbarEvent(
     val message: String,
     val actionLabel: String? = null,
     val onAction: (() -> Unit)? = null
 )
+
+enum class DateFilterPreset(val label: String) {
+    ALL("Semua"),
+    TODAY("Hari Ini"),
+    LAST_7_DAYS("7 Hari"),
+    THIS_MONTH("Bulan Ini"),
+    LAST_MONTH("Bulan Lalu"),
+    CUSTOM("Kustom")
+}
 
 class CashflowViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -56,6 +72,25 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         biometricTimeout.value = timeout
         prefs.setBiometricTimeout(timeout)
     }
+
+    // Backup & Restore Preferences
+    val lastBackupTime = MutableStateFlow(prefs.getLastBackupTime())
+    val isBackupReminderEnabled = MutableStateFlow(prefs.isBackupReminderEnabled())
+
+    fun setBackupReminderEnabled(enabled: Boolean) {
+        isBackupReminderEnabled.value = enabled
+        prefs.setBackupReminderEnabled(enabled)
+    }
+
+    // Has backup been pending for > 7 days?
+    val isBackupOverdue: StateFlow<Boolean> = combine(
+        lastBackupTime,
+        isBackupReminderEnabled
+    ) { lastTime, enabled ->
+        if (!enabled) false
+        else if (lastTime == 0L) true
+        else (System.currentTimeMillis() - lastTime) > (7 * 24 * 60 * 60 * 1000L)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val isAppLocked = MutableStateFlow(prefs.isBiometricEnabled())
     private var lastBackgroundTimestamp: Long = 0L
@@ -105,7 +140,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
         when (action) {
             ACTION_RECORD_VOICE -> openRecordVoice()
-            ACTION_ADD_TRANSACTION -> openAddTransaction(TransactionType.EXPENSE)
+            ACTION_ADD_TRANSACTION, ACTION_ADD_EXPENSE -> openAddTransaction(TransactionType.EXPENSE)
+            ACTION_ADD_INCOME -> openAddTransaction(TransactionType.INCOME)
         }
     }
 
@@ -126,6 +162,88 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val budgets: StateFlow<List<BudgetWithProgress>> = repository.budgets
     val goals: StateFlow<List<FinancialGoal>> = repository.goals
     val debts: StateFlow<List<Debt>> = repository.debts
+    val favoriteTemplates: StateFlow<List<FavoriteTemplate>> = repository.favoriteTemplates
+    val recurringTransactions: StateFlow<List<RecurringTransaction>> = repository.recurringTransactions
+    val upcomingRecurringBills = MutableStateFlow<List<UpcomingRecurringItem>>(emptyList())
+
+    val isRecurringScreenOpen = MutableStateFlow(false)
+    val editingRecurring = MutableStateFlow<RecurringTransaction?>(null)
+
+    init {
+        viewModelScope.launch {
+            try {
+                RecurringSchedulerService.processDueRecurringTransactions(repository)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            repository.recurringTransactions.collect { recList ->
+                upcomingRecurringBills.value = RecurringSchedulerService.getUpcomingBills(
+                    getApplication(), recList, daysAhead = 7
+                )
+            }
+        }
+    }
+
+    // Notification & Rollover Settings
+    val isBudgetAlertsEnabled = MutableStateFlow(prefs.isBudgetAlertsEnabled())
+    fun setBudgetAlertsEnabled(enabled: Boolean) {
+        isBudgetAlertsEnabled.value = enabled
+        prefs.setBudgetAlertsEnabled(enabled)
+    }
+
+    val isDailyReminderEnabled = MutableStateFlow(prefs.isDailyReminderEnabled())
+    fun setDailyReminderEnabled(enabled: Boolean) {
+        isDailyReminderEnabled.value = enabled
+        prefs.setDailyReminderEnabled(enabled)
+    }
+
+    val dailyReminderTime = MutableStateFlow(prefs.getDailyReminderTime())
+    fun setDailyReminderTime(time: String) {
+        dailyReminderTime.value = time
+        prefs.setDailyReminderTime(time)
+    }
+
+    val isBudgetRolloverEnabled = MutableStateFlow(prefs.isBudgetRolloverEnabled())
+    fun setBudgetRolloverEnabled(enabled: Boolean) {
+        isBudgetRolloverEnabled.value = enabled
+        prefs.setBudgetRolloverEnabled(enabled)
+        repository.refreshAll()
+    }
+
+    // AI & Local Insights
+    val geminiApiKey = MutableStateFlow(prefs.getGeminiApiKey())
+    fun setGeminiApiKey(key: String?) {
+        geminiApiKey.value = key
+        prefs.setGeminiApiKey(key)
+    }
+
+    val monthComparisonStats: StateFlow<MonthComparisonStats?> = transactions.map { txList ->
+        val now = LocalDate.now()
+        val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        val prevPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        FinancialInsightService.calculateMonthComparison(txList, currentPrefix, prevPrefix)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val ruleBasedInsights: StateFlow<List<FinancialInsight>> = combine(
+        transactions,
+        budgets,
+        assets
+    ) { txList, budgetList, assetList ->
+        val now = LocalDate.now()
+        val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        FinancialInsightService.generateLocalInsights(
+            transactions = txList,
+            budgets = budgetList,
+            assets = assetList,
+            currentMonthPrefix = currentPrefix
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val isInitialSetupCompleted = MutableStateFlow(prefs.isInitialSetupCompleted())
+
+    val hasSampleData: StateFlow<Boolean> = combine(assets, transactions) { aList, txList ->
+        aList.any { it.isSample } || txList.any { it.isSample }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // UI Navigation State (0: Beranda, 1: Transaksi, 2: Anggaran, 3: Laporan, 4: Aset)
     private val _currentTab = MutableStateFlow(0)
@@ -149,6 +267,53 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val filterCategoryId = MutableStateFlow<String?>(null)
     val filterAssetId = MutableStateFlow<String?>(null)
     val filterInputMethod = MutableStateFlow<String?>("all") // "all", "manual", "voice"
+    val filterDatePreset = MutableStateFlow(DateFilterPreset.ALL)
+    val filterStartDate = MutableStateFlow<LocalDate?>(null)
+    val filterEndDate = MutableStateFlow<LocalDate?>(null)
+    val filterMinAmount = MutableStateFlow<Long?>(null)
+    val filterMaxAmount = MutableStateFlow<Long?>(null)
+    val isFilterSheetOpen = MutableStateFlow(false)
+
+    val activeFilterCount: StateFlow<Int> = combine(
+        filterType,
+        filterCategoryId,
+        filterAssetId,
+        filterDatePreset,
+        filterMinAmount,
+        filterMaxAmount
+    ) { args: Array<Any?> ->
+        val type = args[0] as? String
+        val catId = args[1] as? String
+        val assetId = args[2] as? String
+        val datePreset = args[3] as? DateFilterPreset ?: DateFilterPreset.ALL
+        val minAmt = args[4] as? Long
+        val maxAmt = args[5] as? Long
+
+        var count = 0
+        if (type != null && type != "all") count++
+        if (catId != null) count++
+        if (assetId != null) count++
+        if (datePreset != DateFilterPreset.ALL) count++
+        if (minAmt != null) count++
+        if (maxAmt != null) count++
+        count
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val hasActiveFilters: StateFlow<Boolean> = activeFilterCount.map { it > 0 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun resetFilters() {
+        searchQuery.value = ""
+        filterType.value = "all"
+        filterCategoryId.value = null
+        filterAssetId.value = null
+        filterInputMethod.value = "all"
+        filterDatePreset.value = DateFilterPreset.ALL
+        filterStartDate.value = null
+        filterEndDate.value = null
+        filterMinAmount.value = null
+        filterMaxAmount.value = null
+    }
 
     // Snackbar notification state & event
     private val _snackbarMessage = MutableStateFlow<String?>(null)
@@ -191,10 +356,68 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val selectedDebtFilter = MutableStateFlow("ALL") // "ALL", "ACTIVE", "PAID"
 
     // Global Privacy State: Mask sensitive financial balances
-    val isBalanceHidden = MutableStateFlow(false)
+    val isBalanceHidden = MutableStateFlow(prefs.isBalanceHidden())
 
     fun toggleBalanceVisibility() {
-        isBalanceHidden.value = !isBalanceHidden.value
+        val next = !isBalanceHidden.value
+        isBalanceHidden.value = next
+        prefs.setBalanceHidden(next)
+    }
+
+    // Favorite Templates Preference (Direct Save vs Open Prefilled Form)
+    val isFavoriteDirectSave = MutableStateFlow(prefs.isFavoriteDirectSave())
+
+    fun setFavoriteDirectSave(direct: Boolean) {
+        isFavoriteDirectSave.value = direct
+        prefs.setFavoriteDirectSave(direct)
+    }
+
+    fun saveFavoriteTemplate(template: FavoriteTemplate, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = repository.saveFavoriteTemplate(template)
+            if (res.isSuccess) {
+                showSnackbar("Favorit \"${template.name}\" berhasil disimpan.")
+                onComplete?.invoke(true)
+            } else {
+                showSnackbar("Gagal menyimpan favorit: ${res.exceptionOrNull()?.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
+    fun deleteFavoriteTemplate(id: String) {
+        viewModelScope.launch {
+            val res = repository.deleteFavoriteTemplate(id)
+            if (res.isSuccess) {
+                showSnackbar("Favorit berhasil dihapus.")
+            }
+        }
+    }
+
+    // Remember last used category/asset per transaction type
+    fun getLastUsedCategory(type: String): String? = prefs.getLastUsedCategory(type)
+    fun getLastUsedAsset(type: String): String? = prefs.getLastUsedAsset(type)
+    fun getLastUsedDestinationAsset(): String? = prefs.getLastUsedDestinationAsset()
+
+    fun rememberLastUsed(type: String, categoryId: String?, assetId: String, destAssetId: String? = null) {
+        prefs.setLastUsedCategory(type, categoryId)
+        prefs.setLastUsedAsset(type, assetId)
+        if (type == TransactionType.TRANSFER.value && destAssetId != null) {
+            prefs.setLastUsedDestinationAsset(destAssetId)
+        }
+    }
+
+    // Dynamic frequent descriptions per category
+    fun getFrequentDescriptions(categoryId: String?): List<String> {
+        if (categoryId.isNullOrBlank()) return emptyList()
+        return transactions.value
+            .filter { it.categoryId == categoryId && it.description.isNotBlank() }
+            .groupingBy { it.description.trim() }
+            .eachCount()
+            .toList()
+            .sortedByDescending { it.second }
+            .take(5)
+            .map { it.first }
     }
 
     // Computed: Active Assets
@@ -331,16 +554,23 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             .take(4)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Computed: Filtered Transactions for Transactions Tab (Search + Filters)
+    // Computed: Filtered Transactions for Transactions Tab (Search + Advanced Filters)
     val filteredTransactionsTab: StateFlow<List<Transaction>> = combine(
-        transactions,
-        categories,
-        assets,
-        searchQuery,
-        filterType,
-        filterCategoryId,
-        filterAssetId,
-        filterInputMethod
+        listOf(
+            transactions,
+            categories,
+            assets,
+            searchQuery,
+            filterType,
+            filterCategoryId,
+            filterAssetId,
+            filterInputMethod,
+            filterDatePreset,
+            filterStartDate,
+            filterEndDate,
+            filterMinAmount,
+            filterMaxAmount
+        )
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val txList = args[0] as List<Transaction>
@@ -353,16 +583,22 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         val catId = args[5] as String?
         val assetId = args[6] as String?
         val inputMethod = args[7] as String?
+        val datePreset = args[8] as DateFilterPreset
+        val startDate = args[9] as LocalDate?
+        val endDate = args[10] as LocalDate?
+        val minAmt = args[11] as Long?
+        val maxAmt = args[12] as Long?
 
         val catMap = catList.associateBy { it.id }
         val assetMap = assetList.associateBy { it.id }
+        val today = LocalDate.now()
 
         txList.filter { tx ->
             val catName = catMap[tx.categoryId]?.name ?: ""
             val assetName = assetMap[tx.assetId]?.name ?: ""
             val destAssetName = tx.destinationAssetId?.let { assetMap[it]?.name } ?: ""
 
-            // Search match across description, notes, category name, asset name, and amount (Section 19)
+            // Search match across description, notes, category name, asset name, and amount
             val matchesQuery = query.isBlank() ||
                     tx.description.contains(query, ignoreCase = true) ||
                     tx.note.contains(query, ignoreCase = true) ||
@@ -383,7 +619,39 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             // Input Method match
             val matchesInput = inputMethod == "all" || inputMethod == null || tx.inputMethod == inputMethod
 
-            matchesQuery && matchesType && matchesCat && matchesAsset && matchesInput
+            // Amount range match
+            val matchesMinAmt = minAmt == null || tx.amount >= minAmt
+            val matchesMaxAmt = maxAmt == null || tx.amount <= maxAmt
+
+            // Date preset / custom range match
+            val matchesDate = when (datePreset) {
+                DateFilterPreset.ALL -> true
+                DateFilterPreset.TODAY -> tx.transactionDate == today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                DateFilterPreset.LAST_7_DAYS -> {
+                    val txDate = try { LocalDate.parse(tx.transactionDate) } catch (_: Exception) { null }
+                    txDate != null && !txDate.isBefore(today.minusDays(6)) && !txDate.isAfter(today)
+                }
+                DateFilterPreset.THIS_MONTH -> {
+                    val txDate = try { LocalDate.parse(tx.transactionDate) } catch (_: Exception) { null }
+                    txDate != null && txDate.year == today.year && txDate.monthValue == today.monthValue
+                }
+                DateFilterPreset.LAST_MONTH -> {
+                    val txDate = try { LocalDate.parse(tx.transactionDate) } catch (_: Exception) { null }
+                    val lastM = today.minusMonths(1)
+                    txDate != null && txDate.year == lastM.year && txDate.monthValue == lastM.monthValue
+                }
+                DateFilterPreset.CUSTOM -> {
+                    val txDate = try { LocalDate.parse(tx.transactionDate) } catch (_: Exception) { null }
+                    if (txDate == null) false
+                    else {
+                        val afterStart = startDate == null || !txDate.isBefore(startDate)
+                        val beforeEnd = endDate == null || !txDate.isAfter(endDate)
+                        afterStart && beforeEnd
+                    }
+                }
+            }
+
+            matchesQuery && matchesType && matchesCat && matchesAsset && matchesInput && matchesMinAmt && matchesMaxAmt && matchesDate
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -392,16 +660,30 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     // Prevent duplicate rapid submissions
     private var isSubmitting = false
 
+    fun checkBalanceSufficiency(assetId: String, amount: Long): Boolean {
+        return repository.checkBalanceSufficiency(assetId, amount)
+    }
+
     fun saveTransaction(tx: Transaction, onComplete: ((Boolean) -> Unit)? = null) {
         if (isSubmitting) return
         isSubmitting = true
+
+        rememberLastUsed(tx.type, tx.categoryId, tx.assetId, tx.destinationAssetId)
 
         viewModelScope.launch {
             val res = repository.addTransaction(tx)
             isSubmitting = false
             if (res.isSuccess) {
-                showSnackbar("Transaksi berhasil disimpan.")
                 onComplete?.invoke(true)
+                showSnackbar(
+                    message = "Transaksi berhasil disimpan.",
+                    actionLabel = "URUNGKAN",
+                    onAction = {
+                        viewModelScope.launch {
+                            repository.deleteTransaction(tx.id)
+                        }
+                    }
+                )
             } else {
                 showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menyimpan transaksi")
                 onComplete?.invoke(false)
@@ -409,18 +691,32 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun updateTransaction(tx: Transaction, onComplete: ((Boolean) -> Unit)? = null) {
+    fun updateTransaction(tx: Transaction, previousTx: Transaction? = null, onComplete: ((Boolean) -> Unit)? = null) {
         if (isSubmitting) return
         isSubmitting = true
+
+        rememberLastUsed(tx.type, tx.categoryId, tx.assetId, tx.destinationAssetId)
 
         viewModelScope.launch {
             val res = repository.updateTransaction(tx)
             isSubmitting = false
             if (res.isSuccess) {
-                showSnackbar("Transaksi berhasil diperbarui.")
                 selectedTransactionForDetail.value = null
                 editingTransaction.value = null
                 onComplete?.invoke(true)
+                if (previousTx != null) {
+                    showSnackbar(
+                        message = "Transaksi berhasil diperbarui.",
+                        actionLabel = "URUNGKAN",
+                        onAction = {
+                            viewModelScope.launch {
+                                repository.updateTransaction(previousTx)
+                            }
+                        }
+                    )
+                } else {
+                    showSnackbar("Transaksi berhasil diperbarui.")
+                }
             } else {
                 showSnackbar(res.exceptionOrNull()?.message ?: "Gagal memperbarui transaksi")
                 onComplete?.invoke(false)
@@ -449,7 +745,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 onComplete?.invoke()
                 showSnackbar(
                     message = "Transaksi dihapus",
-                    actionLabel = "BATALKAN",
+                    actionLabel = "URUNGKAN",
                     onAction = {
                         viewModelScope.launch {
                             repository.addTransaction(transaction)
@@ -458,6 +754,100 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 )
             } else {
                 showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menghapus transaksi")
+            }
+        }
+    }
+
+    // --- RECALCULATE, BACKUP & DATA RESET METHODS ---
+
+    fun recalculateBalances(onComplete: ((LedgerRecalculateResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = repository.recalculateBalances()
+            if (res.isSuccess) {
+                val report = res.getOrThrow()
+                if (report.discrepanciesFound > 0) {
+                    showSnackbar("Pemeriksaan selesai: ${report.discrepanciesFound} selisih saldo aset diperbaiki otomatis.")
+                } else {
+                    showSnackbar("Seluruh saldo aset sudah konsisten 100% dengan riwayat transaksi.")
+                }
+                onComplete?.invoke(report)
+            } else {
+                showSnackbar("Gagal menghitung ulang saldo: ${res.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    suspend fun createBackupJson(): Result<String> {
+        val res = repository.createBackupJson()
+        if (res.isSuccess) {
+            val now = System.currentTimeMillis()
+            prefs.setLastBackupTime(now)
+            lastBackupTime.value = now
+        }
+        return res
+    }
+
+    fun validateBackupJson(jsonString: String): BackupValidationResult {
+        return repository.validateBackupJson(jsonString)
+    }
+
+    fun restoreBackup(data: JSONObject, onComplete: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val res = repository.restoreFromJson(data)
+            if (res.isSuccess) {
+                val now = System.currentTimeMillis()
+                prefs.setLastBackupTime(now)
+                lastBackupTime.value = now
+                showSnackbar("Data cadangan berhasil dipulihkan.")
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal memulihkan cadangan.")
+            }
+            onComplete(res)
+        }
+    }
+
+    fun deleteSampleData() {
+        viewModelScope.launch {
+            val res = repository.deleteSampleData()
+            if (res.isSuccess) {
+                showSnackbar("Data contoh berhasil dihapus.")
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menghapus data contoh")
+            }
+        }
+    }
+
+    fun deleteAllUserData(onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = repository.deleteAllUserData()
+            if (res.isSuccess) {
+                prefs.setInitialSetupCompleted(false)
+                showSnackbar("Semua data transaksi dan aset berhasil dihapus.")
+                onComplete?.invoke()
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal menghapus data")
+            }
+        }
+    }
+
+    fun completeInitialSetup(firstAssetName: String, assetType: String, initialBalance: Long, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            val newAsset = Asset(
+                id = "asset_${UUID.randomUUID()}",
+                name = firstAssetName.ifBlank { "Tunai (Dompet)" },
+                type = assetType,
+                openingBalance = initialBalance,
+                currentBalance = initialBalance,
+                isDefault = true,
+                isActive = true
+            )
+            val res = repository.addAsset(newAsset)
+            if (res.isSuccess) {
+                prefs.setInitialSetupCompleted(true)
+                showSnackbar("Aset pertama berhasil dibuat!")
+                onComplete()
+            } else {
+                showSnackbar(res.exceptionOrNull()?.message ?: "Gagal membuat aset")
             }
         }
     }
@@ -724,6 +1114,51 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun exportBackupFile(
+        context: Context,
+        onSuccess: (File, Intent, String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val res = createBackupJson()
+                if (res.isFailure) {
+                    onError(res.exceptionOrNull()?.message ?: "Gagal membuat cadangan JSON")
+                    return@launch
+                }
+                val jsonString = res.getOrThrow()
+                val backupsDir = File(context.cacheDir, "backups")
+                if (!backupsDir.exists()) {
+                    backupsDir.mkdirs()
+                }
+
+                val fileName = BackupManager.generateBackupFileName()
+                val file = File(backupsDir, fileName)
+                withContext(Dispatchers.IO) {
+                    file.writeText(jsonString, Charsets.UTF_8)
+                }
+
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_SUBJECT, "Cadangan Data Duit Aing")
+                    putExtra(Intent.EXTRA_TEXT, "File cadangan data keuangan Duit Aing ($fileName).")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                onSuccess(file, sendIntent, jsonString)
+            } catch (e: Exception) {
+                onError(e.message ?: "Gagal membuat berkas cadangan")
+            }
+        }
+    }
+
     fun resetData() {
         viewModelScope.launch {
             val res = repository.resetToDemo()
@@ -830,8 +1265,209 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // --- TRANSAKSI BERULANG (4A) ---
+    fun refreshUpcomingBills() {
+        upcomingRecurringBills.value = RecurringSchedulerService.getUpcomingBills(
+            getApplication(), recurringTransactions.value, daysAhead = 7
+        )
+    }
+
+    fun processRecurringBills() {
+        viewModelScope.launch {
+            val newlyCreated = RecurringSchedulerService.processDueRecurringSchedules(
+                getApplication(), recurringTransactions.value
+            )
+            if (newlyCreated > 0) {
+                showSnackbar("$newlyCreated tagihan berulang berhasil dicatat otomatis.")
+                repository.refreshAll()
+                refreshUpcomingBills()
+            }
+        }
+    }
+
+    fun skipUpcomingBill(recurringId: String, occurrenceDate: String) {
+        viewModelScope.launch {
+            RecurringSchedulerService.skipRecurringOccurrence(getApplication(), recurringId, occurrenceDate)
+            showSnackbar("Jadwal $occurrenceDate berhasil dilewati.")
+            refreshUpcomingBills()
+        }
+    }
+
+    fun saveRecurringTransaction(recurring: RecurringTransaction, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = repository.saveRecurringTransaction(recurring)
+            if (res.isSuccess) {
+                showSnackbar("Jadwal berulang \"${recurring.name}\" berhasil disimpan.")
+                refreshUpcomingBills()
+                onResult(true)
+            } else {
+                showSnackbar("Gagal: ${res.exceptionOrNull()?.message}")
+                onResult(false)
+            }
+        }
+    }
+
+    fun deleteRecurringTransaction(id: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = repository.deleteRecurringTransaction(id)
+            if (res.isSuccess) {
+                showSnackbar("Jadwal berulang berhasil dihapus.")
+                refreshUpcomingBills()
+                onResult(true)
+            } else {
+                showSnackbar("Gagal menghapus.")
+                onResult(false)
+            }
+        }
+    }
+
+    // --- INSIGHT & AI (4D) ---
+    fun getGeminiPayloadPreview(): JSONObject {
+        val now = LocalDate.now()
+        val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        val prevPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        return FinancialInsightService.buildGeminiAggregatePayload(
+            transactions = transactions.value,
+            categories = categories.value,
+            currentMonthPrefix = currentPrefix,
+            previousMonthPrefix = prevPrefix
+        )
+    }
+
+    fun requestGeminiInsight(apiKey: String, onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch {
+            val now = LocalDate.now()
+            val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+            val prevPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+            val res = FinancialInsightService.fetchGeminiInsight(
+                apiKey = apiKey,
+                transactions = transactions.value,
+                categories = categories.value,
+                currentMonthPrefix = currentPrefix,
+                previousMonthPrefix = prevPrefix
+            )
+            onResult(res)
+        }
+    }
+
+    // --- SESUAIKAN SALDO ASET (4E) ---
+    fun adjustAssetBalance(assetId: String, targetBalance: Long, note: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val asset = assets.value.firstOrNull { it.id == assetId }
+            if (asset == null) {
+                showSnackbar("Aset tidak ditemukan")
+                onResult(false)
+                return@launch
+            }
+            val diff = targetBalance - asset.currentBalance
+            if (diff == 0L) {
+                showSnackbar("Saldo sudah sesuai")
+                onResult(true)
+                return@launch
+            }
+            val isPositive = diff > 0
+            val adjustmentTx = Transaction(
+                id = "adj_${UUID.randomUUID()}",
+                type = TransactionType.ADJUSTMENT.value,
+                amount = if (isPositive) diff else -diff,
+                description = if (note.isNotBlank()) note else "Penyesuaian Saldo (${if (isPositive) "+${Formatters.formatRupiah(diff)}" else Formatters.formatRupiah(diff)})",
+                assetId = assetId,
+                transactionDate = LocalDate.now().toString(),
+                transactionTime = java.time.LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")),
+                note = "Penyesuaian saldo manual dari ${Formatters.formatRupiah(asset.currentBalance)} ke ${Formatters.formatRupiah(targetBalance)}",
+                isAdjustment = true
+            )
+            val saveRes = repository.addTransaction(adjustmentTx)
+            if (saveRes.isSuccess) {
+                showSnackbar("Saldo ${asset.name} disesuaikan ke ${Formatters.formatRupiah(targetBalance)}")
+                onResult(true)
+            } else {
+                showSnackbar("Gagal: ${saveRes.exceptionOrNull()?.message}")
+                onResult(false)
+            }
+        }
+    }
+
+    // --- ENCRYPTED & ZIP BACKUP (4F) ---
+    fun exportEncryptedBackupFile(password: String, onResult: (Result<File>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val jsonRes = repository.createBackupJson()
+                if (jsonRes.isFailure) {
+                    onResult(Result.failure(jsonRes.exceptionOrNull() ?: Exception("Gagal membuat JSON")))
+                    return@launch
+                }
+                val encryptedBytes = CloudBackupService.encryptBackupPayload(jsonRes.getOrThrow(), password)
+                val fileName = BackupManager.generateBackupFileName().replace(".json", ".enc")
+                val outFile = File(getApplication<Application>().cacheDir, fileName)
+                outFile.writeBytes(encryptedBytes)
+                onResult(Result.success(outFile))
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
+
+    fun restoreEncryptedBackupFile(file: File, password: String, onResult: (Result<BackupSummary>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val encryptedBytes = file.readBytes()
+                val jsonString = CloudBackupService.decryptBackupPayload(encryptedBytes, password)
+                val validation = BackupManager.validateBackupJson(jsonString)
+                if (validation !is BackupValidationResult.Valid) {
+                    onResult(Result.failure(IllegalArgumentException((validation as BackupValidationResult.Invalid).reason)))
+                    return@launch
+                }
+                val restoreRes = repository.restoreFromJson(validation.parsedData)
+                if (restoreRes.isSuccess) {
+                    prefs.setLastBackupTime(System.currentTimeMillis())
+                    lastBackupTime.value = System.currentTimeMillis()
+                    onResult(Result.success(validation.summary))
+                } else {
+                    onResult(Result.failure(restoreRes.exceptionOrNull() ?: Exception("Gagal memulihkan database")))
+                }
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
+
+    fun exportZipBackupFile(onResult: (Result<File>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val fileName = BackupManager.generateBackupFileName().replace(".json", ".zip")
+                val outFile = File(getApplication<Application>().cacheDir, fileName)
+                val res = repository.createBackupZip(outFile)
+                if (res.isSuccess) {
+                    onResult(Result.success(outFile))
+                } else {
+                    onResult(Result.failure(res.exceptionOrNull() ?: Exception("Gagal membuat ZIP")))
+                }
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
+
+    fun restoreZipBackupFile(file: File, onResult: (Result<BackupSummary>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val res = repository.restoreFromZip(file)
+                if (res.isSuccess) {
+                    prefs.setLastBackupTime(System.currentTimeMillis())
+                    lastBackupTime.value = System.currentTimeMillis()
+                }
+                onResult(res)
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
+
     companion object {
         const val ACTION_RECORD_VOICE = "com.cashflow.app.ACTION_RECORD_VOICE"
         const val ACTION_ADD_TRANSACTION = "com.cashflow.app.ACTION_ADD_TRANSACTION"
+        const val ACTION_ADD_EXPENSE = "com.cashflow.app.ACTION_ADD_EXPENSE"
+        const val ACTION_ADD_INCOME = "com.cashflow.app.ACTION_ADD_INCOME"
     }
 }

@@ -9,9 +9,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
@@ -99,6 +107,8 @@ fun DuitAingSelectionSheet(
     content: @Composable () -> Unit
 ) {
     if (!visible) return
+
+    val focusManager = LocalFocusManager.current
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -227,6 +237,8 @@ fun DuitAingSelectionSheet(
                             value = searchQuery,
                             onValueChange = onSearchQueryChange,
                             modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                             placeholder = {
                                 Text(
                                     text = searchPlaceholder,
@@ -329,9 +341,8 @@ fun CategoryDropdownField(
                     if (currentCat != null) {
                         CategoryIcon(
                             iconName = currentCat.icon,
-                            size = 32.dp,
-                            iconSize = 16.dp,
-                            backgroundColor = JadePrimaryLight
+                            size = 34.dp,
+                            iconSize = 18.dp
                         )
                         Text(
                             text = currentCat.name,
@@ -415,70 +426,62 @@ fun CategoryDropdownField(
         onSearchQueryChange = if (categories.size > 5) { { searchQuery = it } } else null,
         searchPlaceholder = "Cari kategori..."
     ) {
-        LazyColumn(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 440.dp)
         ) {
             items(filteredCategories, key = { it.id }) { cat ->
                 val isSelected = cat.id == selectedCategoryId
-                val bg = if (isSelected) JadePrimaryLight.copy(alpha = 0.45f) else PebbleSurface
-                val borderCol = if (isSelected) JadePrimary else DarkBorder.copy(alpha = 0.25f)
+                val bg = if (isSelected) JadePrimaryContainer.copy(alpha = 0.5f) else PebbleSurface
+                val borderCol = if (isSelected) JadePrimary else DarkBorder.copy(alpha = 0.22f)
                 val textCol = if (isSelected) JadePrimary else DarkSurface
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .defaultMinSize(minHeight = 52.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(bg)
-                        .border(1.dp, borderCol, RoundedCornerShape(8.dp))
+                        .border(1.2.dp, borderCol, RoundedCornerShape(12.dp))
                         .clickable(role = Role.Button) {
                             onCategorySelected(cat)
                             showSheet = false
                         }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        CategoryIcon(
+                            iconName = cat.icon,
+                            size = 36.dp,
+                            iconSize = 18.dp
+                        )
+                        Text(
+                            text = cat.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                fontSize = 12.5.sp
+                            ),
+                            color = textCol,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
-                        ) {
-                            CategoryIcon(
-                                iconName = cat.icon,
-                                size = 36.dp,
-                                iconSize = 18.dp,
-                                backgroundColor = if (isSelected) JadePrimaryContainer else PebbleSurfaceVariant
-                            )
-                            Text(
-                                text = cat.name,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                    fontSize = 14.sp
-                                ),
-                                color = textCol
-                            )
-                        }
-
+                        )
                         if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(JadePrimary),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = "Terpilih",
-                                    tint = TextOnDark,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = "Terpilih",
+                                tint = JadePrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }
@@ -940,14 +943,14 @@ fun TransactionTypeSegmentedControl(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(999.dp))
             .background(PebbleSurfaceVariant)
-            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
-            .padding(3.dp)
+            .border(1.dp, DarkBorder.copy(alpha = 0.15f), RoundedCornerShape(999.dp))
+            .padding(4.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             types.forEach { (type, pair) ->
                 val (label, icon) = pair
@@ -955,13 +958,13 @@ fun TransactionTypeSegmentedControl(
 
                 val targetBg = when {
                     !isSelected -> Color.Transparent
-                    type == TransactionType.INCOME -> JadePrimary
+                    type == TransactionType.INCOME -> FintechPrimary
                     type == TransactionType.TRANSFER -> StatusTransfer
                     else -> StatusNegative
                 }
                 val bgColor by animateColorAsState(
                     targetValue = targetBg,
-                    animationSpec = tween(durationMillis = 150),
+                    animationSpec = tween(durationMillis = 180),
                     label = "TxTypeBg"
                 )
 
@@ -969,13 +972,8 @@ fun TransactionTypeSegmentedControl(
                     modifier = Modifier
                         .weight(1f)
                         .minimumInteractiveComponentSize()
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(999.dp))
                         .background(bgColor)
-                        .border(
-                            if (isSelected) 1.dp else 0.dp,
-                            if (isSelected) DarkBorder.copy(alpha = 0.25f) else Color.Transparent,
-                            RoundedCornerShape(6.dp)
-                        )
                         .clickable(role = Role.Tab) { onTypeSelected(type) }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
@@ -1017,7 +1015,7 @@ fun DuitAingDatePickerField(
     dateIsoString: String,
     onDateSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    label: String = "TANGGAL TRANSAKSI"
+    label: String = "Tanggal"
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -1046,14 +1044,14 @@ fun DuitAingDatePickerField(
 
     Column(modifier = modifier) {
         Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.5.sp
             ),
             color = TextSecondary
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()

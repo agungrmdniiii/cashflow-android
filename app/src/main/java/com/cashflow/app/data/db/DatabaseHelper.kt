@@ -19,7 +19,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         const val DATABASE_NAME = "cashflow.db"
-        const val DATABASE_VERSION = 3
+        const val DATABASE_VERSION = 7
 
         const val TABLE_ASSETS = "assets"
         const val TABLE_CATEGORIES = "categories"
@@ -27,11 +27,19 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val TABLE_BUDGETS = "budgets"
         const val TABLE_GOALS = "financial_goals"
         const val TABLE_DEBTS = "debts"
+        const val TABLE_FAVORITES = "favorite_templates"
+        const val TABLE_RECURRING = "recurring_transactions"
+        const val TABLE_RECURRING_EXECUTIONS = "recurring_executions"
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         db.setForeignKeyConstraintsEnabled(true)
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        seedMissingDefaultCategories(db)
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -46,6 +54,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 currency TEXT NOT NULL DEFAULT 'IDR',
                 is_default INTEGER NOT NULL DEFAULT 0,
                 is_active INTEGER NOT NULL DEFAULT 1,
+                is_sample INTEGER NOT NULL DEFAULT 0,
                 note TEXT DEFAULT '',
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
@@ -82,6 +91,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 note TEXT DEFAULT '',
                 attachment TEXT,
                 input_method TEXT NOT NULL DEFAULT 'manual',
+                debt_id TEXT,
+                goal_id TEXT,
+                is_sample INTEGER NOT NULL DEFAULT 0,
+                tags TEXT NOT NULL DEFAULT '',
+                is_adjustment INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
@@ -117,6 +131,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         )
 
         createDebtsTable(db)
+        createFavoritesTable(db)
+        createRecurringTables(db)
         createIndexes(db)
         seedInitialData(db)
     }
@@ -127,6 +143,23 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
         if (oldVersion < 3) {
             createIndexes(db)
+        }
+        if (oldVersion < 4) {
+            seedMissingDefaultCategories(db)
+        }
+        if (oldVersion < 5) {
+            try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN debt_id TEXT;") } catch (_: Exception) {}
+            try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN goal_id TEXT;") } catch (_: Exception) {}
+            try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN is_sample INTEGER NOT NULL DEFAULT 0;") } catch (_: Exception) {}
+            try { db.execSQL("ALTER TABLE $TABLE_ASSETS ADD COLUMN is_sample INTEGER NOT NULL DEFAULT 0;") } catch (_: Exception) {}
+        }
+        if (oldVersion < 6) {
+            createFavoritesTable(db)
+        }
+        if (oldVersion < 7) {
+            createRecurringTables(db)
+            try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN tags TEXT NOT NULL DEFAULT '';") } catch (_: Exception) {}
+            try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN is_adjustment INTEGER NOT NULL DEFAULT 0;") } catch (_: Exception) {}
         }
     }
 
@@ -157,33 +190,101 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         )
     }
 
-    private fun seedInitialData(db: SQLiteDatabase) {
-        val now = System.currentTimeMillis()
-        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val yesterdayStr = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+    fun createFavoritesTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_FAVORITES (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                category_id TEXT,
+                asset_id TEXT NOT NULL,
+                destination_asset_id TEXT,
+                note TEXT DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            """.trimIndent()
+        )
+    }
 
-        // Seed Categories
-        val defaultCategories = listOf(
-            // Expense Categories
-            Category("cat_makanan", "Makanan", "expense", "restaurant", "#E57373", isDefault = true),
-            Category("cat_transportasi", "Transportasi", "expense", "directions_car", "#64B5F6", isDefault = true),
-            Category("cat_tagihan", "Tagihan", "expense", "receipt_long", "#FFB74D", isDefault = true),
-            Category("cat_belanja", "Belanja", "expense", "shopping_bag", "#81C784", isDefault = true),
-            Category("cat_hiburan", "Hiburan", "expense", "movie", "#BA68C8", isDefault = true),
-            Category("cat_kesehatan", "Kesehatan", "expense", "local_hospital", "#4DB6AC", isDefault = true),
-            Category("cat_pendidikan", "Pendidikan", "expense", "school", "#7986CB", isDefault = true),
-            Category("cat_rumah", "Kebutuhan rumah", "expense", "home", "#A1887F", isDefault = true),
-            Category("cat_lainnya_exp", "Lainnya", "expense", "more_horiz", "#90A4AE", isDefault = true),
-
-            // Income Categories
-            Category("cat_gaji", "Gaji", "income", "payments", "#1B8A5A", isDefault = true),
-            Category("cat_freelance", "Freelance", "income", "work", "#00897B", isDefault = true),
-            Category("cat_bonus", "Bonus", "income", "card_giftcard", "#0288D1", isDefault = true),
-            Category("cat_hadiah", "Hadiah", "income", "redeem", "#7B1FA2", isDefault = true),
-            Category("cat_penjualan", "Penjualan", "income", "storefront", "#F57C00", isDefault = true),
-            Category("cat_lainnya_inc", "Lainnya", "income", "attach_money", "#455A64", isDefault = true)
+    fun createRecurringTables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_RECURRING (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                category_id TEXT,
+                asset_id TEXT NOT NULL,
+                destination_asset_id TEXT,
+                frequency TEXT NOT NULL,
+                interval INTEGER NOT NULL DEFAULT 1,
+                start_date TEXT NOT NULL,
+                end_date TEXT,
+                total_occurrences INTEGER,
+                occurrences_done INTEGER NOT NULL DEFAULT 0,
+                mode TEXT NOT NULL DEFAULT 'auto',
+                linked_debt_id TEXT,
+                last_executed_date TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                note TEXT DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            """.trimIndent()
         )
 
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_RECURRING_EXECUTIONS (
+                id TEXT PRIMARY KEY,
+                recurring_id TEXT NOT NULL,
+                scheduled_date TEXT NOT NULL,
+                transaction_id TEXT,
+                executed_at INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'completed',
+                FOREIGN KEY (recurring_id) REFERENCES $TABLE_RECURRING(id) ON DELETE CASCADE
+            );
+            """.trimIndent()
+        )
+
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_recurring_executions ON $TABLE_RECURRING_EXECUTIONS (recurring_id, scheduled_date);")
+    }
+
+    fun getDefaultCategoriesList(): List<Category> = listOf(
+        // Expense Categories (16 Variasi)
+        Category("cat_makanan", "Makanan & Minuman", "expense", "restaurant", "#8D3B3B", isDefault = true),
+        Category("cat_transportasi", "Transportasi & Ojol", "expense", "directions_car", "#B57C1E", isDefault = true),
+        Category("cat_tagihan", "Tagihan & Utilitas", "expense", "receipt_long", "#2E6F89", isDefault = true),
+        Category("cat_belanja", "Belanja & Pasar", "expense", "shopping_bag", "#2D5D48", isDefault = true),
+        Category("cat_hiburan", "Hiburan & Hobi", "expense", "movie", "#6B3E7A", isDefault = true),
+        Category("cat_kesehatan", "Kesehatan & Obat", "expense", "medical_services", "#1E7063", isDefault = true),
+        Category("cat_pendidikan", "Pendidikan & Buku", "expense", "school", "#3B487A", isDefault = true),
+        Category("cat_rumah", "Kebutuhan Rumah", "expense", "home", "#704E38", isDefault = true),
+        Category("cat_keluarga", "Keluarga & Anak", "expense", "family_restroom", "#9E4B3E", isDefault = true),
+        Category("cat_perawatan", "Perawatan Diri", "expense", "spa", "#8F5845", isDefault = true),
+        Category("cat_olahraga", "Olahraga & Gym", "expense", "fitness_center", "#386641", isDefault = true),
+        Category("cat_peliharaan", "Peliharaan (Anabul)", "expense", "pets", "#8C5835", isDefault = true),
+        Category("cat_donasi", "Zakat & Sedekah", "expense", "volunteer_activism", "#13503C", isDefault = true),
+        Category("cat_cicilan", "Cicilan & Asuransi", "expense", "credit_card", "#7A2E35", isDefault = true),
+        Category("cat_investasi_exp", "Investasi & Emas", "expense", "savings", "#1C5A46", isDefault = true),
+        Category("cat_lainnya_exp", "Lainnya", "expense", "more_horiz", "#4A5550", isDefault = true),
+
+        // Income Categories (9 Variasi)
+        Category("cat_gaji", "Gaji Pokok", "income", "payments", "#0F3D2E", isDefault = true),
+        Category("cat_freelance", "Freelance & Jasa", "income", "laptop", "#1A586E", isDefault = true),
+        Category("cat_bonus", "Bonus & THR", "income", "celebration", "#1D5A85", isDefault = true),
+        Category("cat_penjualan", "Hasil Usaha & Toko", "income", "storefront", "#945219", isDefault = true),
+        Category("cat_investasi_inc", "Dividen & Investasi", "income", "trending_up", "#165B33", isDefault = true),
+        Category("cat_cashback", "Cashback & Reward", "income", "currency_exchange", "#8F6B23", isDefault = true),
+        Category("cat_hadiah", "Hadiah & Uang Saku", "income", "redeem", "#5E2B7A", isDefault = true),
+        Category("cat_sewa", "Sewa Properti / Aset", "income", "home_work", "#2E5339", isDefault = true),
+        Category("cat_lainnya_inc", "Lainnya", "income", "attach_money", "#4A5550", isDefault = true)
+    )
+
+    fun seedMissingDefaultCategories(db: SQLiteDatabase) {
+        val defaultCategories = getDefaultCategoriesList()
         for (cat in defaultCategories) {
             val cv = ContentValues().apply {
                 put("id", cat.id)
@@ -194,237 +295,40 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 put("is_default", if (cat.isDefault) 1 else 0)
                 put("is_active", if (cat.isActive) 1 else 0)
             }
-            db.insert(TABLE_CATEGORIES, null, cv)
-        }
-
-        // Seed Assets
-        val defaultAssets = listOf(
-            Asset("asset_bca", "BCA", "Bank", 4500000L, 4500000L, "IDR", isDefault = true, isActive = true, "Akun utama perbankan"),
-            Asset("asset_cash", "Cash", "Tunai", 750000L, 750000L, "IDR", isDefault = false, isActive = true, "Uang tunai di dompet"),
-            Asset("asset_gopay", "GoPay", "E-wallet", 325000L, 325000L, "IDR", isDefault = false, isActive = true, "Dompet digital harian"),
-            Asset("asset_mandiri", "Mandiri", "Bank", 1200000L, 1200000L, "IDR", isDefault = false, isActive = true, "Rekening tabungan bisnis"),
-            Asset("asset_tabungan", "Tabungan", "Tabungan", 10000000L, 10000000L, "IDR", isDefault = false, isActive = true, "Simpanan masa depan")
-        )
-
-        for (asset in defaultAssets) {
-            val cv = ContentValues().apply {
-                put("id", asset.id)
-                put("name", asset.name)
-                put("type", asset.type)
-                put("opening_balance", asset.openingBalance)
-                put("current_balance", asset.currentBalance)
-                put("currency", asset.currency)
-                put("is_default", if (asset.isDefault) 1 else 0)
-                put("is_active", if (asset.isActive) 1 else 0)
-                put("note", asset.note)
-                put("created_at", asset.createdAt)
-                put("updated_at", asset.updatedAt)
-            }
-            db.insert(TABLE_ASSETS, null, cv)
-        }
-
-        // Seed Sample Transactions (matching specification examples)
-        val initialTransactions = listOf(
-            Transaction(
-                id = "tx_1",
-                type = "expense",
-                amount = 20000L,
-                description = "Beli kopi",
-                categoryId = "cat_makanan",
-                assetId = "asset_gopay",
-                destinationAssetId = null,
-                transactionDate = todayStr,
-                transactionTime = "09:15",
-                note = "Kopi pagi sebelum kerja",
-                inputMethod = "voice",
-                createdAt = now - 14400000
-            ),
-            Transaction(
-                id = "tx_2",
-                type = "expense",
-                amount = 35000L,
-                description = "Makan siang",
-                categoryId = "cat_makanan",
-                assetId = "asset_bca",
-                destinationAssetId = null,
-                transactionDate = todayStr,
-                transactionTime = "12:30",
-                note = "Nasi padang lengkap",
-                inputMethod = "voice",
-                createdAt = now - 7200000
-            ),
-            Transaction(
-                id = "tx_3",
-                type = "expense",
-                amount = 50000L,
-                description = "Bayar bensin",
-                categoryId = "cat_transportasi",
-                assetId = "asset_bca",
-                destinationAssetId = null,
-                transactionDate = yesterdayStr,
-                transactionTime = "16:45",
-                note = "Isi pertamax",
-                inputMethod = "manual",
-                createdAt = now - 86400000
-            ),
-            Transaction(
-                id = "tx_4",
-                type = "income",
-                amount = 5000000L,
-                description = "Gaji bulanan",
-                categoryId = "cat_gaji",
-                assetId = "asset_bca",
-                destinationAssetId = null,
-                transactionDate = yesterdayStr,
-                transactionTime = "08:00",
-                note = "Payroll kantor",
-                inputMethod = "voice",
-                createdAt = now - 90000000
-            ),
-            Transaction(
-                id = "tx_5",
-                type = "transfer",
-                amount = 1000000L,
-                description = "Transfer tabungan bulanan",
-                categoryId = null,
-                assetId = "asset_bca",
-                destinationAssetId = "asset_tabungan",
-                transactionDate = todayStr,
-                transactionTime = "10:00",
-                note = "Pindahan dana dingin",
-                inputMethod = "manual",
-                createdAt = now - 3600000
-            )
-        )
-
-        for (tx in initialTransactions) {
-            val cv = ContentValues().apply {
-                put("id", tx.id)
-                put("type", tx.type)
-                put("amount", tx.amount)
-                put("description", tx.description)
-                put("category_id", tx.categoryId)
-                put("asset_id", tx.assetId)
-                put("destination_asset_id", tx.destinationAssetId)
-                put("transaction_date", tx.transactionDate)
-                put("transaction_time", tx.transactionTime)
-                put("note", tx.note)
-                put("attachment", tx.attachment)
-                put("input_method", tx.inputMethod)
-                put("created_at", tx.createdAt)
-                put("updated_at", tx.updatedAt)
-            }
-            db.insert(TABLE_TRANSACTIONS, null, cv)
-        }
-
-        // Seed Budgets
-        val defaultBudgets = listOf(
-            Budget("b_makanan", "cat_makanan", "monthly", 1500000L, now),
-            Budget("b_transport", "cat_transportasi", "monthly", 500000L, now),
-            Budget("b_tagihan", "cat_tagihan", "monthly", 1000000L, now)
-        )
-        for (b in defaultBudgets) {
-            val cv = ContentValues().apply {
-                put("id", b.id)
-                put("category_id", b.categoryId)
-                put("period_type", b.periodType)
-                put("target_amount", b.targetAmount)
-                put("created_at", b.createdAt)
-            }
-            db.insert(TABLE_BUDGETS, null, cv)
-        }
-
-        // Seed Financial Goals
-        val defaultGoals = listOf(
-            FinancialGoal(
-                id = "goal_darurat",
-                name = "Dana Darurat",
-                targetAmount = 15000000L,
-                currentAmount = 5000000L,
-                deadline = LocalDate.now().plusMonths(6).format(DateTimeFormatter.ISO_LOCAL_DATE),
-                assetId = "asset_tabungan",
-                note = "Minimal 3 bulan pengeluaran rutin",
-                createdAt = now,
-                updatedAt = now
-            ),
-            FinancialGoal(
-                id = "goal_liburan",
-                name = "Liburan Akhir Tahun",
-                targetAmount = 6000000L,
-                currentAmount = 2500000L,
-                deadline = LocalDate.now().plusMonths(3).format(DateTimeFormatter.ISO_LOCAL_DATE),
-                assetId = "asset_mandiri",
-                note = "Trip ke Bali / Jogja",
-                createdAt = now,
-                updatedAt = now
-            )
-        )
-        for (g in defaultGoals) {
-            val cv = ContentValues().apply {
-                put("id", g.id)
-                put("name", g.name)
-                put("target_amount", g.targetAmount)
-                put("current_amount", g.currentAmount)
-                put("deadline", g.deadline)
-                put("asset_id", g.assetId)
-                put("note", g.note)
-                put("created_at", g.createdAt)
-                put("updated_at", g.updatedAt)
-            }
-            db.insert(TABLE_GOALS, null, cv)
-        }
-
-        // Seed Debts
-        val defaultDebts = listOf(
-            Debt(
-                id = "debt_demo_1",
-                title = "Cicilan Laptop",
-                lenderName = "Toko Elektronik",
-                totalAmount = 6000000L,
-                paidAmount = 2000000L,
-                dueDate = LocalDate.now().plusMonths(2).format(DateTimeFormatter.ISO_LOCAL_DATE),
-                status = DebtStatus.PARTIAL.key,
-                note = "Cicilan 2 dari 6 bulan",
-                createdAt = now,
-                updatedAt = now
-            ),
-            Debt(
-                id = "debt_demo_2",
-                title = "Pinjam Renovasi",
-                lenderName = "Budi",
-                totalAmount = 3000000L,
-                paidAmount = 0L,
-                dueDate = LocalDate.now().plusMonths(1).format(DateTimeFormatter.ISO_LOCAL_DATE),
-                status = DebtStatus.UNPAID.key,
-                note = "Pinjaman tanpa bunga",
-                createdAt = now,
-                updatedAt = now
-            )
-        )
-        for (d in defaultDebts) {
-            val cv = ContentValues().apply {
-                put("id", d.id)
-                put("title", d.title)
-                put("lender_name", d.lenderName)
-                put("total_amount", d.totalAmount)
-                put("paid_amount", d.paidAmount)
-                put("due_date", d.dueDate)
-                put("status", d.status)
-                put("note", d.note)
-                put("created_at", d.createdAt)
-                put("updated_at", d.updatedAt)
-            }
-            db.insert(TABLE_DEBTS, null, cv)
+            db.insertWithOnConflict(TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE)
         }
     }
 
-    fun resetToDemo(db: SQLiteDatabase) {
+    fun seedInitialData(db: SQLiteDatabase) {
+        // Seed Default Categories (Essential for categorization)
+        seedMissingDefaultCategories(db)
+    }
+
+    /**
+     * Menghapus hanya data yang bertanda sample/contoh (is_sample = 1).
+     * Data pribadi pengguna yang dicatat manual tidak akan terhapus.
+     */
+    fun deleteSampleData(db: SQLiteDatabase) {
+        db.execSQL("DELETE FROM $TABLE_TRANSACTIONS WHERE is_sample = 1")
+        db.execSQL("DELETE FROM $TABLE_ASSETS WHERE is_sample = 1")
+    }
+
+    /**
+     * Menghapus seluruh data transaksi, aset, anggaran, target, dan hutang (Hapus Semua Data).
+     * Kategori bawaan tetap dipertahankan.
+     */
+    fun deleteAllUserData(db: SQLiteDatabase) {
         db.execSQL("DELETE FROM $TABLE_TRANSACTIONS")
         db.execSQL("DELETE FROM $TABLE_BUDGETS")
         db.execSQL("DELETE FROM $TABLE_GOALS")
         db.execSQL("DELETE FROM $TABLE_DEBTS")
         db.execSQL("DELETE FROM $TABLE_ASSETS")
-        db.execSQL("DELETE FROM $TABLE_CATEGORIES")
+        db.execSQL("DELETE FROM $TABLE_FAVORITES")
+    }
+
+    @Deprecated("Gunakan deleteAllUserData()")
+    fun resetToDemo(db: SQLiteDatabase) {
+        deleteAllUserData(db)
         seedInitialData(db)
     }
 }

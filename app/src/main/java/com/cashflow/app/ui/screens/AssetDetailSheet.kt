@@ -96,6 +96,9 @@ fun AssetDetailContent(
     }
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showAdjustBalanceDialog by remember { mutableStateOf(false) }
+    var targetBalanceInput by remember { mutableStateOf(asset.currentBalance.toString()) }
+    var adjustNoteInput by remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
@@ -260,11 +263,25 @@ fun AssetDetailContent(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Action Buttons: Edit, Delete & Default
+                // Action Buttons: Sesuaikan Saldo, Edit, Delete & Default
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    DuitAingButton(
+                        text = "SESUAIKAN SALDO",
+                        onClick = {
+                            targetBalanceInput = asset.currentBalance.toString()
+                            adjustNoteInput = ""
+                            showAdjustBalanceDialog = true
+                        },
+                        leadingIcon = Icons.Rounded.Tune,
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = DuitAingButtonVariant.SECONDARY,
+                        height = 42.dp,
+                        shadowOffset = 2.dp
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -369,11 +386,67 @@ fun AssetDetailContent(
         },
         onDismiss = { showDeleteConfirmDialog = false }
     )
+
+    // Adjust Balance Dialog (4E)
+    if (showAdjustBalanceDialog) {
+        AlertDialog(
+            onDismissRequest = { showAdjustBalanceDialog = false },
+            title = {
+                Text("Sesuaikan Saldo ${asset.name}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Saldo tersimpan di aplikasi: ${Formatters.formatRupiah(asset.currentBalance)}.\nMasukkan saldo aktual rekening/kas fisik Anda. Selisih akan dicatat sebagai transaksi penyesuaian khusus (tidak mempengaruhi statistik pemasukan/pengeluaran).",
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.5.sp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = targetBalanceInput,
+                        onValueChange = { targetBalanceInput = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Saldo Aktual (Rp)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = adjustNoteInput,
+                        onValueChange = { adjustNoteInput = it },
+                        label = { Text("Keterangan Penyesuaian (Opsional)") },
+                        placeholder = { Text("Mis. Rekonsiliasi kas / selisih fisik") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newBal = targetBalanceInput.toLongOrNull() ?: asset.currentBalance
+                        viewModel.adjustAssetBalance(asset.id, newBal, adjustNoteInput) { success ->
+                            if (success) {
+                                showAdjustBalanceDialog = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = JadePrimary)
+                ) {
+                    Text("SIMPAN PENYESUAIAN", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdjustBalanceDialog = false }) {
+                    Text("BATAL", color = TextSecondary)
+                }
+            }
+        )
+    }
 }
 
 /**
  * Section 23: Asset Sparkline Trend Component
- * Renders a crisp 14-day balance activity curve using actual historical transactions.
+ * Renders a crisp 30-day balance activity curve using actual historical transactions.
  */
 @Composable
 fun AssetSparkline(
@@ -383,7 +456,7 @@ fun AssetSparkline(
 ) {
     val dailyBalances = remember(transactions, currentBalance) {
         val today = LocalDate.now()
-        val days = 14
+        val days = 30
         val deltaByDay = mutableMapOf<LocalDate, Long>()
 
         for (tx in transactions) {
@@ -415,7 +488,7 @@ fun AssetSparkline(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "TREN SALDO 14 HARI",
+                text = "TREN SALDO 30 HARI",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 9.sp,

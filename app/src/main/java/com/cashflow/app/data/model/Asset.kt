@@ -9,6 +9,7 @@ data class Asset(
     val currency: String = "IDR",
     val isDefault: Boolean = false,
     val isActive: Boolean = true,
+    val isSample: Boolean = false,
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()

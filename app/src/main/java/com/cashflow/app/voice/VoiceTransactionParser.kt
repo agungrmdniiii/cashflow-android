@@ -856,12 +856,35 @@ object VoiceTransactionParser {
                         text.contains("sprei") ->
                     expenseCategories.firstOrNull { it.name.contains("Kebutuhan rumah", true) }
 
-                // Donasi & Sosial
+                // Donasi & Zakat / Sedekah
                 text.contains("infaq") || text.contains("sedekah") || text.contains("zakat") ||
                         text.contains("donasi") || text.contains("sumbangan") || text.contains("kotak amal") ||
                         text.contains("wakaf") || text.contains("kolekte") || text.contains("persepuluhan") ||
                         text.contains("kondangan") || text.contains("kurban") || text.contains("aqiqah") ->
-                    expenseCategories.firstOrNull { it.name.contains("Sosial", true) } ?: expenseCategories.firstOrNull { it.name.contains("Lainnya", true) }
+                    expenseCategories.firstOrNull { it.name.contains("Zakat", true) || it.name.contains("Sedekah", true) || it.name.contains("Sosial", true) }
+
+                // Peliharaan / Anabul
+                text.contains("kucing") || text.contains("anjing") || text.contains("anabul") ||
+                        text.contains("petshop") || text.contains("pasir kucing") || text.contains("cat food") ||
+                        text.contains("dog food") || text.contains("vet") || text.contains("dokter hewan") ->
+                    expenseCategories.firstOrNull { it.name.contains("Peliharaan", true) }
+
+                // Olahraga & Kebugaran
+                text.contains("gym") || text.contains("fitness") || text.contains("futsal") ||
+                        text.contains("badminton") || text.contains("bulutangkis") || text.contains("renang") ||
+                        text.contains("sepeda") || text.contains("member gym") ->
+                    expenseCategories.firstOrNull { it.name.contains("Olahraga", true) }
+
+                // Perawatan Diri & Salon
+                text.contains("salon") || text.contains("barbershop") || text.contains("spa") ||
+                        text.contains("creambath") || text.contains("facial") || text.contains("massage") ||
+                        text.contains("pijat") || text.contains("manicure") || text.contains("pedicure") ->
+                    expenseCategories.firstOrNull { it.name.contains("Perawatan", true) }
+
+                // Keluarga & Anak
+                text.contains("anak") || text.contains("popok") || text.contains("pampers") ||
+                        text.contains("susu bayi") || text.contains("mainan anak") || text.contains("baby") ->
+                    expenseCategories.firstOrNull { it.name.contains("Keluarga", true) }
 
                 else -> expenseCategories.firstOrNull { it.name.contains("Lainnya", true) } ?: expenseCategories.firstOrNull()
             }

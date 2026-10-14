@@ -4,8 +4,13 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import com.cashflow.app.data.backup.BackupManager
+import com.cashflow.app.data.backup.BackupSummary
+import com.cashflow.app.data.backup.BackupValidationResult
 import com.cashflow.app.data.db.DatabaseHelper
 import com.cashflow.app.data.model.*
+import com.cashflow.app.data.preferences.PreferenceManager
+import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,8 +47,20 @@ class CashflowRepository(private val context: Context) {
     private val _debts = MutableStateFlow<List<Debt>>(emptyList())
     val debts: StateFlow<List<Debt>> = _debts.asStateFlow()
 
+    private val _favoriteTemplates = MutableStateFlow<List<FavoriteTemplate>>(emptyList())
+    val favoriteTemplates: StateFlow<List<FavoriteTemplate>> = _favoriteTemplates.asStateFlow()
+
+    private val _recurringTransactions = MutableStateFlow<List<RecurringTransaction>>(emptyList())
+    val recurringTransactions: StateFlow<List<RecurringTransaction>> = _recurringTransactions.asStateFlow()
+
     init {
-        refreshAll()
+        scope.launch {
+            try {
+                val db = dbHelper.writableDatabase
+                LedgerService.recalculateAllBalances(db)
+            } catch (_: Exception) {}
+            loadFromDb()
+        }
     }
 
     fun refreshAll() {
@@ -119,24 +136,46 @@ class CashflowRepository(private val context: Context) {
             }
         }
 
+        val prefManager = PreferenceManager(context)
+        val isRolloverEnabled = prefManager.isBudgetRolloverEnabled()
+        val prevMonthPrefix = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        val prevSpentByCategory = if (isRolloverEnabled) {
+            val map = mutableMapOf<String, Long>()
+            for (tx in txList) {
+                if (tx.type == TransactionType.EXPENSE.value &&
+                    tx.categoryId != null &&
+                    tx.transactionDate.startsWith(prevMonthPrefix)
+                ) {
+                    map[tx.categoryId] = (map[tx.categoryId] ?: 0L) + tx.amount
+                }
+            }
+            map
+        } else emptyMap()
+
         val budgetWithProgressList = budgetList.map { budget ->
             val cat = catMap[budget.categoryId]
             val spent = spentByCategory[budget.categoryId] ?: 0L
 
-            val remaining = (budget.targetAmount - spent).coerceAtLeast(0L)
-            val percentage = if (budget.targetAmount > 0) {
-                (spent.toFloat() / budget.targetAmount.toFloat()).coerceIn(0f, 2f)
+            val rolloverAmount = if (isRolloverEnabled) {
+                val prevSpent = prevSpentByCategory[budget.categoryId] ?: 0L
+                (budget.targetAmount - prevSpent).coerceAtLeast(0L)
+            } else 0L
+
+            val effectiveTarget = budget.targetAmount + rolloverAmount
+            val remaining = (effectiveTarget - spent).coerceAtLeast(0L)
+            val percentage = if (effectiveTarget > 0) {
+                (spent.toFloat() / effectiveTarget.toFloat()).coerceIn(0f, 2f)
             } else 0f
 
             val status = when {
-                spent > budget.targetAmount -> BudgetStatus.EXCEEDED
+                spent > effectiveTarget -> BudgetStatus.EXCEEDED
                 percentage >= 0.85f -> BudgetStatus.NEAR_LIMIT
                 percentage >= 0.60f -> BudgetStatus.WARNING
                 else -> BudgetStatus.SAFE
             }
 
             BudgetWithProgress(
-                budget = budget,
+                budget = if (rolloverAmount > 0) budget.copy(targetAmount = effectiveTarget) else budget,
                 category = cat,
                 spentAmount = spent,
                 remainingAmount = remaining,
@@ -145,6 +184,15 @@ class CashflowRepository(private val context: Context) {
             )
         }
         _budgets.value = budgetWithProgressList
+
+        // Trigger budget notification alerts if threshold (80% or 100%) reached
+        try {
+            com.cashflow.app.data.service.NotificationHelper.checkAndNotifyBudgets(
+                context = context,
+                budgets = budgetWithProgressList,
+                pref = prefManager
+            )
+        } catch (_: Exception) {}
 
         // 5. Load Financial Goals
         val goalList = mutableListOf<FinancialGoal>()
@@ -170,6 +218,38 @@ class CashflowRepository(private val context: Context) {
         }
         _debts.value = debtList
 
+        // 7. Load Favorite Templates
+        val favList = mutableListOf<FavoriteTemplate>()
+        try {
+            val fCursor = db.query(
+                DatabaseHelper.TABLE_FAVORITES,
+                null, null, null, null, null,
+                "created_at DESC"
+            )
+            fCursor.use { cursor ->
+                while (cursor.moveToNext()) {
+                    favList.add(cursorToFavoriteTemplate(cursor))
+                }
+            }
+        } catch (_: Exception) {}
+        _favoriteTemplates.value = favList
+
+        // 8. Load Recurring Transactions
+        val recList = mutableListOf<RecurringTransaction>()
+        try {
+            val rCursor = db.query(
+                DatabaseHelper.TABLE_RECURRING,
+                null, null, null, null, null,
+                "created_at DESC"
+            )
+            rCursor.use { cursor ->
+                while (cursor.moveToNext()) {
+                    recList.add(cursorToRecurringTransaction(cursor))
+                }
+            }
+        } catch (_: Exception) {}
+        _recurringTransactions.value = recList
+
         try {
             com.cashflow.app.widget.DuitAingQuickWidget.updateAllWidgets(context)
         } catch (_: Exception) {
@@ -179,60 +259,15 @@ class CashflowRepository(private val context: Context) {
     // --- TRANSACTION OPERATIONS (WITH ATOMIC BALANCE UPDATE & VALIDATION) ---
 
     suspend fun addTransaction(transaction: Transaction): Result<Unit> = withContext(Dispatchers.IO) {
+        val validation = LedgerService.validateTransaction(transaction)
+        if (validation.isFailure) return@withContext validation
+
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
-            // Validation
-            if (transaction.amount <= 0) {
-                return@withContext Result.failure(IllegalArgumentException("Nominal transaksi harus lebih dari 0"))
-            }
+            val now = System.currentTimeMillis()
+            LedgerService.applyTransactionEffect(db, transaction, now)
 
-            when (transaction.type) {
-                TransactionType.INCOME.value -> {
-                    if (transaction.assetId.isBlank()) {
-                        return@withContext Result.failure(IllegalArgumentException("Aset tujuan pemasukan wajib dipilih"))
-                    }
-                    // Update asset balance: balance = balance + amount
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(transaction.amount, System.currentTimeMillis(), transaction.assetId)
-                    )
-                }
-                TransactionType.EXPENSE.value -> {
-                    if (transaction.assetId.isBlank()) {
-                        return@withContext Result.failure(IllegalArgumentException("Aset sumber pengeluaran wajib dipilih"))
-                    }
-                    // Update asset balance: balance = balance - amount
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                        arrayOf(transaction.amount, System.currentTimeMillis(), transaction.assetId)
-                    )
-                }
-                TransactionType.TRANSFER.value -> {
-                    if (transaction.assetId.isBlank()) {
-                        return@withContext Result.failure(IllegalArgumentException("Aset sumber transfer wajib dipilih"))
-                    }
-                    if (transaction.destinationAssetId.isNullOrBlank()) {
-                        return@withContext Result.failure(IllegalArgumentException("Aset tujuan transfer wajib dipilih"))
-                    }
-                    if (transaction.assetId == transaction.destinationAssetId) {
-                        return@withContext Result.failure(IllegalArgumentException("Aset sumber dan aset tujuan tidak boleh sama"))
-                    }
-                    // Deduct from source
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                        arrayOf(transaction.amount, System.currentTimeMillis(), transaction.assetId)
-                    )
-                    // Add to destination
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(transaction.amount, System.currentTimeMillis(), transaction.destinationAssetId)
-                    )
-                }
-                else -> return@withContext Result.failure(IllegalArgumentException("Jenis transaksi tidak valid"))
-            }
-
-            // Insert transaction
             val cv = ContentValues().apply {
                 put("id", transaction.id.ifBlank { UUID.randomUUID().toString() })
                 put("type", transaction.type)
@@ -246,8 +281,13 @@ class CashflowRepository(private val context: Context) {
                 put("note", transaction.note)
                 put("attachment", transaction.attachment)
                 put("input_method", transaction.inputMethod)
+                put("debt_id", transaction.debtId)
+                put("goal_id", transaction.goalId)
+                put("is_sample", if (transaction.isSample) 1 else 0)
+                put("tags", transaction.tags)
+                put("is_adjustment", if (transaction.isAdjustment) 1 else 0)
                 put("created_at", transaction.createdAt)
-                put("updated_at", transaction.updatedAt)
+                put("updated_at", now)
             }
             db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, cv)
 
@@ -262,6 +302,9 @@ class CashflowRepository(private val context: Context) {
     }
 
     suspend fun updateTransaction(newTx: Transaction): Result<Unit> = withContext(Dispatchers.IO) {
+        val validation = LedgerService.validateTransaction(newTx)
+        if (validation.isFailure) return@withContext validation
+
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
@@ -275,59 +318,13 @@ class CashflowRepository(private val context: Context) {
                 if (it.moveToNext()) cursorToTransaction(it) else null
             } ?: return@withContext Result.failure(IllegalStateException("Transaksi lama tidak ditemukan"))
 
+            val now = System.currentTimeMillis()
+
             // 1. Revert effect of old transaction
-            when (oldTx.type) {
-                TransactionType.INCOME.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                        arrayOf(oldTx.amount, System.currentTimeMillis(), oldTx.assetId)
-                    )
-                }
-                TransactionType.EXPENSE.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(oldTx.amount, System.currentTimeMillis(), oldTx.assetId)
-                    )
-                }
-                TransactionType.TRANSFER.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(oldTx.amount, System.currentTimeMillis(), oldTx.assetId)
-                    )
-                    if (!oldTx.destinationAssetId.isNullOrBlank()) {
-                        db.execSQL(
-                            "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                            arrayOf(oldTx.amount, System.currentTimeMillis(), oldTx.destinationAssetId)
-                        )
-                    }
-                }
-            }
+            LedgerService.revertTransactionEffect(db, oldTx, now)
 
             // 2. Apply effect of new transaction
-            when (newTx.type) {
-                TransactionType.INCOME.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(newTx.amount, System.currentTimeMillis(), newTx.assetId)
-                    )
-                }
-                TransactionType.EXPENSE.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                        arrayOf(newTx.amount, System.currentTimeMillis(), newTx.assetId)
-                    )
-                }
-                TransactionType.TRANSFER.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                        arrayOf(newTx.amount, System.currentTimeMillis(), newTx.assetId)
-                    )
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(newTx.amount, System.currentTimeMillis(), newTx.destinationAssetId)
-                    )
-                }
-            }
+            LedgerService.applyTransactionEffect(db, newTx, now)
 
             // 3. Update transaction row
             val cv = ContentValues().apply {
@@ -341,7 +338,12 @@ class CashflowRepository(private val context: Context) {
                 put("transaction_time", newTx.transactionTime)
                 put("note", newTx.note)
                 put("attachment", newTx.attachment)
-                put("updated_at", System.currentTimeMillis())
+                put("debt_id", newTx.debtId ?: oldTx.debtId)
+                put("goal_id", newTx.goalId ?: oldTx.goalId)
+                put("is_sample", if (newTx.isSample) 1 else 0)
+                put("tags", newTx.tags)
+                put("is_adjustment", if (newTx.isAdjustment) 1 else 0)
+                put("updated_at", now)
             }
             db.update(DatabaseHelper.TABLE_TRANSACTIONS, cv, "id = ?", arrayOf(newTx.id))
 
@@ -368,33 +370,8 @@ class CashflowRepository(private val context: Context) {
                 if (it.moveToNext()) cursorToTransaction(it) else null
             } ?: return@withContext Result.failure(IllegalStateException("Transaksi tidak ditemukan"))
 
-            // Revert effect on asset
-            when (tx.type) {
-                TransactionType.INCOME.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                        arrayOf(tx.amount, System.currentTimeMillis(), tx.assetId)
-                    )
-                }
-                TransactionType.EXPENSE.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(tx.amount, System.currentTimeMillis(), tx.assetId)
-                    )
-                }
-                TransactionType.TRANSFER.value -> {
-                    db.execSQL(
-                        "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                        arrayOf(tx.amount, System.currentTimeMillis(), tx.assetId)
-                    )
-                    if (!tx.destinationAssetId.isNullOrBlank()) {
-                        db.execSQL(
-                            "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                            arrayOf(tx.amount, System.currentTimeMillis(), tx.destinationAssetId)
-                        )
-                    }
-                }
-            }
+            val now = System.currentTimeMillis()
+            LedgerService.revertTransactionEffect(db, tx, now)
 
             db.delete(DatabaseHelper.TABLE_TRANSACTIONS, "id = ?", arrayOf(txId))
             db.setTransactionSuccessful()
@@ -404,6 +381,49 @@ class CashflowRepository(private val context: Context) {
         } finally {
             db.endTransaction()
             loadFromDb()
+        }
+    }
+
+    suspend fun recalculateBalances(): Result<LedgerRecalculateResult> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            val result = LedgerService.recalculateAllBalances(db)
+            db.setTransactionSuccessful()
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            db.endTransaction()
+            loadFromDb()
+        }
+    }
+
+    fun checkBalanceSufficiency(assetId: String, amount: Long): Boolean {
+        val asset = _assets.value.find { it.id == assetId } ?: return true
+        return LedgerService.checkBalanceSufficiency(asset.currentBalance, amount)
+    }
+
+    suspend fun deleteSampleData(): Result<Unit> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        try {
+            dbHelper.deleteSampleData(db)
+            LedgerService.recalculateAllBalances(db)
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAllUserData(): Result<Unit> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        try {
+            dbHelper.deleteAllUserData(db)
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -427,6 +447,7 @@ class CashflowRepository(private val context: Context) {
                 put("currency", asset.currency)
                 put("is_default", if (asset.isDefault) 1 else 0)
                 put("is_active", if (asset.isActive) 1 else 0)
+                put("is_sample", if (asset.isSample) 1 else 0)
                 put("note", asset.note)
                 put("created_at", asset.createdAt)
                 put("updated_at", asset.updatedAt)
@@ -699,6 +720,7 @@ class CashflowRepository(private val context: Context) {
                         put("transaction_time", timeStr)
                         put("note", "Alokasi target: ${goal.name}")
                         put("input_method", "manual")
+                        put("goal_id", goalId)
                         put("created_at", now)
                         put("updated_at", now)
                     }
@@ -761,6 +783,7 @@ class CashflowRepository(private val context: Context) {
                         put("transaction_time", timeStr)
                         put("note", "Pencairan target: ${goal.name}")
                         put("input_method", "manual")
+                        put("goal_id", goalId)
                         put("created_at", now)
                         put("updated_at", now)
                     }
@@ -837,6 +860,7 @@ class CashflowRepository(private val context: Context) {
                     put("note", if (note.isNotBlank()) note.trim() else "Penerimaan dana pinjaman dari ${lenderName.trim()}")
                     put("attachment", null as String?)
                     put("input_method", "manual")
+                    put("debt_id", debtId)
                     put("created_at", now)
                     put("updated_at", now)
                 }
@@ -928,6 +952,7 @@ class CashflowRepository(private val context: Context) {
                 put("note", if (note.isNotBlank()) note.trim() else "Cicilan/pelunasan pinjaman kepada ${existingDebt.lenderName}")
                 put("attachment", null as String?)
                 put("input_method", "manual")
+                put("debt_id", debtId)
                 put("created_at", now)
                 put("updated_at", now)
             }
@@ -994,6 +1019,45 @@ class CashflowRepository(private val context: Context) {
         }
     }
 
+    // --- JSON BACKUP & RESTORE ---
+
+    suspend fun createBackupJson(): Result<String> = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        try {
+            val json = BackupManager.createBackupJson(db)
+            Result.success(json)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun validateBackupJson(jsonString: String): BackupValidationResult {
+        return BackupManager.validateBackupJson(jsonString)
+    }
+
+    suspend fun restoreFromJson(data: JSONObject): Result<Unit> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val res = BackupManager.restoreBackup(db, data)
+        if (res.isSuccess) {
+            loadFromDb()
+        }
+        res
+    }
+
+    suspend fun createBackupZip(destZipFile: File): Result<Unit> = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        BackupManager.createBackupZipWithReceipts(context, db, destZipFile)
+    }
+
+    suspend fun restoreFromZip(zipFile: File): Result<BackupSummary> = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val res = BackupManager.restoreBackupFromZip(context, db, zipFile)
+        if (res.isSuccess) {
+            loadFromDb()
+        }
+        res
+    }
+
     // --- CSV EXPORT GENERATOR ---
     suspend fun generateCsvContent(transactionsList: List<Transaction>? = null): String = withContext(Dispatchers.IO) {
         val list = transactionsList ?: _transactions.value
@@ -1037,6 +1101,7 @@ class CashflowRepository(private val context: Context) {
     // --- CURSOR MAPPERS ---
 
     private fun cursorToAsset(cursor: Cursor): Asset {
+        val sampleIdx = cursor.getColumnIndex("is_sample")
         return Asset(
             id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
             name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
@@ -1046,6 +1111,7 @@ class CashflowRepository(private val context: Context) {
             currency = cursor.getString(cursor.getColumnIndexOrThrow("currency")),
             isDefault = cursor.getInt(cursor.getColumnIndexOrThrow("is_default")) == 1,
             isActive = cursor.getInt(cursor.getColumnIndexOrThrow("is_active")) == 1,
+            isSample = if (sampleIdx >= 0) cursor.getInt(sampleIdx) == 1 else false,
             note = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: "",
             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
@@ -1065,6 +1131,11 @@ class CashflowRepository(private val context: Context) {
     }
 
     private fun cursorToTransaction(cursor: Cursor): Transaction {
+        val debtIdx = cursor.getColumnIndex("debt_id")
+        val goalIdx = cursor.getColumnIndex("goal_id")
+        val sampleIdx = cursor.getColumnIndex("is_sample")
+        val tagsIdx = cursor.getColumnIndex("tags")
+        val adjIdx = cursor.getColumnIndex("is_adjustment")
         return Transaction(
             id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
             type = cursor.getString(cursor.getColumnIndexOrThrow("type")),
@@ -1078,6 +1149,11 @@ class CashflowRepository(private val context: Context) {
             note = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: "",
             attachment = cursor.getString(cursor.getColumnIndexOrThrow("attachment")),
             inputMethod = cursor.getString(cursor.getColumnIndexOrThrow("input_method")),
+            debtId = if (debtIdx >= 0) cursor.getString(debtIdx) else null,
+            goalId = if (goalIdx >= 0) cursor.getString(goalIdx) else null,
+            isSample = if (sampleIdx >= 0) cursor.getInt(sampleIdx) == 1 else false,
+            tags = if (tagsIdx >= 0) cursor.getString(tagsIdx) ?: "" else "",
+            isAdjustment = if (adjIdx >= 0) cursor.getInt(adjIdx) == 1 else false,
             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
         )
@@ -1119,6 +1195,155 @@ class CashflowRepository(private val context: Context) {
             note = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: "",
             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
+        )
+    }
+
+    suspend fun saveFavoriteTemplate(template: FavoriteTemplate): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            val cv = ContentValues().apply {
+                put("id", template.id)
+                put("name", template.name)
+                put("type", template.type)
+                put("amount", template.amount)
+                put("category_id", template.categoryId)
+                put("asset_id", template.assetId)
+                put("destination_asset_id", template.destinationAssetId)
+                put("note", template.note)
+                put("created_at", template.createdAt)
+            }
+            db.insertWithOnConflict(DatabaseHelper.TABLE_FAVORITES, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteFavoriteTemplate(id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            db.delete(DatabaseHelper.TABLE_FAVORITES, "id = ?", arrayOf(id))
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun cursorToFavoriteTemplate(cursor: Cursor): FavoriteTemplate {
+        return FavoriteTemplate(
+            id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
+            name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
+            type = cursor.getString(cursor.getColumnIndexOrThrow("type")),
+            amount = cursor.getLong(cursor.getColumnIndexOrThrow("amount")),
+            categoryId = cursor.getString(cursor.getColumnIndexOrThrow("category_id")),
+            assetId = cursor.getString(cursor.getColumnIndexOrThrow("asset_id")),
+            destinationAssetId = cursor.getString(cursor.getColumnIndexOrThrow("destination_asset_id")),
+            note = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: "",
+            createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
+        )
+    }
+
+    suspend fun saveRecurringTransaction(rec: RecurringTransaction): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            val cv = ContentValues().apply {
+                put("id", rec.id)
+                put("name", rec.name)
+                put("type", rec.type)
+                put("amount", rec.amount)
+                put("category_id", rec.categoryId)
+                put("asset_id", rec.assetId)
+                put("destination_asset_id", rec.destinationAssetId)
+                put("frequency", rec.frequency)
+                put("interval", rec.interval)
+                put("start_date", rec.startDate)
+                put("end_date", rec.endDate)
+                put("total_occurrences", rec.totalOccurrences)
+                put("occurrences_done", rec.occurrencesDone)
+                put("mode", rec.mode)
+                put("linked_debt_id", rec.linkedDebtId)
+                put("last_executed_date", rec.lastExecutedDate)
+                put("is_active", if (rec.isActive) 1 else 0)
+                put("note", rec.note)
+                put("created_at", rec.createdAt)
+            }
+            db.insertWithOnConflict(DatabaseHelper.TABLE_RECURRING, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteRecurringTransaction(id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            db.delete(DatabaseHelper.TABLE_RECURRING, "id = ?", arrayOf(id))
+            db.delete(DatabaseHelper.TABLE_RECURRING_EXECUTIONS, "recurring_id = ?", arrayOf(id))
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun recordRecurringExecution(execution: RecurringExecution): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            val cv = ContentValues().apply {
+                put("id", execution.id)
+                put("recurring_id", execution.recurringId)
+                put("scheduled_date", execution.scheduledDate)
+                put("transaction_id", execution.transactionId)
+                put("executed_at", execution.executedAt)
+                put("status", execution.status)
+            }
+            db.insertWithOnConflict(DatabaseHelper.TABLE_RECURRING_EXECUTIONS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+            // Update last_executed_date on recurring
+            db.execSQL(
+                "UPDATE ${DatabaseHelper.TABLE_RECURRING} SET last_executed_date = ?, occurrences_done = occurrences_done + 1 WHERE id = ?",
+                arrayOf(execution.scheduledDate, execution.recurringId)
+            )
+            loadFromDb()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun isOccurrenceExecuted(recurringId: String, scheduledDate: String): Boolean {
+        val db = dbHelper.readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT 1 FROM ${DatabaseHelper.TABLE_RECURRING_EXECUTIONS} WHERE recurring_id = ? AND scheduled_date = ?",
+            arrayOf(recurringId, scheduledDate)
+        )
+        return cursor.use { it.moveToFirst() }
+    }
+
+    private fun cursorToRecurringTransaction(cursor: Cursor): RecurringTransaction {
+        val totalOccIdx = cursor.getColumnIndex("total_occurrences")
+        return RecurringTransaction(
+            id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
+            name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
+            type = cursor.getString(cursor.getColumnIndexOrThrow("type")),
+            amount = cursor.getLong(cursor.getColumnIndexOrThrow("amount")),
+            categoryId = cursor.getString(cursor.getColumnIndexOrThrow("category_id")),
+            assetId = cursor.getString(cursor.getColumnIndexOrThrow("asset_id")),
+            destinationAssetId = cursor.getString(cursor.getColumnIndexOrThrow("destination_asset_id")),
+            frequency = cursor.getString(cursor.getColumnIndexOrThrow("frequency")),
+            interval = cursor.getInt(cursor.getColumnIndexOrThrow("interval")),
+            startDate = cursor.getString(cursor.getColumnIndexOrThrow("start_date")),
+            endDate = cursor.getString(cursor.getColumnIndexOrThrow("end_date")),
+            totalOccurrences = if (totalOccIdx >= 0 && !cursor.isNull(totalOccIdx)) cursor.getInt(totalOccIdx) else null,
+            occurrencesDone = cursor.getInt(cursor.getColumnIndexOrThrow("occurrences_done")),
+            mode = cursor.getString(cursor.getColumnIndexOrThrow("mode")),
+            linkedDebtId = cursor.getString(cursor.getColumnIndexOrThrow("linked_debt_id")),
+            lastExecutedDate = cursor.getString(cursor.getColumnIndexOrThrow("last_executed_date")),
+            isActive = cursor.getInt(cursor.getColumnIndexOrThrow("is_active")) == 1,
+            note = cursor.getString(cursor.getColumnIndexOrThrow("note")),
+            createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
         )
     }
 }

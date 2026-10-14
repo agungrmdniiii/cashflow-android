@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -14,9 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -422,6 +426,7 @@ fun AddDebtDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val amount = amountText.toLongOrNull() ?: 0L
+    val focusManager = LocalFocusManager.current
 
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
@@ -471,6 +476,8 @@ fun AddDebtDialog(
                         onValueChange = { title = it },
                         placeholder = { Text("Contoh: Renovasi Dapur, Modal Usaha") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -492,6 +499,8 @@ fun AddDebtDialog(
                         onValueChange = { lender = it },
                         placeholder = { Text("Contoh: Bank BCA, Budi, Koperasi") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -514,7 +523,8 @@ fun AddDebtDialog(
                         prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
                         placeholder = { Text("0") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                         visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -593,6 +603,7 @@ fun AddDebtDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .minimumInteractiveComponentSize()
                                 .clickable(role = Role.Checkbox) { receiveToAsset = !receiveToAsset }
                         ) {
                             Checkbox(
@@ -634,6 +645,9 @@ fun AddDebtDialog(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text("Catatan Tambahan (Opsional)") },
+                    singleLine = false,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -715,6 +729,7 @@ fun PayDebtDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val payAmount = paymentAmountText.toLongOrNull() ?: 0L
+    val focusManager = LocalFocusManager.current
     val selectedAsset = remember(selectedAssetId, assets) {
         assets.firstOrNull { it.id == selectedAssetId }
     }
@@ -835,7 +850,8 @@ fun PayDebtDialog(
                         prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
                         placeholder = { Text("0") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                         visualTransformation = ThousandSeparatorVisualTransformation(),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -863,6 +879,7 @@ fun PayDebtDialog(
                         Box(
                             modifier = Modifier
                                 .weight(1.3f)
+                                .minimumInteractiveComponentSize()
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(JadePrimaryLight)
                                 .border(1.dp, JadePrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
@@ -884,6 +901,7 @@ fun PayDebtDialog(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
+                                    .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
@@ -909,6 +927,7 @@ fun PayDebtDialog(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
+                                    .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(PebbleSurfaceVariant)
                                     .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
@@ -946,6 +965,9 @@ fun PayDebtDialog(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text("Catatan Pembayaran (Opsional)") },
+                    singleLine = false,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )

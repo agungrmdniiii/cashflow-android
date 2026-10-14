@@ -16,9 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -73,6 +77,7 @@ fun GoalFormSheet(
 
     val targetAmount = targetInput.toLongOrNull() ?: 0L
     val currentAmount = currentInput.toLongOrNull() ?: 0L
+    val focusManager = LocalFocusManager.current
 
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
@@ -111,6 +116,8 @@ fun GoalFormSheet(
                     onValueChange = { nameInput = it; errorMessage = null },
                     label = { Text("Nama Target (misal: Dana Darurat)") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -121,7 +128,8 @@ fun GoalFormSheet(
                     label = { Text("Nominal Sasaran Target (Rp)") },
                     prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                     visualTransformation = ThousandSeparatorVisualTransformation(),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -133,7 +141,8 @@ fun GoalFormSheet(
                     label = { Text("Sudah Terkumpul Saat Ini (Rp)") },
                     prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                     visualTransformation = ThousandSeparatorVisualTransformation(),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -161,6 +170,8 @@ fun GoalFormSheet(
                     onValueChange = { noteInput = it },
                     label = { Text("Catatan / Keterangan (Opsional)") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -236,6 +247,7 @@ fun DepositGoalSheet(
 
     val depositAmount = depositAmountText.toLongOrNull() ?: 0L
     val remainingToTarget = goal.remainingAmount
+    val focusManager = LocalFocusManager.current
 
     val quickAmounts = listOf(50000L, 100000L, 250000L, 500000L, 1000000L)
 
@@ -317,7 +329,8 @@ fun DepositGoalSheet(
                     prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
                     placeholder = { Text("0") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     visualTransformation = ThousandSeparatorVisualTransformation(),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -398,6 +411,8 @@ fun DepositGoalSheet(
                     onValueChange = { noteInput = it },
                     label = { Text("Catatan / Keterangan (Opsional)") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
