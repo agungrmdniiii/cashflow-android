@@ -54,3 +54,7 @@ Thumbs.db
 # Sensitive or temporary scratch files
 recovery-codes.txt
 json/
+
+# Local delivery archives and private audit evidence
+DuitAing_Clean_Source.zip
+docs/audits/

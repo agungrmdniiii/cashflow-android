@@ -18,6 +18,7 @@ data class Transaction(
     val isSample: Boolean = false,
     val tags: String = "",
     val isAdjustment: Boolean = false,
+    val adjustmentDirection: Int = 0, // +1: increase, -1: decrease, 0: neutral/not adjustment
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

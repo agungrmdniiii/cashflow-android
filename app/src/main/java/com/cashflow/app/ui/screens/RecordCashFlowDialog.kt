@@ -25,16 +25,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.airbnb.lottie.compose.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -117,13 +120,15 @@ fun RecordCashFlowDialog(
         }
     }
 
+    val duit = MaterialTheme.duit
+
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -138,14 +143,14 @@ fun RecordCashFlowDialog(
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(JadePrimaryContainer)
-                                .border(1.dp, JadePrimary.copy(alpha = 0.35f), RoundedCornerShape(6.dp)),
+                                .background(duit.primaryContainer)
+                                .border(1.dp, duit.primary.copy(alpha = 0.35f), RoundedCornerShape(6.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Mic,
                                 contentDescription = null,
-                                tint = JadePrimary,
+                                tint = duit.onPrimaryContainer,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -156,7 +161,7 @@ fun RecordCashFlowDialog(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.8.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                     }
 
@@ -173,14 +178,14 @@ fun RecordCashFlowDialog(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(PebbleSurface)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp)),
+                                .background(duit.surfaceVariant)
+                                .border(1.dp, duit.border, RoundedCornerShape(6.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Tutup",
-                                tint = DarkSurface,
+                                tint = duit.textPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -299,27 +304,56 @@ private fun VoiceRecordingView(
     onTransferClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val duit = MaterialTheme.duit
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Microphone Core Block with Neo-Brutalist Frame
+    val micPulseComp by rememberLottieComposition(LottieCompositionSpec.RawRes(com.cashflow.app.R.raw.lottie_mic_pulse))
+    val micLimeArgb = duit.accentLime.toArgb()
+    val micDynamicProps = rememberLottieDynamicProperties(
+        rememberLottieDynamicProperty(
+            property = com.airbnb.lottie.LottieProperty.COLOR,
+            value = micLimeArgb,
+            keyPath = arrayOf("**")
+        ),
+        rememberLottieDynamicProperty(
+            property = com.airbnb.lottie.LottieProperty.STROKE_COLOR,
+            value = micLimeArgb,
+            keyPath = arrayOf("**")
+        )
+    )
+
+    // Microphone Core Block with Lottie Pulse Animation
     Box(
-        modifier = Modifier
-            .size(88.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (voiceState is VoiceState.Listening) JadePrimary
-                else if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF28342F)
-                else LightDarkSurface
-            )
-            .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
+        modifier = Modifier.size(112.dp),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = Icons.Rounded.Mic,
-            contentDescription = "Mendengarkan",
-            tint = Color.White,
-            modifier = Modifier.size(42.dp)
-        )
+        if (voiceState is VoiceState.Listening) {
+            LottieAnimation(
+                composition = micPulseComp,
+                iterations = LottieConstants.IterateForever,
+                dynamicProperties = micDynamicProps,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(76.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    if (voiceState is VoiceState.Listening) duit.primary
+                    else duit.surfaceVariant
+                )
+                .border(1.dp, duit.border, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Mic,
+                contentDescription = "Mendengarkan",
+                tint = if (voiceState is VoiceState.Listening) duit.onPrimary else duit.textPrimary,
+                modifier = Modifier.size(38.dp)
+            )
+        }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -329,7 +363,7 @@ private fun VoiceRecordingView(
         modifier = Modifier
             .height(28.dp)
             .padding(horizontal = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val barWeights = listOf(0.4f, 0.7f, 1.0f, 0.85f, 1.1f, 0.65f, 0.45f)
@@ -343,8 +377,8 @@ private fun VoiceRecordingView(
                     .width(6.dp)
                     .height(dynamicHeight)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(if (voiceState is VoiceState.Listening) JadePrimary else DarkBorder.copy(alpha = 0.3f))
-                    .border(0.5.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(2.dp))
+                    .background(if (voiceState is VoiceState.Listening) duit.primary else duit.track)
+                    .border(0.5.dp, duit.border, RoundedCornerShape(2.dp))
             )
         }
     }
@@ -360,14 +394,14 @@ private fun VoiceRecordingView(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = StatusNegative,
+                color = duit.expense,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Akses mikrofon ditolak atau belum aktif. Buka Pengaturan Aplikasi untuk mengizinkan mikrofon, atau tetap gunakan pencatatan manual di bawah.",
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                color = TextSecondary,
+                color = duit.textSecondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -381,7 +415,7 @@ private fun VoiceRecordingView(
                     leadingIcon = Icons.Rounded.Settings,
                     variant = DuitAingButtonVariant.PRIMARY,
                     height = 42.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
                 DuitAingButton(
                     text = "CATAT MANUAL",
@@ -389,7 +423,7 @@ private fun VoiceRecordingView(
                     leadingIcon = Icons.Rounded.Edit,
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 42.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
             }
         }
@@ -400,14 +434,14 @@ private fun VoiceRecordingView(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = DarkSurface,
+                color = duit.textPrimary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Duit Aing membutuhkan akses mikrofon untuk mendeteksi transaksi suara Anda. Semua data suara diproses offline dan aman di perangkat.",
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                color = TextSecondary,
+                color = duit.textSecondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -421,7 +455,7 @@ private fun VoiceRecordingView(
                     leadingIcon = Icons.Rounded.Mic,
                     variant = DuitAingButtonVariant.PRIMARY,
                     height = 42.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
                 DuitAingButton(
                     text = "CATAT MANUAL",
@@ -429,7 +463,7 @@ private fun VoiceRecordingView(
                     leadingIcon = Icons.Rounded.Edit,
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 42.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
             }
         }
@@ -440,13 +474,13 @@ private fun VoiceRecordingView(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Mengekstrak jenis, nominal, kategori, dan aset...",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
+                color = duit.textSecondary
             )
         }
         voiceState is VoiceState.Error -> {
@@ -456,14 +490,14 @@ private fun VoiceRecordingView(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = StatusNegative,
+                color = duit.expense,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = (voiceState as VoiceState.Error).message,
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                color = TextSecondary,
+                color = duit.textSecondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -477,7 +511,7 @@ private fun VoiceRecordingView(
                     leadingIcon = Icons.Rounded.Refresh,
                     variant = DuitAingButtonVariant.PRIMARY,
                     height = 42.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
                 DuitAingButton(
                     text = "CATAT MANUAL",
@@ -485,7 +519,7 @@ private fun VoiceRecordingView(
                     leadingIcon = Icons.Rounded.Edit,
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 42.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
             }
         }
@@ -496,7 +530,7 @@ private fun VoiceRecordingView(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -505,13 +539,13 @@ private fun VoiceRecordingView(
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "Contoh: “Beli makan 30 ribu pakai BCA”",
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                color = TextSecondary
+                color = duit.textSecondary
             )
         }
     }
@@ -525,7 +559,7 @@ private fun VoiceRecordingView(
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 0.8.sp
         ),
-        color = TextSecondary
+        color = duit.textSecondary
     )
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -549,10 +583,10 @@ private fun VoiceRecordingView(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .clip(RoundedCornerShape(6.dp))
-                    .background(PebbleSurface)
-                    .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                    .background(duit.surfaceVariant)
+                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                     .clickable(role = Role.Button) { onSimulate(phrase) }
-                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = phrase,
@@ -560,14 +594,14 @@ private fun VoiceRecordingView(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
         }
     }
 
     Spacer(modifier = Modifier.height(18.dp))
-    HorizontalDivider(color = PebbleBorder, thickness = 0.8.dp)
+    HorizontalDivider(color = duit.border, thickness = 0.8.dp)
     Spacer(modifier = Modifier.height(14.dp))
 
     Text(
@@ -576,7 +610,7 @@ private fun VoiceRecordingView(
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 0.8.sp
         ),
-        color = TextSecondary
+        color = duit.textSecondary
     )
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -590,20 +624,20 @@ private fun VoiceRecordingView(
                 .weight(1f)
                 .defaultMinSize(minHeight = 44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PebbleSurface)
-                .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                .background(duit.surfaceVariant)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button, onClick = onManualClick)
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Edit,
                     contentDescription = null,
-                    tint = DarkSurface,
+                    tint = duit.textPrimary,
                     modifier = Modifier.size(17.dp)
                 )
                 Text(
@@ -611,9 +645,9 @@ private fun VoiceRecordingView(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.4.sp,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
         }
@@ -624,20 +658,20 @@ private fun VoiceRecordingView(
                 .weight(1f)
                 .defaultMinSize(minHeight = 44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PebbleSurface)
-                .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                .background(duit.surfaceVariant)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button, onClick = onTransferClick)
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.SwapHoriz,
                     contentDescription = null,
-                    tint = DarkSurface,
+                    tint = duit.textPrimary,
                     modifier = Modifier.size(17.dp)
                 )
                 Text(
@@ -645,9 +679,9 @@ private fun VoiceRecordingView(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.4.sp,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
         }
@@ -658,7 +692,7 @@ private fun VoiceRecordingView(
     // Action Buttons
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
     ) {
         DuitAingButton(
             text = "BATAL",
@@ -666,7 +700,7 @@ private fun VoiceRecordingView(
             modifier = Modifier.weight(1f),
             variant = DuitAingButtonVariant.OUTLINE,
             height = 48.dp,
-            shadowOffset = 2.dp
+            shadowOffset = 0.dp
         )
 
         DuitAingButton(
@@ -676,7 +710,7 @@ private fun VoiceRecordingView(
             trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
             variant = DuitAingButtonVariant.PRIMARY,
             height = 48.dp,
-            shadowOffset = 2.dp
+            shadowOffset = 0.dp
         )
     }
 }
@@ -692,9 +726,11 @@ private fun VoiceConfirmationView(
     onSave: (Transaction) -> Unit,
     onRetry: () -> Unit
 ) {
+    val duit = MaterialTheme.duit
     var editedAmount by remember(result) { mutableStateOf(result.amount?.toString() ?: "") }
     var selectedAsset by remember(result) { mutableStateOf(result.matchedAsset) }
     var selectedDestAsset by remember(result) { mutableStateOf(result.destinationAsset) }
+    var isSaving by remember(result) { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
     val amountLong = editedAmount.toLongOrNull() ?: 0L
@@ -709,9 +745,9 @@ private fun VoiceConfirmationView(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(8.dp)),
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
             shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurfaceVariant)
+            colors = CardDefaults.cardColors(containerColor = duit.surfaceVariant)
         ) {
             Row(
                 modifier = Modifier.padding(12.dp),
@@ -720,14 +756,14 @@ private fun VoiceConfirmationView(
                 Icon(
                     imageVector = Icons.Rounded.FormatQuote,
                     contentDescription = null,
-                    tint = DarkSurface,
+                    tint = duit.textPrimary,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "\"${result.rawText}\"",
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
         }
@@ -742,10 +778,10 @@ private fun VoiceConfirmationView(
             else -> "TRANSAKSI"
         }
         val typeColor = when (result.type) {
-            TransactionType.INCOME -> StatusPositive
-            TransactionType.EXPENSE -> StatusNegative
-            TransactionType.TRANSFER -> StatusTransfer
-            else -> JadePrimary
+            TransactionType.INCOME -> duit.income
+            TransactionType.EXPENSE -> duit.expense
+            TransactionType.TRANSFER -> duit.transfer
+            else -> duit.primary
         }
 
         Row(
@@ -755,7 +791,7 @@ private fun VoiceConfirmationView(
         ) {
             EyebrowTag(
                 text = "DITANGKAP",
-                variant = EyebrowVariant.JADE
+                variant = EyebrowVariant.PRIMARY
             )
             Text(
                 text = typeDisplay,
@@ -776,7 +812,7 @@ private fun VoiceConfirmationView(
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-0.3).sp
             ),
-            color = DarkSurface
+            color = duit.textPrimary
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -786,9 +822,9 @@ private fun VoiceConfirmationView(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, StatusNegative.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
+                    .border(1.dp, duit.expense.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
                 shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = StatusNegativeContainer)
+                colors = CardDefaults.cardColors(containerColor = duit.expenseContainer)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
@@ -797,7 +833,7 @@ private fun VoiceConfirmationView(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 0.5.sp
                         ),
-                        color = StatusNegative
+                        color = duit.expense
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
@@ -818,21 +854,20 @@ private fun VoiceConfirmationView(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    FadingHorizontalScrollRow(
+                        fadeColor = duit.surfaceVariant,
+                        contentPadding = PaddingValues(start = 2.dp, end = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         listOf(10000L, 15000L, 20000L, 25000L, 35000L, 50000L, 100000L).forEach { quickNominal ->
                             AssistChip(
                                 onClick = { editedAmount = quickNominal.toString() },
-                                label = { Text(Formatters.formatRupiah(quickNominal), fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                label = { Text(Formatters.formatRupiah(quickNominal), fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                                 shape = RoundedCornerShape(6.dp),
-                                modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                                modifier = Modifier.border(1.dp, duit.border, RoundedCornerShape(6.dp))
                             )
                         }
                     }
@@ -857,7 +892,7 @@ private fun VoiceConfirmationView(
         }
 
         Spacer(modifier = Modifier.height(14.dp))
-        HorizontalDivider(color = DarkBorder.copy(alpha = 0.15f), thickness = 1.dp)
+        HorizontalDivider(color = duit.border, thickness = 1.dp)
         Spacer(modifier = Modifier.height(14.dp))
 
         // Details Grid
@@ -874,12 +909,17 @@ private fun VoiceConfirmationView(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.6.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = (result.detectedCategory?.name ?: "Lainnya").uppercase(),
+                    modifier = Modifier.weight(1f, fill = false),
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
 
@@ -890,26 +930,26 @@ private fun VoiceConfirmationView(
                     text = "TERAKHIR DIGUNAKAN:",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         letterSpacing = 0.5.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     recentCategories.forEach { cat ->
                         AssistChip(
                             onClick = {
                                 onResultChanged(result.copy(detectedCategory = cat))
                             },
-                            label = { Text(cat.name, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            label = { Text(cat.name, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                             shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                            modifier = Modifier.border(1.dp, duit.border, RoundedCornerShape(6.dp))
                         )
                     }
                 }
@@ -930,20 +970,29 @@ private fun VoiceConfirmationView(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.6.sp
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
+            Spacer(modifier = Modifier.width(8.dp))
 
             if (selectedAsset != null) {
                 Text(
                     text = selectedAsset!!.name.uppercase(),
+                    modifier = Modifier.weight(1f, fill = false),
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    color = JadePrimary
+                    color = duit.primary
                 )
             } else {
                 Text(
                     text = "ASET BELUM DIPILIH",
+                    modifier = Modifier.weight(1f, fill = false),
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = StatusNegative
+                    color = duit.expense
                 )
             }
         }
@@ -954,7 +1003,7 @@ private fun VoiceConfirmationView(
             Text(
                 text = "Aset \"${result.assetMismatchName}\" belum tersedia di akun Anda. Pilih aset lain:",
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                color = StatusNegative
+                color = duit.expense
             )
         }
 
@@ -965,25 +1014,25 @@ private fun VoiceConfirmationView(
                     text = "TERAKHIR DIGUNAKAN:",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         letterSpacing = 0.5.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     recentAssets.forEach { ast ->
                         FilterChip(
                             selected = false,
                             onClick = { selectedAsset = ast },
-                            label = { Text(ast.name, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            label = { Text(ast.name, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                             shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.border(1.dp, JadePrimary.copy(alpha = 0.40f), RoundedCornerShape(6.dp))
+                            modifier = Modifier.border(1.dp, duit.border, RoundedCornerShape(6.dp))
                         )
                     }
                 }
@@ -993,7 +1042,7 @@ private fun VoiceConfirmationView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 activeAssets.forEach { ast ->
                     FilterChip(
@@ -1001,7 +1050,7 @@ private fun VoiceConfirmationView(
                         onClick = { selectedAsset = ast },
                         label = { Text(ast.name, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                         shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                        modifier = Modifier.border(1.dp, duit.border, RoundedCornerShape(6.dp))
                     )
                 }
             }
@@ -1021,20 +1070,27 @@ private fun VoiceConfirmationView(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.6.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
+                Spacer(modifier = Modifier.width(8.dp))
 
                 if (selectedDestAsset != null) {
                     Text(
                         text = selectedDestAsset!!.name.uppercase(),
+                        modifier = Modifier.weight(1f, fill = false),
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                        color = StatusTransfer
+                        color = duit.transfer
                     )
                 } else {
                     Text(
                         text = "PILIH TUJUAN",
+                        modifier = Modifier.weight(1f, fill = false),
+                        textAlign = TextAlign.End,
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = StatusNegative
+                        color = duit.expense
                     )
                 }
             }
@@ -1045,7 +1101,7 @@ private fun VoiceConfirmationView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     activeAssets.filter { it.id != selectedAsset?.id }.forEach { ast ->
                         FilterChip(
@@ -1053,7 +1109,7 @@ private fun VoiceConfirmationView(
                             onClick = { selectedDestAsset = ast },
                             label = { Text(ast.name, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                             shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                            modifier = Modifier.border(1.dp, duit.border, RoundedCornerShape(6.dp))
                         )
                     }
                 }
@@ -1065,7 +1121,8 @@ private fun VoiceConfirmationView(
         // 4. Tanggal & Sumber
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "TANGGAL",
@@ -1073,12 +1130,17 @@ private fun VoiceConfirmationView(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.6.sp
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = Formatters.formatDateReadable(result.transactionDate),
+                modifier = Modifier.weight(1f, fill = false),
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = DarkSurface
+                color = duit.textPrimary
             )
         }
 
@@ -1086,7 +1148,8 @@ private fun VoiceConfirmationView(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "METODE INPUT",
@@ -1094,15 +1157,20 @@ private fun VoiceConfirmationView(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.6.sp
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "VOICE INPUT",
+                modifier = Modifier.weight(1f, fill = false),
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.6.sp
                 ),
-                color = JadePrimary
+                color = duit.primary
             )
         }
 
@@ -1111,7 +1179,7 @@ private fun VoiceConfirmationView(
         // Action Buttons: [Bicara Lagi] [Simpan Transaksi →] (Signature CTA)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
         ) {
             DuitAingButton(
                 text = "ULANGI",
@@ -1120,13 +1188,14 @@ private fun VoiceConfirmationView(
                 leadingIcon = Icons.Rounded.Refresh,
                 variant = DuitAingButtonVariant.OUTLINE,
                 height = 50.dp,
-                shadowOffset = 2.dp
+                shadowOffset = 0.dp
             )
 
             DuitAingButton(
                 text = "SIMPAN TRANSAKSI",
                 onClick = {
-                    if (isReadyToSave) {
+                    if (isReadyToSave && !isSaving) {
+                        isSaving = true
                         val finalTx = Transaction(
                             id = "tx_${UUID.randomUUID()}",
                             type = result.type?.value ?: TransactionType.EXPENSE.value,
@@ -1143,13 +1212,13 @@ private fun VoiceConfirmationView(
                         onSave(finalTx)
                     }
                 },
-                enabled = isReadyToSave,
+                enabled = isReadyToSave && !isSaving,
+                isLoading = isSaving,
                 modifier = Modifier.weight(1.35f),
                 leadingIcon = Icons.Rounded.Check,
-                trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
                 variant = DuitAingButtonVariant.PRIMARY,
                 height = 50.dp,
-                shadowOffset = 3.dp
+                shadowOffset = 0.dp
             )
         }
     }

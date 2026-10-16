@@ -3,7 +3,7 @@
     <shortcut
         android:shortcutId="record_voice"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_shortcut_voice"
         android:shortcutShortLabel="@string/shortcut_voice_short"
         android:shortcutLongLabel="@string/shortcut_voice_long">
         <intent
@@ -14,7 +14,7 @@
     <shortcut
         android:shortcutId="add_transaction"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_shortcut_add"
         android:shortcutShortLabel="@string/shortcut_add_short"
         android:shortcutLongLabel="@string/shortcut_add_long">
         <intent
@@ -25,7 +25,7 @@
     <shortcut
         android:shortcutId="add_expense"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_shortcut_expense"
         android:shortcutShortLabel="@string/shortcut_expense_short"
         android:shortcutLongLabel="@string/shortcut_expense_long">
         <intent
@@ -36,7 +36,7 @@
     <shortcut
         android:shortcutId="add_income"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_shortcut_income"
         android:shortcutShortLabel="@string/shortcut_income_short"
         android:shortcutLongLabel="@string/shortcut_income_long">
         <intent

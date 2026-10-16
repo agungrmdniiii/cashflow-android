@@ -3,6 +3,7 @@ package com.cashflow.app.ui
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import com.cashflow.app.data.backup.BackupValidationResult
 import com.cashflow.app.data.export.PdfReportGenerator
 import com.cashflow.app.data.model.*
 import com.cashflow.app.data.preferences.PreferenceManager
+import com.cashflow.app.data.repository.BalanceDiscrepancy
 import com.cashflow.app.data.repository.CashflowRepository
 import com.cashflow.app.data.repository.LedgerRecalculateResult
 import com.cashflow.app.data.service.*
@@ -47,6 +49,14 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
     private val repository = CashflowRepository(application.applicationContext)
     private val prefs = PreferenceManager(application.applicationContext)
+    val budgetStartDay = MutableStateFlow(prefs.getBudgetStartDay())
+    val lastBackupFormat = MutableStateFlow(prefs.getLastBackupFormat())
+    val lastRestoreTime = MutableStateFlow(prefs.getLastRestoreTime())
+    fun setBudgetStartDay(day: Int) {
+        prefs.setBudgetStartDay(day)
+        budgetStartDay.value = day
+        repository.refreshAll()
+    }
 
     // Theme Mode State
     val themeMode = MutableStateFlow(prefs.getThemeMode())
@@ -71,6 +81,46 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     fun setBiometricTimeout(timeout: BiometricTimeout) {
         biometricTimeout.value = timeout
         prefs.setBiometricTimeout(timeout)
+    }
+
+    // User Profile / Nickname
+    val userName = MutableStateFlow(prefs.getUserName())
+    fun setUserName(name: String) {
+        val trimmed = name.trim()
+        userName.value = trimmed
+        prefs.setUserName(trimmed)
+    }
+
+    // Screenshot & Recents privacy
+    val isScreenshotBlocked = MutableStateFlow(prefs.isScreenshotBlocked())
+    fun setScreenshotBlocked(blocked: Boolean) {
+        isScreenshotBlocked.value = blocked
+        prefs.setScreenshotBlocked(blocked)
+    }
+
+    // Online Feature Kill Switches
+    val isOnlineVoiceEnabled = MutableStateFlow(prefs.isOnlineVoiceEnabled())
+    fun setOnlineVoiceEnabled(enabled: Boolean) {
+        isOnlineVoiceEnabled.value = enabled
+        prefs.setOnlineVoiceEnabled(enabled)
+    }
+
+    val isOnlineOcrEnabled = MutableStateFlow(prefs.isOnlineOcrEnabled())
+    fun setOnlineOcrEnabled(enabled: Boolean) {
+        isOnlineOcrEnabled.value = enabled
+        prefs.setOnlineOcrEnabled(enabled)
+    }
+
+    val isAiInsightsEnabled = MutableStateFlow(prefs.isAiInsightsEnabled())
+    fun setAiInsightsEnabled(enabled: Boolean) {
+        isAiInsightsEnabled.value = enabled
+        prefs.setAiInsightsEnabled(enabled)
+    }
+
+    val isCloudBackupEnabled = MutableStateFlow(prefs.isCloudBackupEnabled())
+    fun setCloudBackupEnabled(enabled: Boolean) {
+        isCloudBackupEnabled.value = enabled
+        prefs.setCloudBackupEnabled(enabled)
     }
 
     // Backup & Restore Preferences
@@ -166,20 +216,84 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val recurringTransactions: StateFlow<List<RecurringTransaction>> = repository.recurringTransactions
     val upcomingRecurringBills = MutableStateFlow<List<UpcomingRecurringItem>>(emptyList())
 
+    val integrityDiscrepancies: StateFlow<List<BalanceDiscrepancy>> = repository.integrityDiscrepancies
+    val integrityReportItems: StateFlow<List<BalanceDiscrepancy>> = repository.integrityReportItems
+    val isCheckingIntegrity = MutableStateFlow(false)
+    val isIntegritySheetOpen = MutableStateFlow(false)
+    val initError: StateFlow<String?> = repository.initError
+
+    fun clearInitError() {
+        repository.clearInitError()
+    }
+
+    fun refreshIntegrityCheck(onComplete: ((LedgerRecalculateResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            isCheckingIntegrity.value = true
+            val result = repository.recalculateBalances(autoFix = false)
+            isCheckingIntegrity.value = false
+            if (result.isSuccess) {
+                val res = result.getOrNull()
+                if (res != null) {
+                    onComplete?.invoke(res)
+                }
+            } else {
+                showSnackbar("Gagal memeriksa integritas saldo: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    fun repairBalanceDiscrepancies(onComplete: ((LedgerRecalculateResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            isCheckingIntegrity.value = true
+            val result = repository.repairBalanceDiscrepancies()
+            isCheckingIntegrity.value = false
+            if (result.isSuccess) {
+                val r = result.getOrNull()
+                showSnackbar("Saldo berhasil diperbaiki (${r?.discrepanciesFound ?: 0} aset disesuaikan).")
+                if (r != null) {
+                    onComplete?.invoke(r)
+                }
+            } else {
+                showSnackbar("Gagal memperbaiki saldo: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
     val isRecurringScreenOpen = MutableStateFlow(false)
     val editingRecurring = MutableStateFlow<RecurringTransaction?>(null)
 
     init {
         viewModelScope.launch {
             try {
+                repository.reloadForBackgroundCheck()
                 RecurringSchedulerService.processDueRecurringTransactions(repository)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             repository.recurringTransactions.collect { recList ->
                 upcomingRecurringBills.value = RecurringSchedulerService.getUpcomingBills(
-                    getApplication(), recList, daysAhead = 7
+                    repository, recList, daysAhead = 7
                 )
+            }
+        }
+        viewModelScope.launch {
+            repository.initError.collect { error ->
+                if (!error.isNullOrBlank()) {
+                    showSnackbar(error)
+                }
+            }
+        }
+        viewModelScope.launch {
+            repository.integrityDiscrepancies.collect { discrepancies ->
+                if (discrepancies.isNotEmpty()) {
+                    showSnackbar(
+                        message = "Terdeteksi selisih saldo pada ${discrepancies.size} aset.",
+                        actionLabel = "Perbaiki",
+                        onAction = {
+                            repairBalanceDiscrepancies()
+                        }
+                    )
+                }
             }
         }
     }
@@ -213,8 +327,9 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     // AI & Local Insights
     val geminiApiKey = MutableStateFlow(prefs.getGeminiApiKey())
     fun setGeminiApiKey(key: String?) {
-        geminiApiKey.value = key
-        prefs.setGeminiApiKey(key)
+        runCatching { prefs.setGeminiApiKey(key) }
+            .onSuccess { geminiApiKey.value = key }
+            .onFailure { showSnackbar("Kunci gagal disimpan dengan aman: ${it.message}") }
     }
 
     val monthComparisonStats: StateFlow<MonthComparisonStats?> = transactions.map { txList ->
@@ -240,6 +355,12 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val isInitialSetupCompleted = MutableStateFlow(prefs.isInitialSetupCompleted())
+    val isAppTourPending = MutableStateFlow(prefs.isAppTourPending())
+
+    fun dismissAppTour() {
+        prefs.setAppTourPending(false)
+        isAppTourPending.value = false
+    }
 
     val hasSampleData: StateFlow<Boolean> = combine(assets, transactions) { aList, txList ->
         aList.any { it.isSample } || txList.any { it.isSample }
@@ -256,6 +377,15 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     // Period Filter State (default: BULAN_INI)
     private val _selectedPeriod = MutableStateFlow(PeriodFilter.BULAN_INI)
     val selectedPeriod: StateFlow<PeriodFilter> = _selectedPeriod.asStateFlow()
+    val reportDateRange = MutableStateFlow<ReportDateRange?>(null)
+    val reportTransactions = combine(transactions, selectedPeriod, reportDateRange) { list, period, range ->
+        list.filter { tx -> range?.contains(tx.transactionDate) ?: isDateInPeriod(tx.transactionDate, period) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun setReportPeriod(period: PeriodFilter) {
+        reportDateRange.value = null
+        setPeriodFilter(period)
+    }
 
     fun setPeriodFilter(filter: PeriodFilter) {
         _selectedPeriod.value = filter
@@ -437,12 +567,12 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
     // Computed: Total Remaining Debt (sisa kewajiban hutang yang belum terbayar)
     val totalRemainingDebt: StateFlow<Long> = debts.map { list ->
-        list.sumOf { it.remainingAmount }
+        list.filter { it.direction == "debt" }.sumOf { it.remainingAmount }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Total Paid Debt (total cicilan hutang yang telah dibayarkan)
     val totalPaidDebt: StateFlow<Long> = debts.map { list ->
-        list.sumOf { it.paidAmount }
+        list.filter { it.direction == "debt" }.sumOf { it.paidAmount }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Active Debts Count
@@ -456,8 +586,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     // Computed: Real Net Worth = Total Wealth - Total Remaining Debt
-    val netWorth: StateFlow<Long> = combine(totalWealth, totalRemainingDebt) { wealth, debt ->
-        wealth - debt
+    val netWorth: StateFlow<Long> = combine(totalWealth, debts) { wealth, list ->
+        wealth + list.filter { it.direction == "receivable" }.sumOf { it.remainingAmount } - list.filter { it.direction == "debt" }.sumOf { it.remainingAmount }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Helper: Checks if a date string matches the current period filter
@@ -676,8 +806,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             if (res.isSuccess) {
                 onComplete?.invoke(true)
                 showSnackbar(
-                    message = "Transaksi berhasil disimpan.",
-                    actionLabel = "URUNGKAN",
+                    message = "Transaksi disimpan.",
+                    actionLabel = "BATALKAN",
                     onAction = {
                         viewModelScope.launch {
                             repository.deleteTransaction(tx.id)
@@ -706,8 +836,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 onComplete?.invoke(true)
                 if (previousTx != null) {
                     showSnackbar(
-                        message = "Transaksi berhasil diperbarui.",
-                        actionLabel = "URUNGKAN",
+                        message = "Transaksi diperbarui.",
+                        actionLabel = "BATALKAN",
                         onAction = {
                             viewModelScope.launch {
                                 repository.updateTransaction(previousTx)
@@ -715,7 +845,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                         }
                     )
                 } else {
-                    showSnackbar("Transaksi berhasil diperbarui.")
+                    showSnackbar("Transaksi diperbarui.")
                 }
             } else {
                 showSnackbar(res.exceptionOrNull()?.message ?: "Gagal memperbarui transaksi")
@@ -778,13 +908,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     }
 
     suspend fun createBackupJson(): Result<String> {
-        val res = repository.createBackupJson()
-        if (res.isSuccess) {
-            val now = System.currentTimeMillis()
-            prefs.setLastBackupTime(now)
-            lastBackupTime.value = now
-        }
-        return res
+        return repository.createBackupJson()
     }
 
     fun validateBackupJson(jsonString: String): BackupValidationResult {
@@ -796,8 +920,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             val res = repository.restoreFromJson(data)
             if (res.isSuccess) {
                 val now = System.currentTimeMillis()
-                prefs.setLastBackupTime(now)
-                lastBackupTime.value = now
+                prefs.setLastRestoreTime(now)
+                lastRestoreTime.value = now
                 showSnackbar("Data cadangan berhasil dipulihkan.")
             } else {
                 showSnackbar(res.exceptionOrNull()?.message ?: "Gagal memulihkan cadangan.")
@@ -822,6 +946,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             val res = repository.deleteAllUserData()
             if (res.isSuccess) {
                 prefs.setInitialSetupCompleted(false)
+                isInitialSetupCompleted.value = false
+                dismissAppTour()
                 showSnackbar("Semua data transaksi dan aset berhasil dihapus.")
                 onComplete?.invoke()
             } else {
@@ -844,6 +970,9 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             val res = repository.addAsset(newAsset)
             if (res.isSuccess) {
                 prefs.setInitialSetupCompleted(true)
+                prefs.setAppTourPending(true)
+                isAppTourPending.value = true
+                isInitialSetupCompleted.value = true
                 showSnackbar("Aset pertama berhasil dibuat!")
                 onComplete()
             } else {
@@ -852,8 +981,21 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun saveAsset(asset: Asset, isNew: Boolean, onComplete: (() -> Unit)? = null) {
+    fun saveAsset(
+        asset: Asset,
+        isNew: Boolean,
+        newOpeningBalance: Long? = null,
+        onComplete: (() -> Unit)? = null
+    ) {
         viewModelScope.launch {
+            if (!isNew && newOpeningBalance != null && newOpeningBalance != asset.openingBalance) {
+                val openBalRes = repository.updateAssetOpeningBalance(asset.id, newOpeningBalance)
+                if (openBalRes.isFailure) {
+                    showSnackbar(openBalRes.exceptionOrNull()?.message ?: "Gagal mengubah saldo awal aset")
+                    return@launch
+                }
+            }
+
             val res = if (isNew) repository.addAsset(asset) else repository.updateAsset(asset)
             if (res.isSuccess) {
                 showSnackbar(if (isNew) "Aset berhasil ditambahkan." else "Aset berhasil diperbarui.")
@@ -1159,14 +1301,33 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun resetData() {
+    fun exportBackupToUri(
+        uri: Uri,
+        context: Context,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         viewModelScope.launch {
-            val res = repository.resetToDemo()
-            if (res.isSuccess) {
-                showSnackbar("Data berhasil direset ke data awal.")
-                isSettingsOpen.value = false
-            } else {
-                showSnackbar("Gagal mereset data.")
+            try {
+                val res = createBackupJson()
+                if (res.isFailure) {
+                    onError(res.exceptionOrNull()?.message ?: "Gagal membuat cadangan JSON")
+                    return@launch
+                }
+                val jsonString = res.getOrThrow()
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(jsonString.toByteArray(Charsets.UTF_8))
+                        output.flush()
+                    } ?: throw IllegalStateException("Tidak dapat membuka berkas untuk penulisan")
+                }
+                val now = System.currentTimeMillis()
+                prefs.setBackupSaved("JSON", now)
+                lastBackupFormat.value = "JSON"
+                lastBackupTime.value = now
+                onSuccess(jsonString)
+            } catch (e: Exception) {
+                onError(e.message ?: "Gagal menyimpan cadangan ke penyimpanan")
             }
         }
     }
@@ -1187,7 +1348,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         totalAmount: Long,
         dueDate: String,
         note: String = "",
-        receiveAssetId: String? = null
+        receiveAssetId: String? = null,
+        direction: String = "debt"
     ) {
         if (totalAmount <= 0) {
             showSnackbar("Nominal pinjaman harus lebih dari 0")
@@ -1205,7 +1367,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 totalAmount = totalAmount,
                 dueDate = dueDate,
                 note = note,
-                receiveAssetId = receiveAssetId
+                receiveAssetId = receiveAssetId,
+                direction = direction
             )
             result.onSuccess {
                 isAddDebtOpen.value = false
@@ -1268,15 +1431,27 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     // --- TRANSAKSI BERULANG (4A) ---
     fun refreshUpcomingBills() {
         upcomingRecurringBills.value = RecurringSchedulerService.getUpcomingBills(
-            getApplication(), recurringTransactions.value, daysAhead = 7
+            repository, recurringTransactions.value, daysAhead = 7
         )
+    }
+
+    fun previewCsv(content: String, callback: (Result<com.cashflow.app.data.importer.CsvPreview>) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { com.cashflow.app.data.importer.CsvImport.preview(content, assets.value, categories.value, transactions.value) } }
+            callback(result)
+        }
+    }
+
+    fun importCsv(content: String, callback: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            repository.importCsv(content).onSuccess { showSnackbar("$it transaksi diimpor. Duplikat dilewati."); callback(true) }
+                .onFailure { showSnackbar(it.message ?: "Impor gagal"); callback(false) }
+        }
     }
 
     fun processRecurringBills() {
         viewModelScope.launch {
-            val newlyCreated = RecurringSchedulerService.processDueRecurringSchedules(
-                getApplication(), recurringTransactions.value
-            )
+            val newlyCreated = RecurringSchedulerService.processDueRecurringSchedules(repository)
             if (newlyCreated > 0) {
                 showSnackbar("$newlyCreated tagihan berulang berhasil dicatat otomatis.")
                 repository.refreshAll()
@@ -1287,8 +1462,18 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
     fun skipUpcomingBill(recurringId: String, occurrenceDate: String) {
         viewModelScope.launch {
-            RecurringSchedulerService.skipRecurringOccurrence(getApplication(), recurringId, occurrenceDate)
-            showSnackbar("Jadwal $occurrenceDate berhasil dilewati.")
+            runCatching { RecurringSchedulerService.skipRecurringOccurrence(repository, recurringId, occurrenceDate) }
+                .onSuccess { showSnackbar("Jadwal $occurrenceDate berhasil dilewati.") }
+                .onFailure { showSnackbar(it.message ?: "Gagal melewati jadwal") }
+            refreshUpcomingBills()
+        }
+    }
+
+    fun recordUpcomingBill(recurringId: String, occurrenceDate: String) {
+        viewModelScope.launch {
+            repository.executeRecurringOccurrence(recurringId, occurrenceDate, confirmed = true)
+                .onSuccess { showSnackbar(if (it == null) "Jadwal sudah diproses." else "Transaksi berhasil dicatat.") }
+                .onFailure { showSnackbar(it.message ?: "Gagal mencatat jadwal") }
             refreshUpcomingBills()
         }
     }
@@ -1335,6 +1520,10 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun requestGeminiInsight(apiKey: String, onResult: (Result<String>) -> Unit) {
+        if (!isAiInsightsEnabled.value) {
+            onResult(Result.failure(IllegalStateException("Aktifkan analisis online di Pengaturan sebelum mengirim ringkasan ke Gemini.")))
+            return
+        }
         viewModelScope.launch {
             val now = LocalDate.now()
             val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
@@ -1347,6 +1536,91 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 previousMonthPrefix = prevPrefix
             )
             onResult(res)
+        }
+    }
+
+    // --- FINANCIAL AI CHAT ASSISTANT ---
+    val isChatOpen = MutableStateFlow(false)
+    val isChatLoading = MutableStateFlow(false)
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(
+        listOf(
+            ChatMessage(
+                sender = ChatSender.ASSISTANT,
+                text = "Halo! Saya Vina, asisten finansial pribadi Anda di Duit Aing. Tanyakan apa saja seputar kondisi keuangan Anda, misalnya tren arus kas bulan lalu, evaluasi anggaran, pos belanja terbesar, atau simulasi kelayakan pembelian barang."
+            )
+        )
+    )
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    fun openChat() {
+        isChatOpen.value = true
+    }
+
+    fun closeChat() {
+        isChatOpen.value = false
+    }
+
+    fun clearChat() {
+        _chatMessages.value = listOf(
+            ChatMessage(
+                sender = ChatSender.ASSISTANT,
+                text = "Riwayat percakapan telah dibersihkan. Halo, saya Vina! Ada hal lain yang ingin Anda konsultasikan seputar keuangan Anda?"
+            )
+        )
+    }
+
+    fun sendChatMessage(userText: String) {
+        val cleanText = userText.trim()
+        if (cleanText.isBlank() || isChatLoading.value) return
+
+        val userMsg = ChatMessage(sender = ChatSender.USER, text = cleanText)
+        _chatMessages.value = _chatMessages.value + userMsg
+        isChatLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                val now = LocalDate.now()
+                val curMonthPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                val prevMonthPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                val stats = FinancialInsightService.computeMonthComparison(
+                    transactions = transactions.value,
+                    categories = categories.value,
+                    currentMonthDate = now
+                )
+
+                val chatContext = FinancialChatContext(
+                    userName = userName.value,
+                    currentDate = now.toString(),
+                    totalLiquidBalance = activeAssets.value.sumOf { it.currentBalance },
+                    assets = activeAssets.value,
+                    currentMonthStats = stats,
+                    prevMonthPrefix = prevMonthPrefix,
+                    currentMonthPrefix = curMonthPrefix,
+                    topCategories = stats.categoryDeltas,
+                    budgets = budgets.value,
+                    debts = debts.value,
+                    goals = goals.value,
+                    transactions = transactions.value,
+                    categories = categories.value
+                )
+
+                val responseRes = FinancialInsightService.sendChatMessage(
+                    apiKey = geminiApiKey.value.takeIf { isAiInsightsEnabled.value },
+                    conversationHistory = _chatMessages.value,
+                    context = chatContext
+                )
+
+                val replyText = responseRes.getOrDefault("Maaf, terjadi kendala saat memproses jawaban. Silakan coba sesaat lagi.")
+                _chatMessages.value = _chatMessages.value + ChatMessage(sender = ChatSender.ASSISTANT, text = replyText)
+            } catch (e: Exception) {
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = ChatSender.ASSISTANT,
+                    text = "Terjadi kesalahan: ${e.message}",
+                    isError = true
+                )
+            } finally {
+                isChatLoading.value = false
+            }
         }
     }
 
@@ -1374,8 +1648,9 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 assetId = assetId,
                 transactionDate = LocalDate.now().toString(),
                 transactionTime = java.time.LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")),
-                note = "Penyesuaian saldo manual dari ${Formatters.formatRupiah(asset.currentBalance)} ke ${Formatters.formatRupiah(targetBalance)}",
-                isAdjustment = true
+                note = if (note.isNotBlank()) note else "Penyesuaian saldo manual dari ${Formatters.formatRupiah(asset.currentBalance)} ke ${Formatters.formatRupiah(targetBalance)}",
+                isAdjustment = true,
+                adjustmentDirection = if (isPositive) 1 else -1
             )
             val saveRes = repository.addTransaction(adjustmentTx)
             if (saveRes.isSuccess) {
@@ -1389,6 +1664,27 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     }
 
     // --- ENCRYPTED & ZIP BACKUP (4F) ---
+    fun savePreparedBackupToUri(file: File, uri: Uri, onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val output = getApplication<Application>().contentResolver.openOutputStream(uri)
+                        ?: throw java.io.IOException("Penyimpanan tujuan tidak dapat dibuka.")
+                    output.use { out -> file.inputStream().use { it.copyTo(out) } }
+                    Unit
+                }
+            }
+            if (result.isSuccess) {
+                val now = System.currentTimeMillis()
+                val format = if (file.extension == "enc") "Terenkripsi (.enc)" else "ZIP + struk"
+                prefs.setBackupSaved(format, now)
+                lastBackupFormat.value = format
+                lastBackupTime.value = now
+            }
+            onResult(result)
+        }
+    }
+
     fun exportEncryptedBackupFile(password: String, onResult: (Result<File>) -> Unit) {
         viewModelScope.launch {
             try {
@@ -1397,10 +1693,11 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                     onResult(Result.failure(jsonRes.exceptionOrNull() ?: Exception("Gagal membuat JSON")))
                     return@launch
                 }
-                val encryptedBytes = CloudBackupService.encryptBackupPayload(jsonRes.getOrThrow(), password)
-                val fileName = BackupManager.generateBackupFileName().replace(".json", ".enc")
-                val outFile = File(getApplication<Application>().cacheDir, fileName)
-                outFile.writeBytes(encryptedBytes)
+                val outFile = withContext(Dispatchers.IO) {
+                    val encryptedBytes = CloudBackupService.encryptBackupPayload(jsonRes.getOrThrow(), password)
+                    File(getApplication<Application>().cacheDir, BackupManager.generateBackupFileName().replace(".json", ".enc"))
+                        .apply { writeBytes(encryptedBytes) }
+                }
                 onResult(Result.success(outFile))
             } catch (e: Exception) {
                 onResult(Result.failure(e))
@@ -1408,24 +1705,18 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun restoreEncryptedBackupFile(file: File, password: String, onResult: (Result<BackupSummary>) -> Unit) {
+    fun readEncryptedBackupFile(file: File, password: String, onResult: (Result<BackupValidationResult.Valid>) -> Unit) {
         viewModelScope.launch {
             try {
-                val encryptedBytes = file.readBytes()
-                val jsonString = CloudBackupService.decryptBackupPayload(encryptedBytes, password)
-                val validation = BackupManager.validateBackupJson(jsonString)
+                val validation = withContext(Dispatchers.IO) {
+                    val encryptedBytes = file.inputStream().use { BackupManager.readBackupBytes(it) }
+                    BackupManager.validateBackupJson(CloudBackupService.decryptBackupPayload(encryptedBytes, password))
+                }
                 if (validation !is BackupValidationResult.Valid) {
                     onResult(Result.failure(IllegalArgumentException((validation as BackupValidationResult.Invalid).reason)))
                     return@launch
                 }
-                val restoreRes = repository.restoreFromJson(validation.parsedData)
-                if (restoreRes.isSuccess) {
-                    prefs.setLastBackupTime(System.currentTimeMillis())
-                    lastBackupTime.value = System.currentTimeMillis()
-                    onResult(Result.success(validation.summary))
-                } else {
-                    onResult(Result.failure(restoreRes.exceptionOrNull() ?: Exception("Gagal memulihkan database")))
-                }
+                onResult(Result.success(validation))
             } catch (e: Exception) {
                 onResult(Result.failure(e))
             }
@@ -1454,13 +1745,28 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             try {
                 val res = repository.restoreFromZip(file)
                 if (res.isSuccess) {
-                    prefs.setLastBackupTime(System.currentTimeMillis())
-                    lastBackupTime.value = System.currentTimeMillis()
+                    val now = System.currentTimeMillis()
+                    prefs.setLastRestoreTime(now)
+                    lastRestoreTime.value = now
                 }
                 onResult(res)
             } catch (e: Exception) {
                 onResult(Result.failure(e))
             }
+        }
+    }
+
+    fun seedSyntheticTransactions(count: Int = 10_000, onComplete: (Result<Long>) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = repository.seedSyntheticTransactions(count)
+            onComplete(res)
+        }
+    }
+
+    fun clearSyntheticTransactions(onComplete: (Result<Int>) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = repository.clearSyntheticTransactions()
+            onComplete(res)
         }
     }
 

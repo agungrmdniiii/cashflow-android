@@ -4,7 +4,13 @@ enum class TransactionType(val value: String, val displayName: String) {
     INCOME("income", "Pemasukan"),
     EXPENSE("expense", "Pengeluaran"),
     TRANSFER("transfer", "Transfer"),
-    ADJUSTMENT("adjustment", "Penyesuaian Saldo");
+    ADJUSTMENT("adjustment", "Penyesuaian Saldo"),
+    ALLOCATION("allocation", "Alokasi Tabungan"),
+    RELEASE("release", "Pelepasan Alokasi"),
+    LOAN_RECEIVED("loan_received", "Dana Hutang Diterima"),
+    LOAN_GIVEN("loan_given", "Dana Piutang Diberikan"),
+    DEBT_PAYMENT("debt_payment", "Pembayaran Hutang"),
+    RECEIVABLE_PAYMENT("receivable_payment", "Penerimaan Piutang");
 
     companion object {
         fun fromValue(value: String): TransactionType {

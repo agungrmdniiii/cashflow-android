@@ -19,6 +19,9 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,9 +31,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.model.PeriodFilter
+import com.cashflow.app.data.model.buildCashflowChart
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
@@ -43,30 +49,34 @@ import com.cashflow.app.ui.theme.*
 @Composable
 fun ReportsScreen(
     viewModel: CashflowViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onTourCalendarPositioned: (Rect) -> Unit = {}
 ) {
-    val periodTransactions by viewModel.periodTransactions.collectAsState()
-    val periodIncome by viewModel.periodIncome.collectAsState()
-    val periodExpense by viewModel.periodExpense.collectAsState()
-    val netCashflow by viewModel.netCashflow.collectAsState()
+    val periodTransactions by viewModel.reportTransactions.collectAsState()
+    val reportRange by viewModel.reportDateRange.collectAsState()
+    val periodIncome = remember(periodTransactions) { periodTransactions.filter { it.type == "income" }.sumOf { it.amount } }
+    val periodExpense = remember(periodTransactions) { periodTransactions.filter { it.type == "expense" }.sumOf { it.amount } }
+    val netCashflow = periodIncome - periodExpense
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val categories by viewModel.categories.collectAsState()
-    val assets by viewModel.activeAssets.collectAsState()
+    val allAssets by viewModel.assets.collectAsState()
     val monthStats by viewModel.monthComparisonStats.collectAsState()
     val geminiApiKey by viewModel.geminiApiKey.collectAsState()
 
     val catMap = remember(categories) { categories.associateBy { it.id } }
-    val assetMap = remember(assets) { assets.associateBy { it.id } }
+    val assetMap = remember(allAssets) { allAssets.associateBy { it.id } }
 
     val isBalanceHidden by viewModel.isBalanceHidden.collectAsState()
+    val duit = MaterialTheme.duit
+    val isDark = LocalIsDarkTheme.current
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     var reportChartType by remember { mutableStateOf("expense") } // "expense" or "income"
     var showPeriodSheet by remember { mutableStateOf(false) }
+    var showReportCalendar by remember { mutableStateOf(false) }
+    val periodLabel = reportRange?.let { "${Formatters.formatDateReadable(it.start.toString())} – ${Formatters.formatDateReadable(it.end.toString())}" } ?: selectedPeriod.displayName
 
-    var aiInsightText by remember { mutableStateOf<String?>(null) }
-    var isLoadingAi by remember { mutableStateOf(false) }
     var showPayloadDialog by remember { mutableStateOf(false) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(geminiApiKey ?: "") }
@@ -106,7 +116,7 @@ fun ReportsScreen(
     }
 
     // Asset spending breakdown
-    val assetBreakdown = remember(periodTransactions, assets) {
+    val assetBreakdown = remember(periodTransactions, allAssets) {
         val expenseTx = periodTransactions.filter { it.type == TransactionType.EXPENSE.value }
         val totalExp = expenseTx.sumOf { it.amount }
         if (totalExp == 0L) emptyList()
@@ -134,7 +144,7 @@ fun ReportsScreen(
         },
         modifier = modifier
             .fillMaxSize()
-            .background(PebbleBackground)
+            .background(duit.background)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -161,13 +171,13 @@ fun ReportsScreen(
                             fontSize = 24.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = DarkSurface,
+                        color = duit.textPrimary,
                         maxLines = 1,
                         softWrap = false
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Analisis arus kas & perputaran dana",
+                        text = periodLabel,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp
                         ),
@@ -185,30 +195,31 @@ fun ReportsScreen(
                             .minimumInteractiveComponentSize()
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PebbleSurface)
-                            .border(1.dp, PebbleBorder, CircleShape)
+                            .background(duit.surface)
+                            .border(1.dp, duit.border, CircleShape)
                     ) {
                         Icon(
                             imageVector = if (isBalanceHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
                             contentDescription = if (isBalanceHidden) "Tampilkan saldo" else "Sembunyikan saldo",
-                            tint = DarkSurface,
+                            tint = duit.textPrimary,
                             modifier = Modifier.size(19.dp)
                         )
                     }
 
                     IconButton(
-                        onClick = { showPeriodSheet = true },
+                        onClick = { showReportCalendar = true },
                         modifier = Modifier
+                            .onGloballyPositioned { onTourCalendarPositioned(it.boundsInRoot()) }
                             .minimumInteractiveComponentSize()
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PebbleSurface)
-                            .border(1.dp, PebbleBorder, CircleShape)
+                            .background(duit.surface)
+                            .border(1.dp, duit.border, CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.CalendarMonth,
-                            contentDescription = "Pilih Periode",
-                            tint = DarkSurface,
+                            contentDescription = "Pilih rentang tanggal laporan",
+                            tint = duit.textPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -216,9 +227,9 @@ fun ReportsScreen(
             }
         }
 
-        // 2. Segmented Pill Tabs: Pengeluaran | Pemasukan | Tabungan | Target with unified tactile control
+        // 2. Segmented Pill Tabs: Pengeluaran | Pemasukan with unified tactile control
         item {
-            var selectedReportTab by remember { mutableStateOf(0) }
+            val selectedReportTab = if (reportChartType == "income") 1 else 0
             val reportTabs = listOf(
                 SegmentItem(value = 0, label = "Pengeluaran"),
                 SegmentItem(value = 1, label = "Pemasukan")
@@ -228,15 +239,18 @@ fun ReportsScreen(
                 items = reportTabs,
                 selectedValue = selectedReportTab,
                 onValueChange = { index ->
-                    selectedReportTab = index
                     reportChartType = if (index == 1) "income" else "expense"
                 },
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. Section Title "Pengeluaran Anda" + Month Dropdown Pill
+        val isExpense = reportChartType == "expense"
+        val currentBreakdown = if (isExpense) categoryBreakdown else incomeCategoryBreakdown
+        val currentTotal = if (isExpense) periodExpense else periodIncome
+
+        // 3. Section Title "Pengeluaran Anda" / "Pemasukan Anda" + Month Dropdown Pill
         item {
             Row(
                 modifier = Modifier
@@ -246,22 +260,22 @@ fun ReportsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (reportChartType == "expense") "Pengeluaran Anda" else "Pemasukan Anda",
+                    text = if (isExpense) "Pengeluaran Anda" else "Pemasukan Anda",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
 
                 // Month Dropdown Pill (e.g. "Agu 2026 ▾")
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
-                        .background(PebbleSurface)
-                        .border(1.dp, PebbleBorder, RoundedCornerShape(999.dp))
+                        .background(duit.surface)
+                        .border(1.dp, duit.border, RoundedCornerShape(999.dp))
                         .clickable(role = Role.Button) { showPeriodSheet = true }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
@@ -269,17 +283,17 @@ fun ReportsScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = selectedPeriod.displayName,
+                            text = if (reportRange != null) "Kustom" else selectedPeriod.displayName,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                         Icon(
                             imageVector = Icons.Rounded.ArrowDropDown,
                             contentDescription = null,
-                            tint = DarkSurface,
+                            tint = duit.textPrimary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -288,12 +302,35 @@ fun ReportsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        if (currentTotal <= 0L || currentBreakdown.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 28.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AnimatedEmptyState(
+                        icon = Icons.Rounded.Assessment,
+                        title = if (isExpense) "BELUM ADA PENGELUARAN" else "BELUM ADA PEMASUKAN",
+                        description = if (isExpense)
+                            "Belum ada catatan pengeluaran pada periode ${periodLabel}. Catat pengeluaran untuk melihat analisis laporan."
+                        else
+                            "Belum ada catatan pemasukan pada periode ${periodLabel}. Catat pemasukan untuk melihat analisis laporan.",
+                        lottieRawRes = com.cashflow.app.R.raw.lottie_no_transactions,
+                        actionText = if (isExpense) "Catat Pengeluaran" else "Catat Pemasukan",
+                        actionIcon = Icons.Rounded.Add,
+                        onActionClick = {
+                            viewModel.addTransactionInitialType.value = if (isExpense) TransactionType.EXPENSE else TransactionType.INCOME
+                            viewModel.editingTransaction.value = null
+                            viewModel.isAddTransactionOpen.value = true
+                        }
+                    )
+                }
+            }
+        } else {
         // 4. Donut Chart with Center Total and 2-Column Legend
         item {
-            val isExpense = reportChartType == "expense"
-            val currentBreakdown = if (isExpense) categoryBreakdown else incomeCategoryBreakdown
-            val currentTotal = if (isExpense) periodExpense else periodIncome
-
             DonutExpenseChart(
                 breakdownList = currentBreakdown,
                 totalExpense = currentTotal,
@@ -303,176 +340,31 @@ fun ReportsScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // 5. Tren Pengeluaran (Spending Trend) with 6-Month Bar Chart & Floating Tooltip
+        // Trend and breakdowns use exactly the same report transaction set.
         item {
-            val allTransactions by viewModel.transactions.collectAsState()
-            val isDark = LocalIsDarkTheme.current
-            val monthTrend = remember(allTransactions) {
-                val now = java.time.YearMonth.now()
-                (5 downTo 0).map { offset ->
-                    val ym = now.minusMonths(offset.toLong())
-                    val ymStr = ym.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
-                    val exp = allTransactions
-                        .filter { it.type == "expense" && it.transactionDate.startsWith(ymStr) }
-                        .sumOf { it.amount }
-                    Triple(ym, ym.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale("id")), exp)
-                }
+            val today = java.time.LocalDate.now()
+            val buckets = remember(periodTransactions, selectedPeriod, reportRange, today) {
+                buildCashflowChart(periodTransactions, selectedPeriod, today, reportRange)
             }
-            val maxExp = remember(monthTrend) { monthTrend.maxOfOrNull { it.third }?.coerceAtLeast(100_000L) ?: 100_000L }
-            var selectedMonthIdx by remember { mutableStateOf<Int?>(5) } // Default to current month
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            ) {
-                Text(
-                    text = "Tren Pengeluaran",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    ),
-                    color = DarkSurface
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Chart row with Y-axis markers on right (Matching Reference!)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    // 6 Bars Area
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        monthTrend.forEachIndexed { idx, (_, monthName, exp) ->
-                            val isCurrent = idx == 5
-                            val isSelected = selectedMonthIdx == idx
-                            val barHeightFraction = (exp.toFloat() / maxExp.toFloat()).coerceIn(0.12f, 1f)
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Bottom,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        role = Role.Tab
-                                    ) { selectedMonthIdx = idx }
-                            ) {
-                                // Floating Tooltip Pill for Active / Selected bar (Matching Reference!)
-                                if (isSelected || isCurrent) {
-                                    Box(
-                                        modifier = Modifier
-                                            .wrapContentWidth(unbounded = true)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isDark) FintechAccentLight else FintechPrimary)
-                                            .padding(horizontal = 7.dp, vertical = 3.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = if (isBalanceHidden) "Rp ••••••" else if (exp > 0) Formatters.formatRupiah(exp) else "Rp 0",
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 9.5.sp
-                                            ),
-                                            color = if (isDark) PebbleBackgroundDark else Color.White,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                }
-
-                                // Rounded Bar or Thin Zero Line
-                                if (exp <= 0L) {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(18.dp)
-                                            .height(3.dp)
-                                            .clip(RoundedCornerShape(1.5.dp))
-                                            .background(if (isDark) FintechActionSquareDark else FintechBarMutedLight)
-                                    )
-                                } else {
-                                    val barHeightFraction = (exp.toFloat() / maxExp.toFloat()).coerceIn(0.08f, 1f)
-                                    Box(
-                                        modifier = Modifier
-                                            .width(26.dp)
-                                            .fillMaxHeight(barHeightFraction * 0.70f)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(
-                                                when {
-                                                    isSelected || isCurrent -> if (isDark) FintechAccentLight else FintechPrimary
-                                                    else -> if (isDark) FintechActionSquareDark else FintechBarMutedLight
-                                                }
-                                            )
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = monthName,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected || isCurrent) FontWeight.Bold else FontWeight.Medium
-                                    ),
-                                    color = if (isSelected || isCurrent) DarkSurface else TextSecondary
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Y-axis Markers on right (Indonesian abbreviated scale: rb/jt)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .padding(bottom = 24.dp),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        val formatScale: (Long) -> String = { v ->
-                            when {
-                                v >= 1_000_000L -> {
-                                    val jt = v.toDouble() / 1_000_000.0
-                                    if (jt % 1.0 == 0.0) "${jt.toInt()}jt" else String.format(java.util.Locale.US, "%.1fjt", jt)
-                                }
-                                v >= 1_000L -> "${v / 1_000L}rb"
-                                else -> v.toString()
-                            }
-                        }
-                        val maxLabel = formatScale(maxExp)
-                        val midLabel = formatScale(maxExp / 2)
-                        Text(text = maxLabel, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextSecondary)
-                        Text(text = midLabel, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextSecondary)
-                        Text(text = "0", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextSecondary)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Text(if (isExpense) "Tren Pengeluaran" else "Tren Pemasukan", style = MaterialTheme.typography.titleLarge, color = duit.textPrimary)
+                Text(periodLabel, style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                Spacer(Modifier.height(16.dp))
+                ReportTrendChart(buckets, isExpense, isBalanceHidden, Modifier.fillMaxWidth())
+                Spacer(Modifier.height(20.dp))
             }
         }
-
         // 4b. Month Comparison & Financial Metrics Card (4D)
-        if (monthStats != null) {
+        if (monthStats != null && reportRange == null && selectedPeriod == PeriodFilter.BULAN_INI) {
             val stats = monthStats!!
             item {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-                    border = BorderStroke(1.dp, PebbleBorder)
+                    colors = CardDefaults.cardColors(containerColor = duit.surface),
+                    border = BorderStroke(1.dp, duit.border)
                 ) {
                     Column(
                         modifier = Modifier
@@ -491,20 +383,32 @@ fun ReportsScreen(
                                     letterSpacing = 0.8.sp,
                                     fontSize = 12.sp
                                 ),
-                                color = TextSecondary
+                                color = duit.textSecondary
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             val expDeltaPct = stats.expensePercentChange
                             val expDeltaLabel = if (expDeltaPct > 0) "+${String.format(java.util.Locale.US, "%.1f", expDeltaPct)}%"
                                                else "${String.format(java.util.Locale.US, "%.1f", expDeltaPct)}%"
-                            val expBadgeColor = if (expDeltaPct > 0) StatusNegative else StatusPositive
-                            Text(
-                                text = "Pengeluaran vs Bulan Lalu: $expDeltaLabel",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.5.sp
-                                ),
-                                color = expBadgeColor
-                            )
+                            val expBadgeColor = if (expDeltaPct > 0) duit.expense else duit.income
+                            val expBadgeBg = expBadgeColor.copy(alpha = 0.14f)
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(expBadgeBg)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "vs Bulan lalu $expDeltaLabel",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    ),
+                                    color = expBadgeColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -518,18 +422,18 @@ fun ReportsScreen(
                                     text = "RATA-RATA HARIAN",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = if (isBalanceHidden) "••••••" else Formatters.formatRupiah(stats.averageDailyExpense),
+                                    text = if (isBalanceHidden) "••••••" else Formatters.displayRupiah(stats.averageDailyExpense),
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                             }
 
@@ -538,9 +442,9 @@ fun ReportsScreen(
                                     text = "SAVINGS RATE",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 val srPct = (stats.savingsRate * 100).toInt()
@@ -550,14 +454,14 @@ fun ReportsScreen(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp
                                     ),
-                                    color = if (srPct >= 20) StatusPositive else if (srPct > 0) DarkSurface else StatusNegative
+                                    color = if (srPct >= 20) duit.income else if (srPct > 0) duit.textPrimary else duit.expense
                                 )
                             }
                         }
 
                         if (stats.highestExpenseDay != null) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(color = PebbleBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = duit.border, thickness = 0.5.dp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -567,18 +471,23 @@ fun ReportsScreen(
                                 Text(
                                     text = "Puncak Belanja: ${Formatters.formatDateReadable(stats.highestExpenseDay!!)}",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 11.5.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isBalanceHidden) "••••••" else Formatters.formatRupiah(stats.highestExpenseDayAmount),
+                                    text = if (isBalanceHidden) "••••••" else Formatters.displayRupiah(stats.highestExpenseDayAmount),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = StatusNegative
+                                    color = duit.expense,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -593,10 +502,10 @@ fun ReportsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-                border = BorderStroke(1.dp, PebbleBorder)
+                colors = CardDefaults.cardColors(containerColor = duit.surface),
+                border = BorderStroke(1.dp, duit.border)
             ) {
                 Column(
                     modifier = Modifier
@@ -616,23 +525,23 @@ fun ReportsScreen(
                                 modifier = Modifier
                                     .size(28.dp)
                                     .clip(CircleShape)
-                                    .background(JadePrimary.copy(alpha = 0.12f)),
+                                    .background(duit.primaryContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.AutoAwesome,
                                     contentDescription = null,
-                                    tint = JadePrimary,
+                                    tint = duit.onPrimaryContainer,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
                             Text(
-                                text = "Insight AI Gemini",
+                                text = "Konsultasi Finansial Bersama Vina",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 ),
-                                color = DarkSurface
+                                color = duit.textPrimary
                             )
                         }
 
@@ -641,50 +550,28 @@ fun ReportsScreen(
                             onClick = { showPayloadDialog = true },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                         ) {
-                            Icon(imageVector = Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(14.dp), tint = TextSecondary)
+                            Icon(imageVector = Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(14.dp), tint = duit.textSecondary)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Data Dikirim",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 ),
-                                color = TextSecondary
+                                color = duit.textSecondary
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Analisis pola pengeluaran bulanan menggunakan Gemini AI secara privat (hanya mengirim ringkasan angka per kategori, tanpa teks deskripsi atau nama toko).",
+                        text = "Tanyakan apa saja seputar arus kas, tren bulanan, evaluasi anggaran, atau simulasi pembelian kepada Vina, asisten finansial pribadi Anda.",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 11.5.sp,
+                            fontSize = 12.sp,
                             lineHeight = 15.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
-
-                    if (aiInsightText != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(PebbleSurfaceVariant.copy(alpha = 0.5f))
-                                .border(1.dp, PebbleBorder, RoundedCornerShape(10.dp))
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                text = aiInsightText!!,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontSize = 12.sp,
-                                    lineHeight = 17.sp,
-                                    fontWeight = FontWeight.Medium
-                                ),
-                                color = DarkSurface
-                            )
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -692,56 +579,33 @@ fun ReportsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        if (isLoadingAi) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = JadePrimary, strokeWidth = 2.dp)
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    val key = geminiApiKey
-                                    if (key.isNullOrBlank()) {
-                                        showApiKeyDialog = true
-                                    } else {
-                                        isLoadingAi = true
-                                        viewModel.requestGeminiInsight(key) { res ->
-                                            isLoadingAi = false
-                                            res.onSuccess { text ->
-                                                aiInsightText = text
-                                            }.onFailure { err ->
-                                                aiInsightText = "Gagal memproses insight: ${err.message}"
-                                            }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f).height(40.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = JadePrimary)
-                            ) {
-                                Icon(imageVector = Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (aiInsightText != null) "Perbarui Analisis AI" else "Analisis Sekarang",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
+                        Button(
+                            onClick = { viewModel.openChat() },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = duit.primary,
+                                contentColor = duit.onPrimary
+                            )
+                        ) {
+                            Icon(imageVector = Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "TANYA VINA SEKARANG",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                            )
+                        }
 
-                            OutlinedButton(
-                                onClick = {
-                                    tempApiKey = geminiApiKey ?: ""
-                                    showApiKeyDialog = true
-                                },
-                                modifier = Modifier.height(40.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, PebbleBorder)
-                            ) {
-                                Icon(imageVector = Icons.Rounded.Key, contentDescription = "API Key", modifier = Modifier.size(16.dp), tint = DarkSurface)
-                            }
+                        OutlinedButton(
+                            onClick = {
+                                tempApiKey = geminiApiKey ?: ""
+                                showApiKeyDialog = true
+                            },
+                            modifier = Modifier.height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, duit.border)
+                        ) {
+                            Icon(imageVector = Icons.Rounded.Key, contentDescription = "API Key", modifier = Modifier.size(16.dp), tint = duit.textPrimary)
                         }
                     }
                 }
@@ -768,7 +632,7 @@ fun ReportsScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 1.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                         EyebrowTag(
                             text = "TOP 3",
@@ -783,19 +647,19 @@ fun ReportsScreen(
                         outerPadding = 4.dp,
                         outerRadius = 14.dp,
                         innerRadius = 10.dp,
-                        innerColor = PebbleSurface
+                        innerColor = duit.surface
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(14.dp)
+                                .padding(16.dp)
                         ) {
                             top3.forEachIndexed { idx, (cat, amount, pct) ->
                                 val rankNumber = String.format(java.util.Locale.US, "%02d", idx + 1)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 6.dp),
+                                        .padding(vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
@@ -806,15 +670,15 @@ fun ReportsScreen(
                                                 fontWeight = FontWeight.ExtraBold,
                                                 fontFamily = FontFamily.Monospace
                                             ),
-                                            color = if (idx == 0) StatusNegative else TextSecondary
+                                            color = if (idx == 0) duit.expense else TextSecondary
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         CategoryIcon(
                                             iconName = cat?.icon ?: "category",
                                             size = 28.dp,
                                             iconSize = 14.dp,
-                                            backgroundColor = PebbleSurfaceVariant,
-                                            tintColor = DarkSurface
+                                            backgroundColor = duit.surfaceVariant,
+                                            tintColor = duit.textPrimary
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Text(
@@ -822,30 +686,30 @@ fun ReportsScreen(
                                             style = MaterialTheme.typography.titleSmall.copy(
                                                 fontWeight = FontWeight.Bold
                                             ),
-                                            color = DarkSurface
+                                            color = duit.textPrimary
                                         )
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = "−" + Formatters.formatRupiah(amount),
+                                            text = "−" + Formatters.displayRupiah(amount),
                                             style = MaterialTheme.typography.titleSmall.copy(
                                                 fontWeight = FontWeight.ExtraBold,
                                                 letterSpacing = (-0.3).sp
                                             ),
-                                            color = StatusNegative
+                                            color = duit.expense
                                         )
                                         Text(
                                             text = "${String.format(java.util.Locale.US, "%.1f", pct)}%",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.SemiBold,
-                                                fontSize = 11.sp
+                                                fontSize = 12.sp
                                             ),
                                             color = TextSecondary
                                         )
                                     }
                                 }
                                 if (idx < top3.size - 1) {
-                                    HorizontalDivider(color = PebbleBorder, thickness = 0.5.dp)
+                                    HorizontalDivider(color = duit.border, thickness = 0.5.dp)
                                 }
                             }
                         }
@@ -874,21 +738,20 @@ fun ReportsScreen(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     EyebrowTag(
                         text = "${activeBreakdown.size} KATEGORI",
-                        variant = if (isExpenseMode) EyebrowVariant.NEGATIVE else EyebrowVariant.JADE
+                        variant = if (isExpenseMode) EyebrowVariant.NEGATIVE else EyebrowVariant.PRIMARY
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            itemsIndexed(activeBreakdown) { _, (cat, amount, percent) ->
-                val isDark = LocalIsDarkTheme.current
-                val sliceColor = cat?.icon?.let { getCategoryColor(it, isDark) }
-                    ?: (if (isDark) Color(0xFF90A4AE) else Color(0xFF4A5550))
+            itemsIndexed(activeBreakdown) { idx, (cat, amount, percent) ->
+                val chartColors = duit.chart
+                val sliceColor = if (cat != null) getCategoryColor(cat.icon, isDark) else if (idx < 6 && idx < chartColors.size) chartColors[idx] else duit.chartOther
 
                 Column(
                     modifier = Modifier
@@ -910,10 +773,8 @@ fun ReportsScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             CategoryIcon(
                                 iconName = cat?.icon ?: "category",
-                                size = 30.dp,
-                                iconSize = 15.dp,
-                                backgroundColor = sliceColor.copy(alpha = 0.12f),
-                                tintColor = sliceColor
+                                size = 36.dp,
+                                iconSize = 18.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
@@ -922,15 +783,15 @@ fun ReportsScreen(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 ),
-                                color = DarkSurface
+                                color = duit.textPrimary
                             )
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
                             val sign = if (isExpenseMode) "−" else "+"
-                            val amountColor = if (isExpenseMode) StatusNegative else StatusPositive
+                            val amountColor = if (isExpenseMode) duit.expense else duit.income
                             Text(
-                                text = if (isBalanceHidden) "$sign••••••" else sign + Formatters.formatRupiah(amount),
+                                text = if (isBalanceHidden) "$sign••••••" else sign + Formatters.displayRupiah(amount),
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = (-0.3).sp
@@ -940,10 +801,10 @@ fun ReportsScreen(
                             Text(
                                 text = "${String.format(java.util.Locale.US, "%.1f", percent)}%",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 ),
-                                color = TextSecondary
+                                color = duit.textSecondary
                             )
                         }
                     }
@@ -957,11 +818,11 @@ fun ReportsScreen(
                             .height(5.dp)
                             .clip(RoundedCornerShape(2.5.dp)),
                         color = sliceColor,
-                        trackColor = PebbleSurfaceVariant
+                        trackColor = duit.track
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = PebbleBorder, thickness = 0.8.dp)
+                    HorizontalDivider(color = duit.border, thickness = 0.5.dp)
                 }
             }
         }
@@ -982,7 +843,7 @@ fun ReportsScreen(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     EyebrowTag(
@@ -1008,27 +869,27 @@ fun ReportsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = ast?.name ?: "Aset",
+                            text = if (ast != null) (if (ast.isActive) ast.name else "${ast.name} (Arsip)") else "Aset",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = if (isBalanceHidden) "−••••••" else "−" + Formatters.formatRupiah(amount),
+                                text = if (isBalanceHidden) "−••••••" else "−" + Formatters.displayRupiah(amount),
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = (-0.3).sp
                                 ),
-                                color = StatusNegative
+                                color = duit.expense
                             )
                             Text(
                                 text = "${String.format(java.util.Locale.US, "%.1f", percent)}%",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 ),
                                 color = TextSecondary
@@ -1044,28 +905,35 @@ fun ReportsScreen(
                             .fillMaxWidth()
                             .height(5.dp)
                             .clip(RoundedCornerShape(2.5.dp)),
-                        color = StatusNegative,
-                        trackColor = PebbleSurfaceVariant
+                        color = duit.expense,
+                        trackColor = duit.track
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = PebbleBorder, thickness = 0.8.dp)
+                    HorizontalDivider(color = duit.border, thickness = 0.8.dp)
                 }
             }
+        }
         }
     }
     }
 
     PeriodSelectionSheet(
         visible = showPeriodSheet,
-        selectedPeriod = selectedPeriod,
+        selectedPeriod = selectedPeriod.takeIf { reportRange == null },
         onPeriodSelected = {
-            viewModel.setPeriodFilter(it)
+            viewModel.setReportPeriod(it)
             showPeriodSheet = false
         },
         onDismissRequest = { showPeriodSheet = false }
     )
 
+    if (showReportCalendar) {
+        ReportDateRangeDialog(initialRange = reportRange, onDismiss = { showReportCalendar = false }, onApply = {
+            viewModel.reportDateRange.value = it
+            showReportCalendar = false
+        })
+    }
     // Transparansi Privasi: Data yang Dikirim ke Gemini Dialog
     if (showPayloadDialog) {
         val payloadJson = remember {
@@ -1079,15 +947,15 @@ fun ReportsScreen(
             onDismissRequest = { showPayloadDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(imageVector = Icons.Rounded.Security, contentDescription = null, tint = JadePrimary)
-                    Text("Transparansi Data", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    Icon(imageVector = Icons.Rounded.Security, contentDescription = null, tint = duit.textPrimary)
+                    Text("Transparansi Data", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = duit.textPrimary)
                 }
             },
             text = {
                 Column {
                     Text(
                         text = "Berikut adalah data JSON persis yang dikirim ke Gemini AI. Perhatikan bahwa hanya total angka kategori dan tanggal bulan yang dikirim. Tidak ada nama merchant, lokasi, atau catatan pribadi.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.5.sp)
+                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Box(
@@ -1095,22 +963,23 @@ fun ReportsScreen(
                             .fillMaxWidth()
                             .heightIn(max = 240.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(PebbleSurfaceVariant)
-                            .padding(10.dp)
+                            .background(duit.surfaceVariant)
+                            .padding(8.dp)
                     ) {
                         Text(
                             text = payloadJson,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 10.sp),
-                            color = DarkSurface
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                            color = duit.textPrimary
                         )
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showPayloadDialog = false }) {
-                    Text("TUTUP", fontWeight = FontWeight.Bold, color = JadePrimary)
+                    Text("TUTUP", fontWeight = FontWeight.Bold, color = duit.textPrimary)
                 }
-            }
+            },
+            containerColor = duit.surface
         )
     }
 
@@ -1119,19 +988,19 @@ fun ReportsScreen(
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
             title = {
-                Text("Gemini API Key", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                Text("Gemini 3.8 Flash API Key", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = duit.textPrimary)
             },
             text = {
                 Column {
                     Text(
-                        text = "Masukkan API Key Google Gemini Anda. Kunci disimpan terenkripsi di perangkat lokal dan tidak pernah dibagikan atau dicadangkan.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.5.sp)
+                        text = "Gunakan model Gemini 3.8 Flash gratis dari Google AI Studio (aistudio.google.com). Pilih Free Tier tanpa biaya/kartu kredit. Kunci disimpan terenkripsi di HP Anda.\n\nJika dikosongkan, aplikasi otomatis menggunakan Penasihat Finansial Cerdas lokal secara offline dan 100% gratis.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = tempApiKey,
                         onValueChange = { tempApiKey = it },
-                        label = { Text("API Key (AIzaSy...)") },
+                        label = { Text("API Key (Opsional - Free Tier)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1143,16 +1012,20 @@ fun ReportsScreen(
                         viewModel.setGeminiApiKey(tempApiKey.trim())
                         showApiKeyDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = JadePrimary)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = duit.primary,
+                        contentColor = duit.onPrimary
+                    )
                 ) {
                     Text("SIMPAN", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showApiKeyDialog = false }) {
-                    Text("BATAL", color = TextSecondary)
+                    Text("BATAL", color = duit.textSecondary)
                 }
-            }
+            },
+            containerColor = duit.surface
         )
     }
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.Transaction
@@ -70,21 +71,25 @@ fun TransactionDetailContent(
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
+    val duit = MaterialTheme.duit
+
     val typeColor = when (transaction.type) {
-        TransactionType.INCOME.value -> StatusPositive
-        TransactionType.EXPENSE.value -> StatusNegative
-        else -> StatusTransfer
+        TransactionType.INCOME.value -> duit.income
+        TransactionType.EXPENSE.value -> duit.expense
+        else -> duit.transfer
     }
     val typeContainerColor = when (transaction.type) {
-        TransactionType.INCOME.value -> StatusPositiveContainer
-        TransactionType.EXPENSE.value -> StatusNegativeContainer
-        else -> StatusTransferContainer
+        TransactionType.INCOME.value -> duit.incomeContainer
+        TransactionType.EXPENSE.value -> duit.expenseContainer
+        else -> duit.transferContainer
     }
     val typeLabel = when (transaction.type) {
         TransactionType.INCOME.value -> "PEMASUKAN"
         TransactionType.EXPENSE.value -> "PENGELUARAN"
         TransactionType.TRANSFER.value -> "TRANSFER ANTAR ASET"
-        else -> transaction.type.uppercase()
+        TransactionType.ALLOCATION.value -> "ALOKASI TABUNGAN"
+        TransactionType.RELEASE.value -> "PELEPASAN ALOKASI"
+        else -> TransactionType.fromValue(transaction.type).displayName.uppercase()
     }
     val prefix = when (transaction.type) {
         TransactionType.INCOME.value -> "+"
@@ -111,7 +116,7 @@ fun TransactionDetailContent(
                     letterSpacing = 0.5.sp,
                     fontSize = 18.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
 
             Box(
@@ -127,14 +132,14 @@ fun TransactionDetailContent(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(PebbleSurfaceVariant)
-                        .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
+                        .background(duit.surfaceVariant)
+                        .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = "Tutup",
-                        tint = DarkSurface,
+                        tint = duit.textPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -147,8 +152,8 @@ fun TransactionDetailContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurfaceVariant)
+            border = BorderStroke(1.dp, duit.border),
+            colors = CardDefaults.cardColors(containerColor = duit.surfaceVariant)
         ) {
             Column(
                 modifier = Modifier
@@ -162,7 +167,7 @@ fun TransactionDetailContent(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         if (transaction.type == TransactionType.TRANSFER.value) {
                             CategoryIcon(
@@ -188,7 +193,7 @@ fun TransactionDetailContent(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp
                             ),
-                            color = TextPrimary
+                            color = duit.textPrimary
                         )
                     }
 
@@ -197,13 +202,13 @@ fun TransactionDetailContent(
                             .clip(RoundedCornerShape(6.dp))
                             .background(typeColor.copy(alpha = 0.12f))
                             .border(1.dp, typeColor.copy(alpha = 0.30f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = typeLabel,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 letterSpacing = 0.6.sp
                             ),
                             color = typeColor
@@ -214,7 +219,7 @@ fun TransactionDetailContent(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = prefix + Formatters.formatRupiah(transaction.amount),
+                    text = prefix + Formatters.displayRupiah(transaction.amount),
                     style = MaterialTheme.typography.displayMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = (-1).sp,
@@ -230,7 +235,7 @@ fun TransactionDetailContent(
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.SemiBold
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
         }
@@ -241,14 +246,14 @@ fun TransactionDetailContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
-            colors = CardDefaults.cardColors(containerColor = PebbleSurfaceVariant)
+            border = BorderStroke(1.dp, duit.border),
+            colors = CardDefaults.cardColors(containerColor = duit.surfaceVariant)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DetailRowItem(
                     icon = Icons.Rounded.AccountBalanceWallet,
@@ -257,7 +262,7 @@ fun TransactionDetailContent(
                 )
 
                 if (transaction.type == TransactionType.TRANSFER.value) {
-                    HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                    HorizontalDivider(color = duit.border, thickness = 1.dp)
                     DetailRowItem(
                         icon = Icons.AutoMirrored.Rounded.ArrowForward,
                         label = "ASET TUJUAN",
@@ -265,7 +270,7 @@ fun TransactionDetailContent(
                     )
                 }
 
-                HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                HorizontalDivider(color = duit.border, thickness = 1.dp)
 
                 DetailRowItem(
                     icon = Icons.Rounded.Schedule,
@@ -273,7 +278,7 @@ fun TransactionDetailContent(
                     value = "${Formatters.formatDateReadable(transaction.transactionDate)}, ${transaction.transactionTime}"
                 )
 
-                HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                HorizontalDivider(color = duit.border, thickness = 1.dp)
 
                 DetailRowItem(
                     icon = when (transaction.inputMethod) {
@@ -290,7 +295,7 @@ fun TransactionDetailContent(
                 )
 
                 if (transaction.tags.isNotBlank()) {
-                    HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                    HorizontalDivider(color = duit.border, thickness = 1.dp)
                     DetailRowItem(
                         icon = Icons.Rounded.Label,
                         label = "TAG / LABEL",
@@ -299,7 +304,7 @@ fun TransactionDetailContent(
                 }
 
                 if (transaction.note.isNotBlank()) {
-                    HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                    HorizontalDivider(color = duit.border, thickness = 1.dp)
                     DetailRowItem(
                         icon = Icons.Rounded.Description,
                         label = "CATATAN",
@@ -316,30 +321,30 @@ fun TransactionDetailContent(
                         }
                     }
                     if (bitmap != null) {
-                        HorizontalDivider(color = DarkBorder.copy(alpha = 0.10f), thickness = 1.dp)
+                        HorizontalDivider(color = duit.border, thickness = 1.dp)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .size(34.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(PebbleBackground)
-                                        .border(1.dp, PebbleBorder, RoundedCornerShape(8.dp)),
+                                        .background(duit.background)
+                                        .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Receipt,
                                         contentDescription = null,
-                                        tint = DarkSurface,
+                                        tint = duit.textPrimary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -347,17 +352,17 @@ fun TransactionDetailContent(
                                     text = "FOTO STRUK",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 12.sp,
                                         letterSpacing = 0.5.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                             }
                             Box(
                                 modifier = Modifier
                                     .size(54.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .border(1.dp, PebbleBorder, RoundedCornerShape(8.dp))
+                                    .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                             ) {
                                 Image(
                                     bitmap = bitmap.asImageBitmap(),
@@ -408,7 +413,7 @@ fun TransactionDetailContent(
                 modifier = Modifier.weight(1f),
                 variant = DuitAingButtonVariant.DANGER,
                 height = 46.dp,
-                shadowOffset = 2.dp
+                shadowOffset = 0.dp
             )
 
             DuitAingButton(
@@ -427,7 +432,7 @@ fun TransactionDetailContent(
                 modifier = Modifier.weight(1f),
                 variant = DuitAingButtonVariant.SECONDARY,
                 height = 46.dp,
-                shadowOffset = 2.dp
+                shadowOffset = 0.dp
             )
 
             DuitAingButton(
@@ -445,14 +450,14 @@ fun TransactionDetailContent(
                 modifier = Modifier.weight(1.1f),
                 variant = DuitAingButtonVariant.PRIMARY,
                 height = 46.dp,
-                shadowOffset = 2.dp
+                shadowOffset = 0.dp
             )
         }
     }
 
     // Delete Confirmation Dialog (Standardized Neo-Brutalist Frame)
-    val deleteConfirmMessage = remember(transaction, sourceAsset, destAsset) {
-        val amountStr = Formatters.formatRupiah(transaction.amount)
+    val amountStr = Formatters.displayRupiah(transaction.amount)
+    val deleteConfirmMessage = remember(transaction, sourceAsset, destAsset, amountStr) {
         when (transaction.type) {
             TransactionType.TRANSFER.value ->
                 "Hapus transfer $amountStr dari '${sourceAsset?.name ?: "Aset Asal"}' ke '${destAsset?.name ?: "Aset Tujuan"}'? Saldo kedua aset akan dikembalikan otomatis."
@@ -487,19 +492,21 @@ private fun DetailRowItem(
     label: String,
     value: String
 ) {
+    val duit = MaterialTheme.duit
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
         Row(
+            modifier = Modifier.widthIn(min = 100.dp, max = 140.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = TextTertiary,
+                tint = duit.textTertiary,
                 modifier = Modifier.size(16.dp)
             )
             Text(
@@ -507,15 +514,21 @@ private fun DetailRowItem(
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.8.sp,
-                    fontSize = 10.5.sp
+                    fontSize = 11.sp
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
         }
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-            color = DarkSurface
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            ),
+            color = duit.textPrimary,
+            textAlign = TextAlign.End
         )
     }
 }

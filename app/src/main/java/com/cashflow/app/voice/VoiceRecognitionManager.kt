@@ -40,8 +40,15 @@ class VoiceRecognitionManager(private val context: Context) {
 
         stopListening()
 
+        val onlineAllowed = com.cashflow.app.data.preferences.PreferenceManager(context).isOnlineVoiceEnabled()
+        val onDeviceAvailable = android.os.Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+        if (!onlineAllowed && !onDeviceAvailable) {
+            _voiceState.value = VoiceState.Error("Pengenalan suara lokal belum tersedia. Ketik transaksi atau izinkan layanan suara online di Pengaturan.")
+            return
+        }
+
         try {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+            speechRecognizer = (if (!onlineAllowed && android.os.Build.VERSION.SDK_INT >= 31) SpeechRecognizer.createOnDeviceSpeechRecognizer(context) else SpeechRecognizer.createSpeechRecognizer(context)).apply {
                 setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _voiceState.value = VoiceState.Listening

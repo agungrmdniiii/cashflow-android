@@ -49,7 +49,7 @@ fun DebtSummaryCard(
     DarkDoubleBezelCard(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Column(
             modifier = Modifier
@@ -79,13 +79,13 @@ fun DebtSummaryCard(
 
             // Big remaining amount (Masked or Live)
             Text(
-                text = if (isBalanceHidden) "Rp ••••••••" else Formatters.formatRupiah(totalRemaining),
+                text = if (isBalanceHidden) "Rp ••••••••" else Formatters.displayRupiah(totalRemaining),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 32.sp,
                     letterSpacing = if (isBalanceHidden) 2.sp else (-1).sp
                 ),
-                color = TextOnDark
+                color = MaterialTheme.duit.onHero
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -101,17 +101,17 @@ fun DebtSummaryCard(
                 Icon(
                     imageVector = Icons.Rounded.AccountBalanceWallet,
                     contentDescription = null,
-                    tint = JadePrimaryLight,
+                    tint = MaterialTheme.duit.heroAccent,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isBalanceHidden) "Kekayaan Bersih: ••••••" else "Kekayaan Bersih: ${Formatters.formatRupiah(netWorth)}",
+                    text = if (isBalanceHidden) "Kekayaan Bersih: ••••••" else "Kekayaan Bersih: ${Formatters.displayRupiah(netWorth)}",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     ),
-                    color = TextOnDarkSecondary
+                    color = MaterialTheme.duit.onHeroSecondary
                 )
             }
 
@@ -137,19 +137,19 @@ fun DebtSummaryCard(
                         text = "SUDAH DICICIL",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             letterSpacing = 0.8.sp
                         ),
-                        color = TextOnDarkSecondary
+                        color = MaterialTheme.duit.onHeroSecondary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (isBalanceHidden) "••••••" else Formatters.formatRupiah(totalPaid),
+                        text = if (isBalanceHidden) "••••••" else Formatters.displayRupiah(totalPaid),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp
                         ),
-                        color = JadePrimaryLight
+                        color = MaterialTheme.duit.heroAccent
                     )
                 }
 
@@ -158,10 +158,10 @@ fun DebtSummaryCard(
                         text = "HUTANG AKTIF",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             letterSpacing = 0.8.sp
                         ),
-                        color = TextOnDarkSecondary
+                        color = MaterialTheme.duit.onHeroSecondary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -170,7 +170,7 @@ fun DebtSummaryCard(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp
                         ),
-                        color = if (overdueCount > 0) Color(0xFFFF8E8E) else TextOnDark
+                        color = if (overdueCount > 0) MaterialTheme.duit.expense else MaterialTheme.duit.onHero
                     )
                 }
             }
@@ -189,11 +189,12 @@ fun DebtItemCard(
     modifier: Modifier = Modifier,
     isBalanceHidden: Boolean = false
 ) {
+    val duit = MaterialTheme.duit
     DoubleBezelCard(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp),
-        shadowOffset = 2.dp,
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shadowOffset = 0.dp,
         outerPadding = 3.dp,
         outerRadius = 16.dp,
         innerRadius = 12.dp
@@ -217,22 +218,22 @@ fun DebtItemCard(
                             fontSize = 16.sp,
                             letterSpacing = (-0.2).sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                     Text(
-                        text = "Pemberi pinjaman: ${debt.lenderName}",
+                        text = "${if (debt.direction == "receivable") "Piutang • Peminjam" else "Hutang • Pemberi pinjaman"}: ${debt.lenderName}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.Medium,
                             fontSize = 12.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                 }
 
                 // Status Badge
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (debt.status == DebtStatus.PAID.key) {
-                        EyebrowTag(text = "LUNAS", variant = EyebrowVariant.JADE)
+                        EyebrowTag(text = "LUNAS", variant = EyebrowVariant.PRIMARY)
                     } else {
                         if (debt.isOverdue) {
                             EyebrowTag(text = "JATUH TEMPO", variant = EyebrowVariant.NEGATIVE)
@@ -258,29 +259,29 @@ fun DebtItemCard(
                         text = "SISA PEMBAYARAN",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 9.5.sp,
+                            fontSize = 12.sp,
                             letterSpacing = 0.8.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                     Text(
-                        text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(debt.remainingAmount),
+                        text = if (isBalanceHidden) "Rp ••••••" else Formatters.displayRupiah(debt.remainingAmount),
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 20.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = if (debt.status == DebtStatus.PAID.key) JadePrimary else DarkSurface
+                        color = if (debt.status == DebtStatus.PAID.key) duit.primary else duit.textPrimary
                     )
                 }
 
                 Text(
-                    text = "Total: ${if (isBalanceHidden) "••••••" else Formatters.formatRupiah(debt.totalAmount)}",
+                    text = "Total: ${if (isBalanceHidden) "••••••" else Formatters.displayRupiah(debt.totalAmount)}",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
             }
 
@@ -293,8 +294,8 @@ fun DebtItemCard(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
-                color = JadePrimary,
-                trackColor = PebbleSurfaceVariant
+                color = duit.primary,
+                trackColor = duit.surfaceVariant
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -306,21 +307,21 @@ fun DebtItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${(debt.progressPercentage * 100).toInt()}% Terbayar (${if (isBalanceHidden) "••••••" else Formatters.formatRupiah(debt.paidAmount)})",
+                    text = "${(debt.progressPercentage * 100).toInt()}% Terbayar (${if (isBalanceHidden) "••••••" else Formatters.displayRupiah(debt.paidAmount)})",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     ),
-                    color = JadePrimary
+                    color = duit.primary
                 )
 
                 Text(
                     text = "Jatuh tempo: ${Formatters.formatDateReadable(debt.dueDate)}",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     ),
-                    color = if (debt.isOverdue) StatusNegative else TextSecondary
+                    color = if (debt.isOverdue) duit.expense else duit.textSecondary
                 )
             }
 
@@ -330,9 +331,9 @@ fun DebtItemCard(
                     text = "Catatan: ${debt.note}",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontWeight = FontWeight.Normal,
-                        fontSize = 11.5.sp
+                        fontSize = 12.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
             }
 
@@ -350,15 +351,15 @@ fun DebtItemCard(
                         .minimumInteractiveComponentSize()
                         .size(44.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(PebbleSurfaceVariant)
-                        .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .background(duit.surfaceVariant)
+                        .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                         .clickable(role = Role.Button) { onDeleteClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.DeleteOutline,
                         contentDescription = "Hapus Hutang",
-                        tint = TextSecondary,
+                        tint = duit.textSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -371,7 +372,7 @@ fun DebtItemCard(
                         leadingIcon = Icons.Rounded.Payment,
                         variant = DuitAingButtonVariant.PRIMARY,
                         height = 44.dp,
-                        shadowOffset = 2.dp
+                        shadowOffset = 0.dp
                     )
                 } else {
                     Row(
@@ -381,16 +382,16 @@ fun DebtItemCard(
                         Icon(
                             imageVector = Icons.Rounded.CheckCircle,
                             contentDescription = null,
-                            tint = JadePrimary,
+                            tint = duit.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = "Lunas Sepenuhnya",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.5.sp
+                                fontSize = 12.sp
                             ),
-                            color = JadePrimary
+                            color = duit.primary
                         )
                     }
                 }
@@ -408,12 +409,13 @@ fun AddDebtDialog(
     assets: List<Asset> = emptyList(),
     defaultAssetId: String? = null,
     onDismiss: () -> Unit,
-    onSave: (title: String, lender: String, amount: Long, dueDate: String, note: String, receiveAssetId: String?) -> Unit
+    onSave: (title: String, lender: String, amount: Long, dueDate: String, note: String, receiveAssetId: String?, direction: String) -> Unit
 ) {
     if (!isOpen) return
 
     var title by remember { mutableStateOf("") }
     var lender by remember { mutableStateOf("") }
+    var direction by remember { mutableStateOf("debt") }
     var amountText by remember { mutableStateOf("") }
     var dueDate by remember {
         mutableStateOf(LocalDate.now().plusMonths(1).format(DateTimeFormatter.ISO_LOCAL_DATE))
@@ -427,6 +429,7 @@ fun AddDebtDialog(
 
     val amount = amountText.toLongOrNull() ?: 0L
     val focusManager = LocalFocusManager.current
+    val duit = MaterialTheme.duit
 
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
@@ -434,22 +437,22 @@ fun AddDebtDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding()
         ) {
             Text(
-                text = "CATAT HUTANG BARU",
+                text = "CATAT HUTANG / PIUTANG",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "Rekam kewajiban pinjaman dan jadwalkan cicilan",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = duit.textSecondary
             )
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -520,7 +523,7 @@ fun AddDebtDialog(
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it.filter { c -> c.isDigit() } },
-                        prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
+                        prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = duit.primary) },
                         placeholder = { Text("0") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
@@ -533,12 +536,12 @@ fun AddDebtDialog(
                     if (amount > 0) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Terbaca: ${Formatters.formatRupiah(amount)}",
+                            text = "Terbaca: ${Formatters.displayRupiah(amount)}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             ),
-                            color = JadePrimary
+                            color = duit.primary
                         )
                     }
 
@@ -547,7 +550,7 @@ fun AddDebtDialog(
                     // Preset chips
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         listOf(
                             500_000L to "+500rb",
@@ -559,22 +562,22 @@ fun AddDebtDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                     .clickable(role = Role.Button) {
                                         val current = amountText.toLongOrNull() ?: 0L
                                         amountText = (current + presetVal).toString()
                                     }
-                                    .padding(vertical = 5.dp),
+                                    .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = chipLabel,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                             }
                         }
@@ -589,15 +592,19 @@ fun AddDebtDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = direction == "debt", onClick = { direction = "debt" }, label = { Text("Saya berhutang") })
+                    FilterChip(selected = direction == "receivable", onClick = { direction = "receivable" }, label = { Text("Saya meminjamkan") })
+                }
                 // 5. Option: Receive Funds into an Asset
                 if (assets.isNotEmpty()) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(PebbleSurfaceVariant)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                            .padding(10.dp)
+                            .background(duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(8.dp))
+                            .padding(8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -608,21 +615,25 @@ fun AddDebtDialog(
                         ) {
                             Checkbox(
                                 checked = receiveToAsset,
-                                onCheckedChange = { receiveToAsset = it }
+                                onCheckedChange = { receiveToAsset = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = duit.primary,
+                                    checkmarkColor = duit.onPrimary
+                                )
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Column {
                                 Text(
-                                    text = "Terima dana ke Aset / Rekening",
+                                    text = if (direction == "receivable") "Keluarkan dana dari rekening" else "Terima dana ke rekening",
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         fontWeight = FontWeight.Bold
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                                 Text(
-                                    text = "Tambah saldo & catat transaksi pemasukan",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    color = TextSecondary
+                                    text = "Opsional untuk dana yang bergerak sekarang; tanpa ini hanya catat saldo pinjaman lama.",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                                    color = duit.textSecondary
                                 )
                             }
                         }
@@ -655,7 +666,7 @@ fun AddDebtDialog(
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = StatusNegative,
+                        color = duit.expense,
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -665,7 +676,7 @@ fun AddDebtDialog(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DuitAingButton(
                     text = "BATAL",
@@ -673,7 +684,7 @@ fun AddDebtDialog(
                     modifier = Modifier.weight(1f),
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 44.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
 
                 DuitAingButton(
@@ -681,7 +692,7 @@ fun AddDebtDialog(
                     variant = DuitAingButtonVariant.PRIMARY,
                     modifier = Modifier.weight(1.3f),
                     height = 44.dp,
-                    shadowOffset = 2.dp,
+                    shadowOffset = 0.dp,
                     onClick = {
                         if (title.isBlank() || lender.isBlank()) {
                             errorMessage = "Nama pinjaman dan pemberi pinjaman wajib diisi"
@@ -696,7 +707,7 @@ fun AddDebtDialog(
                             return@DuitAingButton
                         }
                         val targetAsset = if (receiveToAsset) selectedReceiveAssetId else null
-                        onSave(title, lender, amount, dueDate, note, targetAsset)
+                        onSave(title, lender, amount, dueDate, note, targetAsset, direction)
                     }
                 )
             }
@@ -730,6 +741,7 @@ fun PayDebtDialog(
 
     val payAmount = paymentAmountText.toLongOrNull() ?: 0L
     val focusManager = LocalFocusManager.current
+    val duit = MaterialTheme.duit
     val selectedAsset = remember(selectedAssetId, assets) {
         assets.firstOrNull { it.id == selectedAssetId }
     }
@@ -740,7 +752,7 @@ fun PayDebtDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding()
         ) {
             Text(
@@ -749,7 +761,7 @@ fun PayDebtDialog(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -757,7 +769,7 @@ fun PayDebtDialog(
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontWeight = FontWeight.Medium
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -773,8 +785,8 @@ fun PayDebtDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(PebbleSurfaceVariant)
-                        .border(1.dp, DarkBorder.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                        .background(duit.surfaceVariant)
+                        .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
                     Column {
@@ -782,19 +794,19 @@ fun PayDebtDialog(
                             text = "SISA KEWAJIBAN SAAT INI",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 letterSpacing = 0.8.sp
                             ),
-                            color = TextSecondary
+                            color = duit.textSecondary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = Formatters.formatRupiah(debt.remainingAmount),
+                            text = Formatters.displayRupiah(debt.remainingAmount),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 18.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                     }
                 }
@@ -807,7 +819,7 @@ fun PayDebtDialog(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 0.8.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
 
@@ -822,12 +834,12 @@ fun PayDebtDialog(
                     if (selectedAsset != null) {
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "Saldo tersedia: ${Formatters.formatRupiah(selectedAsset.currentBalance)}",
+                            text = "Saldo tersedia: ${Formatters.displayRupiah(selectedAsset.currentBalance)}",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
                             ),
-                            color = if (selectedAsset.currentBalance >= payAmount) TextSecondary else StatusNegative
+                            color = if (selectedAsset.currentBalance >= payAmount) duit.textSecondary else duit.expense
                         )
                     }
                 }
@@ -840,14 +852,14 @@ fun PayDebtDialog(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 0.8.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
 
                     OutlinedTextField(
                         value = paymentAmountText,
                         onValueChange = { paymentAmountText = it.filter { c -> c.isDigit() } },
-                        prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
+                        prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = duit.primary) },
                         placeholder = { Text("0") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
@@ -860,12 +872,12 @@ fun PayDebtDialog(
                     if (payAmount > 0) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Terbaca: ${Formatters.formatRupiah(payAmount)}",
+                            text = "Terbaca: ${Formatters.displayRupiah(payAmount)}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             ),
-                            color = JadePrimary
+                            color = duit.primary
                         )
                     }
 
@@ -874,48 +886,48 @@ fun PayDebtDialog(
                     // Quick Action Chips: Lunasi Semua, 50%, 25%, +100rb, +500rb
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         Box(
                             modifier = Modifier
                                 .weight(1.3f)
                                 .minimumInteractiveComponentSize()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(JadePrimaryLight)
-                                .border(1.dp, JadePrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .background(duit.primaryContainer)
+                                .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                 .clickable(role = Role.Button) { paymentAmountText = debt.remainingAmount.toString() }
-                                .padding(vertical = 6.dp),
+                                .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "LUNASI",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 10.5.sp
+                                    fontSize = 12.sp
                                 ),
-                                color = JadePrimary
+                                color = duit.onPrimaryContainer
                             )
                         }
 
                         if (debt.remainingAmount > 100_000L) {
                             Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .minimumInteractiveComponentSize()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                    .clickable(role = Role.Button) { paymentAmountText = (debt.remainingAmount / 2).toString() }
-                                    .padding(vertical = 6.dp),
+                                .weight(1f)
+                                .minimumInteractiveComponentSize()
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(duit.surfaceVariant)
+                                .border(1.dp, duit.border, RoundedCornerShape(6.dp))
+                                .clickable(role = Role.Button) { paymentAmountText = (debt.remainingAmount / 2).toString() }
+                                .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "50%",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                             }
                         }
@@ -929,23 +941,23 @@ fun PayDebtDialog(
                                     .weight(1f)
                                     .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                     .clickable(role = Role.Button) {
                                         val cur = paymentAmountText.toLongOrNull() ?: 0L
                                         val next = (cur + presetAmount).coerceAtMost(debt.remainingAmount)
                                         paymentAmountText = next.toString()
                                     }
-                                    .padding(vertical = 6.dp),
+                                    .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = chipLabel,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                             }
                         }
@@ -975,7 +987,7 @@ fun PayDebtDialog(
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = StatusNegative,
+                        color = duit.expense,
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -985,7 +997,7 @@ fun PayDebtDialog(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DuitAingButton(
                     text = "BATAL",
@@ -993,7 +1005,7 @@ fun PayDebtDialog(
                     modifier = Modifier.weight(1f),
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 44.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
 
                 DuitAingButton(
@@ -1001,7 +1013,7 @@ fun PayDebtDialog(
                     variant = DuitAingButtonVariant.PRIMARY,
                     modifier = Modifier.weight(1.4f),
                     height = 44.dp,
-                    shadowOffset = 2.dp,
+                    shadowOffset = 0.dp,
                     onClick = {
                         if (selectedAssetId.isBlank()) {
                             errorMessage = "Pilih aset/rekening sumber pembayaran"
@@ -1012,7 +1024,7 @@ fun PayDebtDialog(
                             return@DuitAingButton
                         }
                         if (payAmount > debt.remainingAmount) {
-                            errorMessage = "Nominal melebihi sisa hutang (${Formatters.formatRupiah(debt.remainingAmount)})"
+                            errorMessage = "Nominal melebihi sisa hutang."
                             return@DuitAingButton
                         }
                         onConfirmPay(debt.id, payAmount, selectedAssetId, paymentDate, note)

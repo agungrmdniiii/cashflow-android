@@ -44,6 +44,7 @@ fun InitialSetupScreen(
     val focusManager = LocalFocusManager.current
 
     val balance = openingBalanceInput.toLongOrNull() ?: 0L
+    val duit = MaterialTheme.duit
 
     val nameSuggestions = remember(selectedType) {
         when (selectedType.lowercase()) {
@@ -57,7 +58,7 @@ fun InitialSetupScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(PebbleBackground)
+            .background(duit.background)
             .statusBarsPadding()
             .navigationBarsPadding(),
         contentAlignment = Alignment.Center
@@ -75,14 +76,14 @@ fun InitialSetupScreen(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(JadePrimaryLight)
-                    .border(2.dp, JadePrimary, RoundedCornerShape(20.dp)),
+                    .background(duit.primaryContainer)
+                    .border(2.dp, duit.primary, RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.AccountBalanceWallet,
                     contentDescription = null,
-                    tint = JadePrimaryDark,
+                    tint = duit.onPrimaryContainer,
                     modifier = Modifier.size(32.dp)
                 )
             }
@@ -94,13 +95,13 @@ fun InitialSetupScreen(
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.sp
                     ),
-                    color = TextPrimary
+                    color = duit.textPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Setup Rekening / Aset Pertama Anda",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
             }
 
@@ -110,14 +111,15 @@ fun InitialSetupScreen(
                 outerPadding = 0.dp,
                 outerRadius = 16.dp,
                 innerRadius = 14.dp,
-                shadowOffset = 3.dp,
-                innerColor = PebbleSurface
+                shadowOffset = 0.dp,
+                innerBorderColor = duit.border,
+                innerColor = duit.surface
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
                 ) {
                     // 1. Tipe Aset
                     Column {
@@ -127,12 +129,12 @@ fun InitialSetupScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.8.sp
                             ),
-                            color = TextSecondary
+                            color = duit.textSecondary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                         ) {
                             val types = listOf(AssetType.TUNAI, AssetType.BANK, AssetType.EWALLET)
                             types.forEach { type ->
@@ -141,10 +143,10 @@ fun InitialSetupScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) JadePrimary else PebbleSurfaceVariant)
+                                        .background(if (isSelected) duit.primary else duit.surfaceVariant)
                                         .border(
                                             1.dp,
-                                            if (isSelected) DarkBorder else DarkBorder.copy(alpha = 0.2f),
+                                            if (isSelected) duit.primary else duit.border,
                                             RoundedCornerShape(8.dp)
                                         )
                                         .clickable(role = Role.RadioButton) {
@@ -158,16 +160,16 @@ fun InitialSetupScreen(
                                                 }
                                             }
                                         }
-                                        .padding(vertical = 10.dp),
+                                        .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = type.displayName.uppercase(),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                            fontSize = 11.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = if (isSelected) TextOnDark else TextPrimary
+                                        color = if (isSelected) duit.onPrimary else duit.textPrimary
                                     )
                                 }
                             }
@@ -182,7 +184,7 @@ fun InitialSetupScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.8.sp
                             ),
-                            color = TextSecondary
+                            color = duit.textSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
@@ -199,25 +201,25 @@ fun InitialSetupScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                         ) {
                             nameSuggestions.forEach { suggestion ->
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(PebbleSurfaceVariant)
-                                        .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                        .background(duit.surfaceVariant)
+                                        .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                         .clickable(role = Role.Button) { nameInput = suggestion }
-                                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = suggestion,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 10.5.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = TextPrimary
+                                        color = duit.textPrimary
                                     )
                                 }
                             }
@@ -232,7 +234,7 @@ fun InitialSetupScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.8.sp
                             ),
-                            color = TextSecondary
+                            color = duit.textSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
@@ -246,7 +248,7 @@ fun InitialSetupScreen(
                                 Text(
                                     text = "Rp",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = TextSecondary,
+                                    color = duit.textSecondary,
                                     modifier = Modifier.padding(start = 12.dp)
                                 )
                             },
@@ -278,15 +280,15 @@ fun InitialSetupScreen(
                         modifier = Modifier.fillMaxWidth(),
                         variant = DuitAingButtonVariant.PRIMARY,
                         height = 48.dp,
-                        shadowOffset = 2.dp
+                        shadowOffset = 0.dp
                     )
                 }
             }
 
             Text(
                 text = "Data disimpan 100% lokal & privat di perangkat Anda.",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = TextTertiary
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                color = duit.textTertiary
             )
         }
     }

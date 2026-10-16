@@ -69,8 +69,8 @@ fun SplashScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        FintechPrimary,
-                        Color(0xFF071912)
+                        LightColors.hero,
+                        DarkColors.background
                     )
                 )
             ),
@@ -122,7 +122,7 @@ fun SplashScreen(
                         letterSpacing = 0.5.sp,
                         fontSize = 13.sp
                     ),
-                    color = FintechAccentMint
+                    color = LightColors.accentLime
                 )
             }
         }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -32,24 +33,18 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.fillMaxSize
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
-import com.cashflow.app.ui.theme.DarkBorder
-import com.cashflow.app.ui.theme.JadePrimary
-import com.cashflow.app.ui.theme.JadePrimaryLight
-import com.cashflow.app.ui.theme.PebbleSurface
-import com.cashflow.app.ui.theme.PebbleSurfaceVariant
-import com.cashflow.app.ui.theme.TextPrimary
-import com.cashflow.app.ui.theme.TextSecondary
+import com.cashflow.app.ui.theme.duit
 
 /**
  * Shimmer gradient modifier for skeleton loading states.
@@ -57,6 +52,7 @@ import com.cashflow.app.ui.theme.TextSecondary
  */
 @Composable
 fun Modifier.tactileShimmer(): Modifier {
+    val duit = MaterialTheme.duit
     val transition = rememberInfiniteTransition(label = "tactileShimmerTransition")
     val translateAnim by transition.animateFloat(
         initialValue = -300f,
@@ -69,9 +65,9 @@ fun Modifier.tactileShimmer(): Modifier {
     )
 
     val shimmerColors = listOf(
-        PebbleSurfaceVariant.copy(alpha = 0.45f),
-        PebbleSurfaceVariant.copy(alpha = 0.9f),
-        PebbleSurfaceVariant.copy(alpha = 0.45f)
+        duit.surfaceVariant.copy(alpha = 0.45f),
+        duit.surfaceVariant.copy(alpha = 0.9f),
+        duit.surfaceVariant.copy(alpha = 0.45f)
     )
 
     val brush = Brush.linearGradient(
@@ -132,6 +128,8 @@ fun AnimatedEmptyState(
         label = "emptyStateAlpha"
     )
 
+    val duit = MaterialTheme.duit
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -146,6 +144,14 @@ fun AnimatedEmptyState(
                 iterations = LottieConstants.IterateForever,
                 speed = 1.0f
             )
+            val emptyLimeArgb = duit.accentLime.toArgb()
+            val emptyDynamicProps = com.airbnb.lottie.compose.rememberLottieDynamicProperties(
+                com.airbnb.lottie.compose.rememberLottieDynamicProperty(
+                    property = com.airbnb.lottie.LottieProperty.COLOR,
+                    value = emptyLimeArgb,
+                    keyPath = arrayOf("**", "Stroke 1")
+                )
+            )
 
             Box(
                 contentAlignment = Alignment.Center,
@@ -158,6 +164,7 @@ fun AnimatedEmptyState(
                         composition = composition,
                         progress = { progress },
                         enableMergePaths = true,
+                        dynamicProperties = emptyDynamicProps,
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
@@ -165,13 +172,13 @@ fun AnimatedEmptyState(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(JadePrimaryLight),
+                            .background(duit.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = JadePrimary,
+                            tint = duit.onPrimaryContainer,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -191,7 +198,7 @@ fun AnimatedEmptyState(
                         .size(92.dp)
                         .scale(pulseScale)
                         .clip(CircleShape)
-                        .background(JadePrimary.copy(alpha = pulseAlpha))
+                        .background(duit.primary.copy(alpha = pulseAlpha))
                 )
 
                 // Inner Accent Ring
@@ -199,7 +206,7 @@ fun AnimatedEmptyState(
                     modifier = Modifier
                         .size(76.dp)
                         .clip(CircleShape)
-                        .background(PebbleSurfaceVariant.copy(alpha = 0.5f))
+                        .background(duit.surfaceVariant.copy(alpha = 0.5f))
                 )
 
                 // Main Neo-Brutalist Icon Container with Solid Border
@@ -207,14 +214,14 @@ fun AnimatedEmptyState(
                     modifier = Modifier
                         .size(60.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(PebbleSurface)
-                        .border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp)),
+                        .background(duit.surface)
+                        .border(1.dp, duit.border, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = JadePrimary,
+                        tint = duit.textPrimary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -231,7 +238,7 @@ fun AnimatedEmptyState(
                 letterSpacing = 0.8.sp,
                 fontSize = 15.sp
             ),
-            color = TextPrimary,
+            color = duit.textPrimary,
             textAlign = TextAlign.Center
         )
 
@@ -244,7 +251,7 @@ fun AnimatedEmptyState(
                 fontSize = 12.5.sp,
                 lineHeight = 17.sp
             ),
-            color = TextSecondary,
+            color = duit.textSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(0.85f)
         )
@@ -258,7 +265,7 @@ fun AnimatedEmptyState(
                 leadingIcon = actionIcon,
                 variant = DuitAingButtonVariant.SECONDARY,
                 height = 42.dp,
-                shadowOffset = 2.dp
+                shadowOffset = 0.dp
             )
         }
     }
@@ -277,7 +284,7 @@ fun ShimmerCardPlaceholder(
             .fillMaxWidth()
             .height(height)
             .clip(RoundedCornerShape(14.dp))
-            .border(1.5.dp, DarkBorder.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.duit.border, RoundedCornerShape(14.dp))
             .tactileShimmer()
     )
 }

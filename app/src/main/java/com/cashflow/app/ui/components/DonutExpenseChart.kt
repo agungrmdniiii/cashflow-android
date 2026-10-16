@@ -47,15 +47,9 @@ data class CategorySliceData(
     val color: Color
 )
 
-// Curated Reference Fintech Forest Green gradient palette
-val DonutChartPalette = listOf(
-    Color(0xFF133E2B),     // Reference Deep Forest (Slice 1)
-    Color(0xFF2D6A4F),     // Medium Forest (Slice 2)
-    Color(0xFF52B788),     // Mint Sage (Slice 3)
-    Color(0xFF74C69D),     // Light Mint (Slice 4)
-    Color(0xFFA3D9A5),     // Pale Mint (Slice 5)
-    Color(0xFFE5E4DC)      // Warm Pebble Gray (Others)
-)
+// Curated palette mapped to theme chart tokens
+val DonutChartPalette: List<Color>
+    get() = LightColors.chart
 
 /**
  * Immersive Interactive Fintech Donut Chart for Expense Distribution
@@ -69,44 +63,51 @@ fun DonutExpenseChart(
     isExpense: Boolean = true,
     isBalanceHidden: Boolean = false
 ) {
+    val duit = MaterialTheme.duit
     val isDark = LocalIsDarkTheme.current
+    val chartPalette = duit.chart
+    val otherColor = duit.chartOther
 
-    // Map data to slice models with colors: Top 5 + aggregate "Lainnya" (Max 6 segments total)
-    val slices = remember(breakdownList, isDark) {
-        if (breakdownList.size <= 5) {
-            breakdownList.map { (cat, amount, pct) ->
-                val sliceColor = cat?.icon?.let { getCategoryColor(it, isDark) }
-                    ?: (if (isDark) Color(0xFF90A4AE) else Color(0xFF4A5550))
+    // Map data to slice models with colors: Top 6 (consistent with category colors) + aggregate "Lainnya" (chartOther)
+    val slices = remember(breakdownList, chartPalette, otherColor, isDark) {
+        val resolveColor: (Category?, Int) -> Color = { cat, idx ->
+            if (cat != null) {
+                getCategoryColor(cat.icon, isDark)
+            } else if (idx < chartPalette.size) {
+                chartPalette[idx]
+            } else {
+                otherColor
+            }
+        }
+        if (breakdownList.size <= 6) {
+            breakdownList.mapIndexed { idx, (cat, amount, pct) ->
                 CategorySliceData(
                     category = cat,
                     name = cat?.name ?: "Lainnya",
                     amount = amount,
                     percentage = pct,
-                    color = sliceColor
+                    color = resolveColor(cat, idx)
                 )
             }
         } else {
-            val top5 = breakdownList.take(5).map { (cat, amount, pct) ->
-                val sliceColor = cat?.icon?.let { getCategoryColor(it, isDark) }
-                    ?: (if (isDark) Color(0xFF90A4AE) else Color(0xFF4A5550))
+            val top6 = breakdownList.take(6).mapIndexed { idx, (cat, amount, pct) ->
                 CategorySliceData(
                     category = cat,
                     name = cat?.name ?: "Lainnya",
                     amount = amount,
                     percentage = pct,
-                    color = sliceColor
+                    color = resolveColor(cat, idx)
                 )
             }
-            val remaining = breakdownList.drop(5)
+            val remaining = breakdownList.drop(6)
             val othersAmount = remaining.sumOf { it.second }
             val othersPct = remaining.sumOf { it.third.toDouble() }.toFloat()
-            val othersColor = if (isDark) Color(0xFF78909C) else Color(0xFF64748B)
-            top5 + CategorySliceData(
+            top6 + CategorySliceData(
                 category = null,
                 name = "Lainnya",
                 amount = othersAmount,
                 percentage = othersPct,
-                color = othersColor
+                color = otherColor
             )
         }
     }
@@ -139,14 +140,14 @@ fun DonutExpenseChart(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(PebbleSurfaceVariant)
-                        .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
+                        .background(duit.surfaceVariant)
+                        .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PieChartOutline,
                         contentDescription = null,
-                        tint = TextSecondary,
+                        tint = duit.textSecondary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -159,7 +160,7 @@ fun DonutExpenseChart(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.sp
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -168,7 +169,7 @@ fun DonutExpenseChart(
                     else
                         "Tidak ada transaksi pemasukan pada periode ini.",
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
             }
         }
@@ -234,13 +235,9 @@ fun DonutExpenseChart(
 
                 var startAngle = -90f
 
-                // Draw subtle track ring for visual depth, especially when only 1 category exists
+                // Draw subtle track ring for visual depth
                 drawArc(
-                    color = if (slices.size == 1) {
-                        slices[0].color.copy(alpha = if (isDark) 0.20f else 0.12f)
-                    } else {
-                        if (isDark) Color(0xFF162822) else Color(0xFFECEAE0)
-                    },
+                    color = duit.chartInactive,
                     startAngle = 0f,
                     sweepAngle = 360f,
                     useCenter = false,
@@ -272,13 +269,36 @@ fun DonutExpenseChart(
 
                     startAngle += sweepAngle
                 }
+
+                // 2dp gap between segments in surface color
+                if (slices.size > 1 && animationProgress.value > 0.05f) {
+                    val center = Offset(canvasWidth / 2f, canvasHeight / 2f)
+                    val outerR = canvasWidth / 2f
+                    val innerR = outerR - activeStrokeWidth
+                    var divAngle = -90f
+                    slices.forEach { slice ->
+                        val rad = Math.toRadians(divAngle.toDouble())
+                        val cosVal = kotlin.math.cos(rad).toFloat()
+                        val sinVal = kotlin.math.sin(rad).toFloat()
+                        val p1 = Offset(center.x + innerR * cosVal, center.y + innerR * sinVal)
+                        val p2 = Offset(center.x + outerR * cosVal, center.y + outerR * sinVal)
+                        drawLine(
+                            color = duit.surface,
+                            start = p1,
+                            end = p2,
+                            strokeWidth = 2.dp.toPx()
+                        )
+                        val sweepAngle = (slice.percentage / 100f) * 360f * animationProgress.value
+                        divAngle += sweepAngle
+                    }
+                }
             }
 
-            // 2. DONUT CENTER DISPLAY (Matching reference: Amount on top, Total Spent below)
+            // 2. DONUT CENTER DISPLAY (Constrained strictly to inner donut hole diameter)
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.85f)
-                    .padding(horizontal = 2.dp),
+                    .widthIn(max = (chartSize - 84.dp).coerceAtLeast(110.dp))
+                    .padding(horizontal = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -287,13 +307,13 @@ fun DonutExpenseChart(
                 if (slices.size == 1) {
                     val single = slices[0]
                     Text(
-                        text = Formatters.formatRupiah(single.amount),
+                        text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(single.amount),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp,
+                            fontSize = 17.sp,
                             letterSpacing = (-0.4).sp
                         ),
-                        color = TextPrimary,
+                        color = duit.textPrimary,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         softWrap = false
@@ -303,7 +323,7 @@ fun DonutExpenseChart(
                         text = single.name,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         ),
                         color = single.color,
                         textAlign = TextAlign.Center,
@@ -317,7 +337,7 @@ fun DonutExpenseChart(
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 11.sp
                         ),
-                        color = TextSecondary,
+                        color = duit.textSecondary,
                         textAlign = TextAlign.Center
                     )
                 } else if (selectedSlice != null) {
@@ -325,19 +345,19 @@ fun DonutExpenseChart(
                         text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(selectedSlice.amount),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp,
+                            fontSize = 17.sp,
                             letterSpacing = (-0.4).sp
                         ),
-                        color = TextPrimary,
+                        color = duit.textPrimary,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         softWrap = false
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${selectedSlice.name} (${String.format(java.util.Locale.US, "%.0f%%", selectedSlice.percentage)})",
+                        text = selectedSlice.name,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         ),
                         color = selectedSlice.color,
@@ -345,15 +365,25 @@ fun DonutExpenseChart(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = String.format(java.util.Locale.US, "%.0f%% Porsi", selectedSlice.percentage),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp
+                        ),
+                        color = duit.textSecondary,
+                        textAlign = TextAlign.Center
+                    )
                 } else {
                     Text(
                         text = if (isBalanceHidden) "Rp ••••••" else Formatters.formatRupiah(totalExpense),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp,
+                            fontSize = 17.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = TextPrimary,
+                        color = duit.textPrimary,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         softWrap = false
@@ -363,9 +393,9 @@ fun DonutExpenseChart(
                         text = if (isExpense) "Total Pengeluaran" else "Total Pemasukan",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.Normal,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         ),
-                        color = TextSecondary,
+                        color = duit.textSecondary,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )
@@ -383,9 +413,9 @@ fun DonutExpenseChart(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(PebbleSurface)
-                    .border(1.dp, PebbleBorder, RoundedCornerShape(16.dp))
-                    .padding(14.dp)
+                    .background(duit.surface)
+                    .border(1.dp, duit.border, RoundedCornerShape(16.dp))
+                    .padding(16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -400,7 +430,7 @@ fun DonutExpenseChart(
                             iconName = single.category?.icon ?: "category",
                             size = 38.dp,
                             iconSize = 19.dp,
-                            backgroundColor = single.color.copy(alpha = if (isDark) 0.25f else 0.15f),
+                            backgroundColor = single.color.copy(alpha = 0.20f),
                             tintColor = single.color
                         )
                         Spacer(modifier = Modifier.width(12.dp))
@@ -411,13 +441,13 @@ fun DonutExpenseChart(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.5.sp
                                 ),
-                                color = DarkSurface
+                                color = duit.textPrimary
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = if (isExpense) "100% dari seluruh pengeluaran" else "100% dari seluruh pemasukan",
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = TextSecondary
+                                color = duit.textSecondary
                             )
                         }
                     }
@@ -469,7 +499,7 @@ fun DonutExpenseChart(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         fontSize = 12.sp
                                     ),
-                                    color = if (isSelected) TextPrimary else TextSecondary,
+                                    color = if (isSelected) duit.textPrimary else duit.textSecondary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
@@ -480,7 +510,7 @@ fun DonutExpenseChart(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     ),
-                                    color = TextPrimary
+                                    color = duit.textPrimary
                                 )
                             }
                         }

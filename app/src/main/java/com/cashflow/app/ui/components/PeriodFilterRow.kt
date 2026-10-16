@@ -19,11 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.PeriodFilter
 import com.cashflow.app.ui.theme.*
 
@@ -34,30 +32,32 @@ fun PeriodFilterRow(
     modifier: Modifier = Modifier
 ) {
     var showSheet by remember { mutableStateOf(false) }
+    val duit = MaterialTheme.duit
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val isDark = LocalIsDarkTheme.current
+        val chipShape = RoundedCornerShape(AppRadius.xs)
+
         PeriodFilter.entries.forEach { period ->
             val isSelected = period == selectedPeriod
             val bg by animateColorAsState(
-                targetValue = if (isSelected) JadePrimary else PebbleSurface,
+                targetValue = if (isSelected) duit.primary else duit.surface,
                 animationSpec = tween(durationMillis = 180),
                 label = "chip_bg"
             )
             val textCol by animateColorAsState(
-                targetValue = if (isSelected) (if (isDark) Color(0xFF13271E) else TextOnDark) else TextSecondary,
+                targetValue = if (isSelected) duit.onPrimary else duit.textSecondary,
                 animationSpec = tween(durationMillis = 180),
                 label = "chip_text"
             )
             val borderCol by animateColorAsState(
-                targetValue = if (isSelected) (if (isDark) JadePrimaryDark else DarkBorder.copy(alpha = 0.35f)) else PebbleBorder,
+                targetValue = if (isSelected) duit.primary else duit.border,
                 animationSpec = tween(durationMillis = 180),
                 label = "chip_border"
             )
@@ -65,19 +65,17 @@ fun PeriodFilterRow(
             Box(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(chipShape)
                     .background(bg)
-                    .border(1.dp, borderCol, RoundedCornerShape(6.dp))
+                    .border(1.dp, borderCol, chipShape)
                     .clickable(role = Role.Button) { onPeriodSelected(period) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = period.displayName.uppercase(),
+                    text = period.displayName,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        fontSize = 11.sp,
-                        letterSpacing = 0.5.sp
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     ),
                     color = textCol
                 )
@@ -88,40 +86,43 @@ fun PeriodFilterRow(
         Box(
             modifier = Modifier
                 .minimumInteractiveComponentSize()
-                .clip(RoundedCornerShape(6.dp))
-                .background(PebbleSurfaceVariant)
-                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                .clip(chipShape)
+                .background(duit.surfaceVariant)
+                .border(1.dp, duit.border, chipShape)
                 .clickable(role = Role.Button) { showSheet = true }
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Tune,
                     contentDescription = "Pilih Periode Lengkap",
-                    tint = DarkSurface,
-                    modifier = Modifier.size(13.dp)
+                    tint = duit.textPrimary,
+                    modifier = Modifier.size(16.dp)
                 )
                 Text(
                     text = "PILIH",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp,
-                        letterSpacing = 0.5.sp
+                        fontWeight = FontWeight.Bold
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
             }
         }
     }
 
-    PeriodSelectionSheet(
-        visible = showSheet,
-        selectedPeriod = selectedPeriod,
-        onPeriodSelected = onPeriodSelected,
-        onDismissRequest = { showSheet = false }
-    )
+    if (showSheet) {
+        PeriodSelectionSheet(
+            visible = showSheet,
+            selectedPeriod = selectedPeriod,
+            onPeriodSelected = { period ->
+                onPeriodSelected(period)
+                showSheet = false
+            },
+            onDismissRequest = { showSheet = false }
+        )
+    }
 }

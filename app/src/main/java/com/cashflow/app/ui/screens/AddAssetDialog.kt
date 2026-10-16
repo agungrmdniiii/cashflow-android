@@ -64,14 +64,30 @@ fun AddAssetContent(
     modifier: Modifier = Modifier
 ) {
     val isEditing = assetToEdit != null
+    val transactions by viewModel.transactions.collectAsState()
+    val assets by viewModel.assets.collectAsState()
+    val currentAsset = remember(assets, assetToEdit) {
+        assets.firstOrNull { it.id == assetToEdit?.id } ?: assetToEdit
+    }
+    val hasTransactions = remember(assetToEdit, transactions) {
+        assetToEdit?.let { a -> transactions.any { it.assetId == a.id || it.destinationAssetId == a.id } } ?: false
+    }
+
     var nameInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.name ?: "") }
     var selectedType by remember(assetToEdit) { mutableStateOf(assetToEdit?.type ?: AssetType.BANK.displayName) }
-    var openingBalanceInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.let { it.currentBalance.toString() } ?: "") }
+    var openingBalanceInput by remember(assetToEdit, currentAsset) {
+        mutableStateOf(
+            if (assetToEdit != null) {
+                (currentAsset?.currentBalance ?: assetToEdit.currentBalance).toString()
+            } else ""
+        )
+    }
     var noteInput by remember(assetToEdit) { mutableStateOf(assetToEdit?.note ?: "") }
     var isDefaultChecked by remember(assetToEdit) { mutableStateOf(assetToEdit?.isDefault ?: false) }
 
     val balance = openingBalanceInput.toLongOrNull() ?: 0L
     val focusManager = LocalFocusManager.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     val nameSuggestions = remember(selectedType) {
         when (selectedType.lowercase()) {
@@ -84,10 +100,13 @@ fun AddAssetContent(
         }
     }
 
+    val duit = MaterialTheme.duit
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .imePadding()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
             .navigationBarsPadding()
     ) {
             // Header Row
@@ -97,13 +116,12 @@ fun AddAssetContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isEditing) "EDIT ASET" else "TAMBAH ASET BARU",
+                    text = if (isEditing) "Edit Aset" else "Tambah Aset Baru",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     ),
-                    color = DarkSurface
+                    color = duit.textPrimary
                 )
 
                 Box(
@@ -119,14 +137,14 @@ fun AddAssetContent(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(PebbleSurfaceVariant)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
+                            .background(duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Tutup",
-                            tint = DarkSurface,
+                            tint = duit.textPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -187,35 +205,35 @@ fun AddAssetContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         nameSuggestions.forEach { suggestion ->
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                     .clickable(role = Role.Button) { nameInput = suggestion }
-                                    .padding(horizontal = 9.dp, vertical = 5.dp),
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = suggestion,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                             }
                         }
                     }
                 }
 
-                // 3. Opening Balance with live Rupiah preview and preset chips
+                // 3. Balance Section: Directly editable for all assets
                 Column {
                     Text(
-                        text = "SALDO AWAL",
+                        text = if (isEditing) "SALDO ASET" else "SALDO AWAL",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 0.8.sp
@@ -226,7 +244,7 @@ fun AddAssetContent(
                     OutlinedTextField(
                         value = openingBalanceInput,
                         onValueChange = { openingBalanceInput = it.filter { c -> c.isDigit() } },
-                        prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
+                        prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = duit.primary) },
                         placeholder = { Text("0") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
@@ -241,52 +259,49 @@ fun AddAssetContent(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (balance > 0) {
+                    if (isEditing && hasTransactions) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Terbaca: ${Formatters.formatRupiah(balance)}",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            ),
-                            color = JadePrimary
+                            text = "Aset ini memiliki riwayat transaksi. Perubahan saldo akan otomatis dicatat sebagai penyesuaian di mutasi.",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                            color = duit.textSecondary
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            100_000L to "+100rb",
-                            500_000L to "+500rb",
-                            1_000_000L to "+1jt",
-                            5_000_000L to "+5jt",
-                            10_000_000L to "+10jt"
-                        ).forEach { (presetVal, chipText) ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                    .clickable(role = Role.Button) {
-                                        val cur = openingBalanceInput.toLongOrNull() ?: 0L
-                                        openingBalanceInput = (cur + presetVal).toString()
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = chipText,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.5.sp
-                                    ),
-                                    color = DarkSurface
-                                )
+                    Spacer(modifier = Modifier.height(8.dp))
+                        FadingHorizontalScrollRow(
+                            fadeColor = duit.surface,
+                            contentPadding = PaddingValues(start = 2.dp, end = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                        ) {
+                            listOf(
+                                100_000L to "+100rb",
+                                500_000L to "+500rb",
+                                1_000_000L to "+1jt",
+                                5_000_000L to "+5jt",
+                                10_000_000L to "+10jt"
+                            ).forEach { (presetVal, chipText) ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(duit.surfaceVariant)
+                                        .border(1.dp, duit.border, RoundedCornerShape(6.dp))
+                                        .clickable(role = Role.Button) {
+                                            val cur = openingBalanceInput.toLongOrNull() ?: 0L
+                                            openingBalanceInput = (cur + presetVal).toString()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = chipText,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        ),
+                                        color = duit.textPrimary
+                                    )
+                                }
                             }
                         }
                     }
@@ -322,11 +337,11 @@ fun AddAssetContent(
                         Text(
                             text = "Jadikan Aset Utama (Default)",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                         Text(
                             text = "Dipilih otomatis saat mencatat transaksi baru",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
                             color = TextSecondary
                         )
                     }
@@ -338,7 +353,7 @@ fun AddAssetContent(
             // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DuitAingButton(
                     text = "BATAL",
@@ -354,18 +369,35 @@ fun AddAssetContent(
                     enabled = nameInput.isNotBlank(),
                     onClick = {
                         if (nameInput.isNotBlank()) {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             if (isEditing) {
                                 val updatedAsset = assetToEdit!!.copy(
                                     name = nameInput.trim(),
                                     type = selectedType,
-                                    openingBalance = balance,
-                                    currentBalance = balance,
                                     isDefault = isDefaultChecked,
                                     note = noteInput.trim(),
                                     updatedAt = System.currentTimeMillis()
                                 )
-                                viewModel.saveAsset(updatedAsset, isNew = false) {
-                                    onDismiss()
+                                val targetBalance = balance
+                                if (hasTransactions) {
+                                    val currentBal = currentAsset?.currentBalance ?: assetToEdit!!.currentBalance
+                                    viewModel.saveAsset(updatedAsset, isNew = false, newOpeningBalance = null) {
+                                        if (targetBalance != currentBal) {
+                                            viewModel.adjustAssetBalance(
+                                                assetId = assetToEdit!!.id,
+                                                targetBalance = targetBalance,
+                                                note = "Penyesuaian saldo via Edit Aset"
+                                            ) {
+                                                onDismiss()
+                                            }
+                                        } else {
+                                            onDismiss()
+                                        }
+                                    }
+                                } else {
+                                    viewModel.saveAsset(updatedAsset, isNew = false, newOpeningBalance = targetBalance) {
+                                        onDismiss()
+                                    }
                                 }
                             } else {
                                 val newAsset = Asset(
@@ -391,4 +423,3 @@ fun AddAssetContent(
                 )
             }
         }
-}

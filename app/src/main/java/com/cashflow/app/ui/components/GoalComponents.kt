@@ -28,6 +28,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import com.cashflow.app.ui.theme.AppSpacing
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,17 +42,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import com.cashflow.app.data.model.Asset
 import com.cashflow.app.data.model.FinancialGoal
-import com.cashflow.app.ui.theme.DarkBorder
-import com.cashflow.app.ui.theme.DarkSurface
-import com.cashflow.app.ui.theme.JadePrimary
-import com.cashflow.app.ui.theme.PebbleSurface
-import com.cashflow.app.ui.theme.PebbleSurfaceVariant
-import com.cashflow.app.ui.theme.StatusNegative
-import com.cashflow.app.ui.theme.TextOnDark
-import com.cashflow.app.ui.theme.TextPrimary
-import com.cashflow.app.ui.theme.TextSecondary
+import com.cashflow.app.ui.theme.LocalIsDarkTheme
+import com.cashflow.app.ui.theme.duit
 import java.time.LocalDate
 
 @Composable
@@ -78,6 +73,7 @@ fun GoalFormSheet(
     val targetAmount = targetInput.toLongOrNull() ?: 0L
     val currentAmount = currentInput.toLongOrNull() ?: 0L
     val focusManager = LocalFocusManager.current
+    val duit = MaterialTheme.duit
 
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
@@ -85,7 +81,7 @@ fun GoalFormSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding()
         ) {
             Text(
@@ -94,13 +90,13 @@ fun GoalFormSheet(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "Tetapkan sasaran tabungan, nominal target, dan tenggat waktu",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = duit.textSecondary
             )
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -109,7 +105,7 @@ fun GoalFormSheet(
                     .fillMaxWidth()
                     .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 OutlinedTextField(
                     value = nameInput,
@@ -126,7 +122,7 @@ fun GoalFormSheet(
                     value = targetInput,
                     onValueChange = { targetInput = it.filter { c -> c.isDigit() }; errorMessage = null },
                     label = { Text("Nominal Sasaran Target (Rp)") },
-                    prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
+                    prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = duit.primary) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
@@ -139,7 +135,7 @@ fun GoalFormSheet(
                     value = currentInput,
                     onValueChange = { currentInput = it.filter { c -> c.isDigit() } },
                     label = { Text("Sudah Terkumpul Saat Ini (Rp)") },
-                    prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
+                    prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = duit.primary) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
@@ -179,7 +175,7 @@ fun GoalFormSheet(
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = StatusNegative,
+                        color = duit.expense,
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -189,7 +185,7 @@ fun GoalFormSheet(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DuitAingButton(
                     text = "BATAL",
@@ -197,7 +193,7 @@ fun GoalFormSheet(
                     modifier = Modifier.weight(1f),
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 44.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
 
                 DuitAingButton(
@@ -205,7 +201,7 @@ fun GoalFormSheet(
                     variant = DuitAingButtonVariant.PRIMARY,
                     modifier = Modifier.weight(1.3f),
                     height = 44.dp,
-                    shadowOffset = 2.dp,
+                    shadowOffset = 0.dp,
                     onClick = {
                         if (nameInput.isBlank()) {
                             errorMessage = "Nama target wajib diisi"
@@ -240,8 +236,7 @@ fun DepositGoalSheet(
     if (goal == null) return
 
     var depositAmountText by remember { mutableStateOf("") }
-    var deductFromAsset by remember { mutableStateOf(false) }
-    var selectedSourceAssetId by remember { mutableStateOf(assets.firstOrNull()?.id ?: "") }
+    var selectedSourceAssetId by remember { mutableStateOf(goal.assetId ?: assets.firstOrNull()?.id ?: "") }
     var noteInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -251,13 +246,16 @@ fun DepositGoalSheet(
 
     val quickAmounts = listOf(50000L, 100000L, 250000L, 500000L, 1000000L)
 
+    val duit = MaterialTheme.duit
+    val isDark = LocalIsDarkTheme.current
+
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding()
         ) {
             Text(
@@ -266,13 +264,13 @@ fun DepositGoalSheet(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.5.sp
                 ),
-                color = DarkSurface
+                color = duit.textPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "${goal.name} • Sisa sasaran: ${Formatters.formatRupiah(remainingToTarget)}",
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = TextSecondary
+                color = duit.textSecondary
             )
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -281,15 +279,15 @@ fun DepositGoalSheet(
                     .fillMaxWidth()
                     .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 // Info Box: Progres Terkini
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(PebbleSurfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                        .background(duit.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, duit.border, RoundedCornerShape(10.dp))
                         .padding(12.dp)
                 ) {
                     Column {
@@ -300,12 +298,12 @@ fun DepositGoalSheet(
                             Text(
                                 "Terkumpul: ${Formatters.formatRupiah(goal.currentAmount)}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = JadePrimary
+                                color = duit.primary
                             )
                             Text(
                                 "Target: ${Formatters.formatRupiah(goal.targetAmount)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
+                                color = duit.textSecondary
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -313,10 +311,10 @@ fun DepositGoalSheet(
                             progress = { goal.progressPercentage.coerceIn(0f, 1f) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = JadePrimary,
-                            trackColor = PebbleSurface
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = duit.primary,
+                            trackColor = duit.surface
                         )
                     }
                 }
@@ -326,7 +324,7 @@ fun DepositGoalSheet(
                     value = depositAmountText,
                     onValueChange = { depositAmountText = it.filter { c -> c.isDigit() }; errorMessage = null },
                     label = { Text("Nominal Tabungan (Rp)") },
-                    prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = JadePrimary) },
+                    prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = duit.primary) },
                     placeholder = { Text("0") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
@@ -341,62 +339,39 @@ fun DepositGoalSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     quickAmounts.forEach { chipAmt ->
+                        val isSelected = depositAmount == chipAmt
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (depositAmount == chipAmt) JadePrimary else PebbleSurfaceVariant.copy(alpha = 0.6f))
-                                .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                .background(if (isSelected) (if (isDark) duit.accentLime else Color(0xFF111111)) else duit.surfaceVariant)
+                                .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                 .clickable(role = Role.Button) {
                                     depositAmountText = chipAmt.toString()
                                     errorMessage = null
                                 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 8.dp, vertical = 8.dp)
                         ) {
                             Text(
                                 text = "+${Formatters.formatRupiah(chipAmt)}",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp
                                 ),
-                                color = if (depositAmount == chipAmt) TextOnDark else TextPrimary
+                                color = if (isSelected) (if (isDark) Color(0xFF111111) else Color.White) else duit.textPrimary
                             )
                         }
                     }
                 }
 
-                // Deduct from Asset Switch
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(role = Role.Checkbox) { deductFromAsset = !deductFromAsset }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = deductFromAsset,
-                        onCheckedChange = { deductFromAsset = it },
-                        colors = CheckboxDefaults.colors(checkedColor = JadePrimary)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Column {
-                        Text(
-                            "Kurangi Saldo Rekening / Dompet",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = TextPrimary
-                        )
-                        Text(
-                            "Mencatat otomatis pengeluaran tabungan di arus kas",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
-                        )
-                    }
-                }
-
-                if (deductFromAsset && assets.isNotEmpty()) {
+                Text(
+                    "Dana tetap berada di rekening. Alokasi tabungan bukan pengeluaran belanja.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = duit.textSecondary
+                )
+                if (assets.isNotEmpty()) {
                     AssetDropdownField(
                         assets = assets,
                         selectedAssetId = selectedSourceAssetId,
@@ -420,7 +395,7 @@ fun DepositGoalSheet(
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = StatusNegative,
+                        color = duit.expense,
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -430,7 +405,7 @@ fun DepositGoalSheet(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DuitAingButton(
                     text = "BATAL",
@@ -438,7 +413,7 @@ fun DepositGoalSheet(
                     modifier = Modifier.weight(1f),
                     variant = DuitAingButtonVariant.OUTLINE,
                     height = 44.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
 
                 DuitAingButton(
@@ -446,13 +421,13 @@ fun DepositGoalSheet(
                     variant = DuitAingButtonVariant.PRIMARY,
                     modifier = Modifier.weight(1.3f),
                     height = 44.dp,
-                    shadowOffset = 2.dp,
+                    shadowOffset = 0.dp,
                     onClick = {
                         if (depositAmount <= 0) {
                             errorMessage = "Nominal tabungan harus lebih dari 0"
                             return@DuitAingButton
                         }
-                        val sourceAsset = if (deductFromAsset) selectedSourceAssetId.ifBlank { null } else null
+                        val sourceAsset = selectedSourceAssetId.ifBlank { null }
                         onConfirmDeposit(goal.id, depositAmount, sourceAsset, noteInput.trim())
                     }
                 )

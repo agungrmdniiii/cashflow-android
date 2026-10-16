@@ -72,10 +72,11 @@ fun TransactionFilterSheet(
     val categories by viewModel.categories.collectAsState()
     val assets by viewModel.activeAssets.collectAsState()
 
-    val surfaceColor = MaterialTheme.colorScheme.surface
-    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val duit = MaterialTheme.duit
+    val surfaceColor = duit.surface
+    val onSurfaceColor = duit.textPrimary
+    val onSurfaceVariantColor = duit.textSecondary
+    val borderColor = duit.border
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -89,7 +90,7 @@ fun TransactionFilterSheet(
                     .width(40.dp)
                     .height(4.dp)
                     .clip(CircleShape)
-                    .background(borderColor)
+                    .background(duit.borderStrong)
             )
         }
     ) {
@@ -111,7 +112,7 @@ fun TransactionFilterSheet(
                     Icon(
                         imageVector = Icons.Rounded.Tune,
                         contentDescription = null,
-                        tint = JadePrimary,
+                        tint = duit.textPrimary,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -125,14 +126,14 @@ fun TransactionFilterSheet(
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = CircleShape,
-                            color = JadePrimary,
-                            contentColor = Color.White
+                            color = duit.primary,
+                            contentColor = duit.onPrimary
                         ) {
                             Text(
                                 text = "$activeCount",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }
@@ -154,12 +155,12 @@ fun TransactionFilterSheet(
                         text = "Reset",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = StatusNegative
+                        color = duit.expense
                     )
                 }
             }
 
-            HorizontalDivider(color = borderColor.copy(alpha = 0.5f))
+            HorizontalDivider(color = borderColor)
 
             // Body
             Column(
@@ -187,15 +188,16 @@ fun TransactionFilterSheet(
                             onClick = { tempDatePreset = preset },
                             label = { Text(preset.label, style = MaterialTheme.typography.labelMedium) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = JadePrimary,
-                                selectedLabelColor = Color.White,
-                                containerColor = surfaceColor,
-                                labelColor = onSurfaceColor
+                                selectedContainerColor = duit.primary,
+                                selectedLabelColor = duit.onPrimary,
+                                containerColor = duit.surfaceVariant,
+                                labelColor = duit.textSecondary
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) JadePrimary else borderColor
+                                borderColor = if (isSelected) Color.Transparent else borderColor,
+                                selectedBorderColor = Color.Transparent
                             ),
                             shape = RoundedCornerShape(999.dp)
                         )
@@ -285,15 +287,16 @@ fun TransactionFilterSheet(
                             onClick = { tempType = if (typeVal == "all") "all" else typeVal },
                             label = { Text(label, style = MaterialTheme.typography.labelMedium) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = JadePrimary,
-                                selectedLabelColor = Color.White,
-                                containerColor = surfaceColor,
-                                labelColor = onSurfaceColor
+                                selectedContainerColor = duit.primary,
+                                selectedLabelColor = duit.onPrimary,
+                                containerColor = duit.surfaceVariant,
+                                labelColor = duit.textSecondary
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) JadePrimary else borderColor
+                                borderColor = if (isSelected) Color.Transparent else borderColor,
+                                selectedBorderColor = Color.Transparent
                             ),
                             shape = RoundedCornerShape(999.dp)
                         )
@@ -319,15 +322,16 @@ fun TransactionFilterSheet(
                         onClick = { tempAssetId = null },
                         label = { Text("Semua Rekening", style = MaterialTheme.typography.labelMedium) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = JadePrimary,
-                            selectedLabelColor = Color.White,
-                            containerColor = surfaceColor,
-                            labelColor = onSurfaceColor
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary,
+                            containerColor = duit.surfaceVariant,
+                            labelColor = duit.textSecondary
                         ),
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = isAllAssets,
-                            borderColor = if (isAllAssets) JadePrimary else borderColor
+                            borderColor = if (isAllAssets) Color.Transparent else borderColor,
+                            selectedBorderColor = Color.Transparent
                         ),
                         shape = RoundedCornerShape(999.dp)
                     )
@@ -342,19 +346,21 @@ fun TransactionFilterSheet(
                                 Icon(
                                     imageVector = Icons.Rounded.AccountBalanceWallet,
                                     contentDescription = null,
+                                    tint = if (isSelected) duit.onPrimary else duit.textSecondary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = JadePrimary,
-                                selectedLabelColor = Color.White,
-                                containerColor = surfaceColor,
-                                labelColor = onSurfaceColor
+                                selectedContainerColor = duit.primary,
+                                selectedLabelColor = duit.onPrimary,
+                                containerColor = duit.surfaceVariant,
+                                labelColor = duit.textSecondary
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) JadePrimary else borderColor
+                                borderColor = if (isSelected) Color.Transparent else borderColor,
+                                selectedBorderColor = Color.Transparent
                             ),
                             shape = RoundedCornerShape(999.dp)
                         )
@@ -380,15 +386,16 @@ fun TransactionFilterSheet(
                         onClick = { tempCatId = null },
                         label = { Text("Semua Kategori", style = MaterialTheme.typography.labelMedium) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = JadePrimary,
-                            selectedLabelColor = Color.White,
-                            containerColor = surfaceColor,
-                            labelColor = onSurfaceColor
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary,
+                            containerColor = duit.surfaceVariant,
+                            labelColor = duit.textSecondary
                         ),
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = isAllCats,
-                            borderColor = if (isAllCats) JadePrimary else borderColor
+                            borderColor = if (isAllCats) Color.Transparent else borderColor,
+                            selectedBorderColor = Color.Transparent
                         ),
                         shape = RoundedCornerShape(999.dp)
                     )
@@ -404,20 +411,21 @@ fun TransactionFilterSheet(
                                     iconName = cat.icon,
                                     size = 18.dp,
                                     iconSize = 14.dp,
-                                    tintColor = if (isSelected) Color.White else JadePrimary,
+                                    tintColor = if (isSelected) duit.onPrimary else duit.textPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = JadePrimary,
-                                selectedLabelColor = Color.White,
-                                containerColor = surfaceColor,
-                                labelColor = onSurfaceColor
+                                selectedContainerColor = duit.primary,
+                                selectedLabelColor = duit.onPrimary,
+                                containerColor = duit.surfaceVariant,
+                                labelColor = duit.textSecondary
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) JadePrimary else borderColor
+                                borderColor = if (isSelected) Color.Transparent else borderColor,
+                                selectedBorderColor = Color.Transparent
                             ),
                             shape = RoundedCornerShape(999.dp)
                         )
@@ -450,7 +458,9 @@ fun TransactionFilterSheet(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = JadePrimary,
+                            focusedContainerColor = surfaceColor,
+                            unfocusedContainerColor = surfaceColor,
+                            focusedBorderColor = duit.primary,
                             unfocusedBorderColor = borderColor
                         )
                     )
@@ -465,7 +475,9 @@ fun TransactionFilterSheet(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = JadePrimary,
+                            focusedContainerColor = surfaceColor,
+                            unfocusedContainerColor = surfaceColor,
+                            focusedBorderColor = duit.primary,
                             unfocusedBorderColor = borderColor
                         )
                     )
@@ -484,7 +496,7 @@ fun TransactionFilterSheet(
                 DuitAingButton(
                     text = "Batal",
                     onClick = onDismiss,
-                    variant = DuitAingButtonVariant.OUTLINE,
+                    variant = DuitAingButtonVariant.SECONDARY,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -526,10 +538,10 @@ fun TransactionFilterSheet(
                         }
                         showStartDatePicker = false
                     }
-                ) { Text("Pilih") }
+                ) { Text("Pilih", color = duit.textPrimary) }
             },
             dismissButton = {
-                TextButton(onClick = { showStartDatePicker = false }) { Text("Batal") }
+                TextButton(onClick = { showStartDatePicker = false }) { Text("Batal", color = duit.textSecondary) }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -554,10 +566,10 @@ fun TransactionFilterSheet(
                         }
                         showEndDatePicker = false
                     }
-                ) { Text("Pilih") }
+                ) { Text("Pilih", color = duit.textPrimary) }
             },
             dismissButton = {
-                TextButton(onClick = { showEndDatePicker = false }) { Text("Batal") }
+                TextButton(onClick = { showEndDatePicker = false }) { Text("Batal", color = duit.textSecondary) }
             }
         ) {
             DatePicker(state = datePickerState)

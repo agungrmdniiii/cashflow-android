@@ -51,6 +51,7 @@ fun BudgetsScreen(
         BackHandler(enabled = true) { onBack() }
     }
 
+    val duit = MaterialTheme.duit
     val budgets by viewModel.budgets.collectAsState()
     val categories by viewModel.categories.collectAsState()
 
@@ -67,13 +68,13 @@ fun BudgetsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(PebbleBackground)
+            .background(duit.background)
     ) {
         // Header with spacious, elegant layout
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -82,7 +83,7 @@ fun BudgetsScreen(
                     .weight(1f)
                     .padding(end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 if (onBack != null) {
                     Box(
@@ -90,15 +91,15 @@ fun BudgetsScreen(
                             .minimumInteractiveComponentSize()
                             .size(44.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(PebbleSurface)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .background(duit.surface)
+                            .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                             .clickable(role = Role.Button, onClick = onBack),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Kembali ke Beranda",
-                            tint = DarkSurface,
+                            tint = duit.textPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -111,7 +112,7 @@ fun BudgetsScreen(
                             fontSize = 24.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = DarkSurface,
+                        color = duit.textPrimary,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -121,7 +122,7 @@ fun BudgetsScreen(
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                 }
             }
@@ -148,14 +149,14 @@ fun BudgetsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(PebbleSurface)
-                .border(1.dp, PebbleBorder, RoundedCornerShape(12.dp))
+                .background(duit.surface)
+                .border(1.dp, duit.border, RoundedCornerShape(12.dp))
                 .clickable(role = Role.Switch) {
                     viewModel.setBudgetRolloverEnabled(!isRolloverEnabled)
                 }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -167,24 +168,24 @@ fun BudgetsScreen(
                 Icon(
                     imageVector = Icons.Rounded.Autorenew,
                     contentDescription = null,
-                    tint = if (isRolloverEnabled) JadePrimary else TextSecondary,
+                    tint = if (isRolloverEnabled) duit.primary else duit.textSecondary,
                     modifier = Modifier.size(20.dp)
                 )
                 Column {
                     Text(
-                        text = "Rollover Sisa Bulan Lalu",
+                        text = "Alihkan Sisa Periode Lalu",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.5.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                     Text(
-                        text = if (isRolloverEnabled) "Aktif • Sisa unspent bulan lalu menambah plafon" else "Nonaktif • Plafon direset tetap tiap bulan",
+                        text = if (isRolloverEnabled) "Aktif • Sisa periode lalu menambah batas" else "Nonaktif • Batas tetap setiap periode",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.5.sp
+                            fontSize = 12.sp
                         ),
-                        color = TextSecondary
+                        color = duit.textSecondary
                     )
                 }
             }
@@ -192,8 +193,10 @@ fun BudgetsScreen(
                 checked = isRolloverEnabled,
                 onCheckedChange = { viewModel.setBudgetRolloverEnabled(it) },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = JadePrimary
+                    checkedThumbColor = duit.onPrimary,
+                    checkedTrackColor = duit.primary,
+                    uncheckedThumbColor = duit.textSecondary,
+                    uncheckedTrackColor = duit.track
                 )
             )
         }
@@ -232,7 +235,7 @@ fun BudgetsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 6.dp)
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
                     ) {
                         DoubleBezelCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -240,7 +243,7 @@ fun BudgetsScreen(
                             outerRadius = 14.dp,
                             innerRadius = 11.dp,
                             shadowOffset = 2.dp,
-                            innerColor = PebbleSurface,
+                            innerColor = duit.surface,
                             onClick = {
                                 editingBudget = item.budget
                                 selectedCategoryId = item.budget.categoryId
@@ -257,18 +260,18 @@ fun BudgetsScreen(
                                     BudgetStatus.NEAR_LIMIT -> EyebrowVariant.DEFAULT
                                     BudgetStatus.EXCEEDED -> EyebrowVariant.NEGATIVE
                                 }
-                                val statusLabel = if (item.status == BudgetStatus.SAFE && item.progressPercentage <= 0.35f) {
-                                    "TERKENDALI · DISIPLIN"
-                                } else if (item.status == BudgetStatus.SAFE) {
-                                    "PLAFON AMAN"
-                                } else {
-                                    item.status.displayName
+                                val statusLabel = when (item.status) {
+                                    BudgetStatus.SAFE -> "AMAN"
+                                    BudgetStatus.WARNING -> "WASPADA"
+                                    BudgetStatus.NEAR_LIMIT -> "HAMPIR PENUH"
+                                    BudgetStatus.EXCEEDED -> "MELEBIHI"
                                 }
 
+                                val duit = MaterialTheme.duit
                                 val progressColor = when {
-                                    item.progressPercentage >= 1.0f -> StatusNegative
-                                    item.progressPercentage >= 0.80f -> Color(0xFFE89A3C)
-                                    else -> JadePrimary
+                                    item.progressPercentage >= 1.0f -> duit.expense
+                                    item.progressPercentage >= 0.80f -> duit.warning
+                                    else -> duit.primary
                                 }
 
                                 val animatedProgress by animateFloatAsState(
@@ -281,10 +284,10 @@ fun BudgetsScreen(
                                 )
 
                                 val remainingColor = when (item.status) {
-                                    BudgetStatus.SAFE -> JadePrimary
-                                    BudgetStatus.WARNING -> Color(0xFFD97706)
-                                    BudgetStatus.NEAR_LIMIT -> Color(0xFFEA580C)
-                                    BudgetStatus.EXCEEDED -> StatusNegative
+                                    BudgetStatus.SAFE -> duit.income
+                                    BudgetStatus.WARNING -> duit.warning
+                                    BudgetStatus.NEAR_LIMIT -> duit.warning
+                                    BudgetStatus.EXCEEDED -> duit.expense
                                 }
 
                                 // Row 1: Category Info & Status Badge + Delete Action
@@ -305,7 +308,7 @@ fun BudgetsScreen(
                                             iconSize = 20.dp
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f, fill = false)) {
                                             Text(
                                                 text = (item.category?.name ?: "Kategori").uppercase(),
                                                 style = MaterialTheme.typography.titleMedium.copy(
@@ -313,7 +316,7 @@ fun BudgetsScreen(
                                                     fontSize = 14.sp,
                                                     letterSpacing = 0.5.sp
                                                 ),
-                                                color = DarkSurface,
+                                                color = duit.textPrimary,
                                                 maxLines = 1,
                                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
@@ -321,18 +324,19 @@ fun BudgetsScreen(
                                             Text(
                                                 text = if (item.budget.periodType == "monthly") "PLAFON BULANAN" else "PLAFON MINGGUAN",
                                                 style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontSize = 9.5.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     letterSpacing = 0.5.sp
                                                 ),
-                                                color = TextSecondary
+                                                color = duit.textSecondary,
+                                                maxLines = 1
                                             )
                                         }
                                     }
 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                                     ) {
                                         EyebrowTag(
                                             text = statusLabel,
@@ -345,7 +349,7 @@ fun BudgetsScreen(
                                             Icon(
                                                 imageVector = Icons.Rounded.DeleteOutline,
                                                 contentDescription = "Hapus Anggaran",
-                                                tint = TextSecondary.copy(alpha = 0.6f),
+                                                tint = duit.textSecondary.copy(alpha = 0.6f),
                                                 modifier = Modifier.size(17.dp)
                                             )
                                         }
@@ -366,16 +370,16 @@ fun BudgetsScreen(
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 letterSpacing = 0.8.sp,
-                                                fontSize = 9.5.sp
+                                                fontSize = 12.sp
                                             ),
-                                            color = TextSecondary
+                                            color = duit.textSecondary
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = if (item.remainingAmount >= 0)
-                                                Formatters.formatRupiah(item.remainingAmount)
+                                                Formatters.displayRupiah(item.remainingAmount)
                                             else
-                                                Formatters.formatRupiah(-item.remainingAmount),
+                                                Formatters.displayRupiah(-item.remainingAmount),
                                             style = MaterialTheme.typography.titleLarge.copy(
                                                 fontWeight = FontWeight.Black,
                                                 fontSize = 19.sp,
@@ -389,10 +393,10 @@ fun BudgetsScreen(
                                         text = "${(item.progressPercentage * 100).toInt()}% terpakai",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 11.5.sp,
+                                            fontSize = 12.sp,
                                             letterSpacing = (-0.2).sp
                                         ),
-                                        color = if (item.status == BudgetStatus.EXCEEDED) StatusNegative else DarkSurface
+                                        color = if (item.status == BudgetStatus.EXCEEDED) duit.expense else duit.textPrimary
                                     )
                                 }
 
@@ -406,16 +410,12 @@ fun BudgetsScreen(
                                         .height(6.dp)
                                         .clip(RoundedCornerShape(3.dp)),
                                     color = progressColor,
-                                    trackColor = PebbleSurfaceVariant
+                                    trackColor = duit.track
                                 )
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                val daysRemaining = remember {
-                                    val now = LocalDate.now()
-                                    val ym = YearMonth.from(now)
-                                    (ym.lengthOfMonth() - now.dayOfMonth + 1).coerceAtLeast(1)
-                                }
+                                val daysRemaining = item.daysRemaining
                                 val dailyRemaining = (item.remainingAmount / daysRemaining).coerceAtLeast(0L)
 
                                 // Row 4: Subtle Contextual Footer (Terpakai & Sisa Harian)
@@ -425,20 +425,20 @@ fun BudgetsScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Terpakai: " + Formatters.formatRupiah(item.spentAmount),
+                                        text = "Terpakai: " + Formatters.displayRupiah(item.spentAmount),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.SemiBold,
-                                            fontSize = 11.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = TextSecondary,
+                                        color = duit.textSecondary,
                                         maxLines = 1,
                                         softWrap = false
                                     )
                                     Text(
-                                        text = "Sisa ${Formatters.formatCompact(dailyRemaining)}/hari ($daysRemaining hari lagi)",
+                                        text = "Sisa ${Formatters.displayCompact(dailyRemaining)}/hari ($daysRemaining hari lagi)",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 10.5.sp
+                                            fontSize = 12.sp
                                         ),
                                         color = progressColor,
                                         maxLines = 1,

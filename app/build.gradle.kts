@@ -13,8 +13,8 @@ android {
         applicationId = "com.cashflow.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 110
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -51,10 +51,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.biometric)
+    implementation("androidx.fragment:fragment:1.5.7")
     implementation(libs.lottie.compose)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
-    implementation("com.google.android.gms:play-services-auth:21.3.0")
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303")

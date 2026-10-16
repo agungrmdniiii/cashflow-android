@@ -23,14 +23,15 @@ data class CloudBackupMetadata(
 
 object CloudBackupService {
 
-    private const val PBKDF2_ITERATIONS = 10000
+    private const val PBKDF2_ITERATIONS = 600_000
     private const val KEY_LENGTH_BITS = 256
     private const val SALT_LENGTH_BYTES = 16
     private const val IV_LENGTH_BYTES = 12
     private const val TAG_LENGTH_BITS = 128
 
     // Magic Header untuk validasi format file terenkripsi Duit Aing
-    private val ENCRYPTED_MAGIC = "DUITAING_ENC_V1".toByteArray(Charsets.UTF_8)
+    private val ENCRYPTED_MAGIC = "DUITAING_ENC_V2".toByteArray(Charsets.UTF_8)
+    private val LEGACY_MAGIC = "DUITAING_ENC_V1".toByteArray(Charsets.UTF_8)
 
     /**
      * Enkripsi data JSON dengan AES-256-GCM menggunakan password pengguna.
@@ -47,6 +48,7 @@ object CloudBackupService {
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(TAG_LENGTH_BITS, iv))
+        cipher.updateAAD(ENCRYPTED_MAGIC)
         val cipherBytes = cipher.doFinal(plainBytes)
 
         val buffer = ByteBuffer.allocate(ENCRYPTED_MAGIC.size + salt.size + iv.size + cipherBytes.size)
@@ -70,7 +72,8 @@ object CloudBackupService {
         val magic = ByteArray(ENCRYPTED_MAGIC.size)
         buffer.get(magic)
 
-        if (!magic.contentEquals(ENCRYPTED_MAGIC)) {
+        val isLegacy = magic.contentEquals(LEGACY_MAGIC)
+        if (!magic.contentEquals(ENCRYPTED_MAGIC) && !isLegacy) {
             throw IllegalArgumentException("File cadangan bukan format terenkripsi Duit Aing.")
         }
 
@@ -83,12 +86,13 @@ object CloudBackupService {
         val cipherBytes = ByteArray(buffer.remaining())
         buffer.get(cipherBytes)
 
-        val keySpec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
+        val keySpec = PBEKeySpec(password.toCharArray(), salt, if (isLegacy) 10_000 else PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
         val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val secretKey = SecretKeySpec(keyFactory.generateSecret(keySpec).encoded, "AES")
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(TAG_LENGTH_BITS, iv))
+        if (!isLegacy) cipher.updateAAD(ENCRYPTED_MAGIC)
         return cipher.doFinal(cipherBytes)
     }
 

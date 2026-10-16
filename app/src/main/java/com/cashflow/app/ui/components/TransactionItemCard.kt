@@ -56,6 +56,7 @@ fun TransactionItemCard(
     showDivider: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
+    val duit = MaterialTheme.duit
     var showMenu by remember { mutableStateOf(false) }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -95,8 +96,8 @@ fun TransactionItemCard(
             val direction = dismissState.dismissDirection
             val color by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> JadePrimary
-                    SwipeToDismissBoxValue.EndToStart -> StatusNegative
+                    SwipeToDismissBoxValue.StartToEnd -> duit.primary
+                    SwipeToDismissBoxValue.EndToStart -> duit.expense
                     SwipeToDismissBoxValue.Settled -> Color.Transparent
                 },
                 label = "SwipeDismissColor"
@@ -172,7 +173,7 @@ fun TransactionItemCard(
                         iconName = "swap_horiz",
                         size = 44.dp,
                         iconSize = 22.dp,
-                        backgroundColor = Color(0xFF2D5D48),
+                        backgroundColor = MaterialTheme.duit.transfer,
                         tintColor = Color.White
                     )
                 } else {
@@ -205,7 +206,7 @@ fun TransactionItemCard(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(JadePrimaryLight)
+                                    .background(duit.primaryContainer)
                                     .padding(horizontal = 4.dp, vertical = 1.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -213,18 +214,18 @@ fun TransactionItemCard(
                                     Icon(
                                         imageVector = Icons.Rounded.Mic,
                                         contentDescription = "Suara",
-                                        tint = JadePrimary,
+                                        tint = duit.onPrimaryContainer,
                                         modifier = Modifier.size(9.dp)
                                     )
                                     Spacer(modifier = Modifier.width(2.dp))
                                     Text(
                                         text = "SUARA",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 8.5.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             letterSpacing = 0.4.sp
                                         ),
-                                        color = JadePrimary
+                                        color = duit.onPrimaryContainer
                                     )
                                 }
                             }
@@ -237,12 +238,12 @@ fun TransactionItemCard(
                         TransactionType.TRANSFER.value -> {
                             val src = sourceAsset?.name ?: "Aset"
                             val dst = destinationAsset?.name ?: "Tujuan"
-                            "$src ke $dst"
+                            "$src - $dst"
                         }
                         else -> {
                             val cat = category?.name ?: "Umum"
                             val ast = sourceAsset?.name ?: "Aset"
-                            "$cat · $ast"
+                            "$cat - $ast"
                         }
                     }
                     Text(
@@ -263,9 +264,9 @@ fun TransactionItemCard(
                     else -> ""
                 }
                 val amountColor = when (transaction.type) {
-                    TransactionType.INCOME.value -> StatusPositive
-                    TransactionType.EXPENSE.value -> MaterialTheme.colorScheme.onSurface
-                    else -> StatusTransfer
+                    TransactionType.INCOME.value -> duit.income
+                    TransactionType.EXPENSE.value -> duit.expense
+                    else -> duit.transfer
                 }
 
                 Column(
@@ -287,7 +288,7 @@ fun TransactionItemCard(
                     Text(
                         text = transaction.transactionTime.ifBlank { "12:00" },
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Normal
                         ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -313,12 +314,12 @@ fun TransactionItemCard(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
                         shape = RoundedCornerShape(12.dp),
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = duit.surface
                     ) {
                         DropdownMenuItem(
                             text = { Text("Lihat Detail") },
                             leadingIcon = {
-                                Icon(Icons.Rounded.Visibility, contentDescription = null, tint = JadePrimary)
+                                Icon(Icons.Rounded.Visibility, contentDescription = null, tint = duit.textPrimary)
                             },
                             onClick = {
                                 showMenu = false
@@ -330,7 +331,7 @@ fun TransactionItemCard(
                             DropdownMenuItem(
                                 text = { Text("Edit Transaksi") },
                                 leadingIcon = {
-                                    Icon(Icons.Rounded.Edit, contentDescription = null, tint = JadePrimary)
+                                    Icon(Icons.Rounded.Edit, contentDescription = null, tint = duit.textPrimary)
                                 },
                                 onClick = {
                                     showMenu = false
@@ -343,7 +344,7 @@ fun TransactionItemCard(
                             DropdownMenuItem(
                                 text = { Text("Jadikan Favorit") },
                                 leadingIcon = {
-                                    Icon(Icons.Rounded.Star, contentDescription = null, tint = Color(0xFFE89A3C))
+                                    Icon(Icons.Rounded.Star, contentDescription = null, tint = duit.warning)
                                 },
                                 onClick = {
                                     showMenu = false
@@ -355,9 +356,9 @@ fun TransactionItemCard(
                         if (onDelete != null) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             DropdownMenuItem(
-                                text = { Text("Hapus Transaksi", color = StatusNegative, fontWeight = FontWeight.SemiBold) },
+                                text = { Text("Hapus Transaksi", color = duit.expense, fontWeight = FontWeight.SemiBold) },
                                 leadingIcon = {
-                                    Icon(Icons.Rounded.Delete, contentDescription = null, tint = StatusNegative)
+                                    Icon(Icons.Rounded.Delete, contentDescription = null, tint = duit.expense)
                                 },
                                 onClick = {
                                     showMenu = false

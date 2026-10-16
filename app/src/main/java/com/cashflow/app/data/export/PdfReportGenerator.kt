@@ -56,7 +56,7 @@ object PdfReportGenerator {
             val borderColor = Color.rgb(218, 214, 202)
             val cardBgColor = Color.rgb(247, 245, 240)
             val tableHeaderBg = Color.rgb(239, 236, 228)
-            val jadeGreen = Color.rgb(45, 106, 79)
+            val incomeGreen = Color.rgb(10, 117, 89)
             val terraRed = Color.rgb(186, 26, 26)
             val transferBlue = Color.rgb(71, 108, 142)
 
@@ -144,7 +144,7 @@ object PdfReportGenerator {
                 textSize = 8f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 textAlign = Paint.Align.RIGHT
-                color = jadeGreen
+                color = incomeGreen
             }
 
             val amountExpensePaint = Paint().apply {
@@ -201,7 +201,7 @@ object PdfReportGenerator {
             canvas.drawRoundRect(b1, 6f, 6f, cardFillPaint)
             canvas.drawRoundRect(b1, 6f, 6f, cardBorderPaint)
             canvas.drawText("TOTAL PEMASUKAN", b1.left + 10f, b1.top + 16f, cardLabelPaint)
-            cardValuePaint.color = jadeGreen
+            cardValuePaint.color = incomeGreen
             canvas.drawText("+" + Formatters.formatRupiah(totalIncome), b1.left + 10f, b1.top + 33f, cardValuePaint)
 
             // Box 2: Pengeluaran
@@ -219,7 +219,7 @@ object PdfReportGenerator {
             canvas.drawRoundRect(b3, 6f, 6f, cardFillPaint)
             canvas.drawRoundRect(b3, 6f, 6f, cardBorderPaint)
             canvas.drawText("ARUS KAS BERSIH", b3.left + 10f, b3.top + 16f, cardLabelPaint)
-            cardValuePaint.color = if (netCashflow >= 0) jadeGreen else terraRed
+            cardValuePaint.color = if (netCashflow >= 0) incomeGreen else terraRed
             val netPrefix = if (netCashflow >= 0) "+" else ""
             canvas.drawText(netPrefix + Formatters.formatRupiah(netCashflow), b3.left + 10f, b3.top + 33f, cardValuePaint)
 

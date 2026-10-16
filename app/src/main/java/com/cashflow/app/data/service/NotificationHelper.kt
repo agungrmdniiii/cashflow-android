@@ -81,12 +81,13 @@ object NotificationHelper {
         val isBudgetAlertsEnabled = pref.isBudgetAlertsEnabled()
         if (!isBudgetAlertsEnabled) return
 
-        val currentMonthKey = LocalDate.now().toString().substring(0, 7) // "YYYY-MM"
+        val today = LocalDate.now()
 
         for (item in budgets) {
             val budget = item.budget
             val catName = item.category?.name ?: "Kategori"
             val percentage = item.progressPercentage
+            val currentMonthKey = if (budget.periodType == "weekly") today.with(java.time.DayOfWeek.MONDAY).toString() else com.cashflow.app.data.model.monthlyBudgetStart(today, pref.getBudgetStartDay()).toString()
 
             val notified80Key = "notif_budget_80_${budget.id}_$currentMonthKey"
             val notified100Key = "notif_budget_100_${budget.id}_$currentMonthKey"
@@ -100,7 +101,7 @@ object NotificationHelper {
                     context = context,
                     notificationId = budget.id.hashCode() + 100,
                     title = "⚠️ Anggaran $catName Habis!",
-                    message = "Pengeluaran ${Formatters.formatRupiah(item.spentAmount)} telah mencapai limit ${Formatters.formatRupiah(budget.targetAmount)}."
+                    message = "Pengeluaran ${Formatters.formatRupiah(item.spentAmount)} telah mencapai limit ${Formatters.formatRupiah(item.effectiveTargetAmount)}."
                 )
                 pref.setBoolean(notified100Key, true)
                 pref.setBoolean(notified80Key, true) // Otomatis tandai 80% sudah lewat
@@ -110,7 +111,7 @@ object NotificationHelper {
                     context = context,
                     notificationId = budget.id.hashCode() + 80,
                     title = "⚡ Anggaran $catName Mencapai 80%",
-                    message = "Sisa anggaran Anda: ${Formatters.formatRupiah(item.remainingAmount)} dari total ${Formatters.formatRupiah(budget.targetAmount)}."
+                    message = "Sisa anggaran Anda: ${Formatters.formatRupiah(item.remainingAmount)} dari total ${Formatters.formatRupiah(item.effectiveTargetAmount)}."
                 )
                 pref.setBoolean(notified80Key, true)
             }
@@ -148,5 +149,17 @@ object NotificationHelper {
         } catch (_: SecurityException) {
             // Permission rejected by user
         }
+    }
+
+    fun showLocalNotification(context: Context, id: Int, title: String, message: String, channel: String): Boolean {
+        if (!hasNotificationPermission(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+        return try {
+            val intent = PendingIntent.getActivity(context, id, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(title).setContentText(message).setContentIntent(intent).setAutoCancel(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
+            NotificationManagerCompat.from(context).notify(id, notification)
+            true
+        } catch (_: SecurityException) { false }
     }
 }

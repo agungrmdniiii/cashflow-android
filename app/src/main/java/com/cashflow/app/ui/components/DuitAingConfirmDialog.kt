@@ -24,10 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cashflow.app.ui.theme.PebbleSurface
-import com.cashflow.app.ui.theme.TextPrimary
-import com.cashflow.app.ui.theme.TextSecondary
-import com.cashflow.app.ui.theme.TextTertiary
+import com.cashflow.app.ui.theme.AppSpacing
+import com.cashflow.app.ui.theme.duit
 
 /**
  * Standardized Neo-Brutalist Confirmation Bottom Sheet for "Duit Aing".
@@ -47,20 +45,21 @@ fun DuitAingConfirmDialog(
 ) {
     if (!isOpen) return
 
+    val duit = MaterialTheme.duit
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = PebbleSurface,
-        scrimColor = Color.Black.copy(alpha = 0.55f),
+        containerColor = duit.surface,
+        scrimColor = Color.Black.copy(alpha = 0.5f),
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 10.dp, bottom = 6.dp)
+                    .padding(top = 8.dp, bottom = 8.dp)
                     .width(44.dp)
                     .height(5.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(TextTertiary.copy(alpha = 0.4f))
+                    .background(duit.borderStrong)
             )
         }
     ) {
@@ -76,7 +75,7 @@ fun DuitAingConfirmDialog(
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.5.sp
                 ),
-                color = TextPrimary
+                color = duit.textPrimary
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -87,22 +86,22 @@ fun DuitAingConfirmDialog(
                     lineHeight = 21.sp,
                     fontSize = 13.5.sp
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 DuitAingButton(
                     text = dismissText,
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f),
-                    variant = DuitAingButtonVariant.OUTLINE,
+                    variant = DuitAingButtonVariant.SECONDARY,
                     height = 44.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
 
                 DuitAingButton(
@@ -114,7 +113,7 @@ fun DuitAingConfirmDialog(
                     modifier = Modifier.weight(1f),
                     variant = confirmVariant,
                     height = 44.dp,
-                    shadowOffset = 2.dp
+                    shadowOffset = 0.dp
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))

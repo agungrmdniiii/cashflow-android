@@ -4,6 +4,21 @@ Format changelog ini mengacu pada standar [Keep a Changelog](https://keepachange
 
 ---
 
+## [Unreleased]
+
+### Ditambahkan
+- Tur pengguna baru 14 langkah, termasuk panduan formulir transaksi dan Vina, serta panduan fitur yang dapat dipilih.
+- Vina lokal dengan pertanyaan berbasis riwayat, periode, kategori, rekening, perbandingan, dan pertanyaan lanjutan.
+- Rentang tanggal laporan melalui kalender, impor CSV, serta pemeriksaan integritas dan regresi ledger.
+
+### Diperbaiki
+- Pengelompokan grafik mengikuti periode dan rentang laporan yang dipilih.
+- Kategori bawaan lebih ringkas dan beragam, serta interaksi pemilihan kategori diperbaiki.
+- Header Transaksi diringkas; pencarian, filter, dan menu tindakan disusun ulang.
+- Pengaturan dikelompokkan ke halaman terpisah dengan transisi navigasi.
+- Konsistensi saldo, pemulihan backup, penanganan jaringan, dan preferensi privasi diperkuat.
+- README ditulis ulang sesuai implementasi, termasuk instruksi build, pengujian, dan batasan fitur online.
+
 ## [1.0.0] - 2026-10-08
 
 ### 🎉 Rilis Perdana (Initial Release)

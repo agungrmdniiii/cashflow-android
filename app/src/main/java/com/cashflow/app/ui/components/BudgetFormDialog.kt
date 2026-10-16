@@ -75,6 +75,9 @@ fun BudgetFormDialog(
 
     val amount = targetAmountInput.toLongOrNull() ?: 0L
     val focusManager = LocalFocusManager.current
+    val duit = MaterialTheme.duit
+    val isDark = LocalIsDarkTheme.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     DuitAingModalBottomSheet(
         onDismissRequest = onDismiss
@@ -82,7 +85,8 @@ fun BudgetFormDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .imePadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding()
         ) {
                     // Header Row with Title and Close button
@@ -92,13 +96,12 @@ fun BudgetFormDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (isEditing) "EDIT ANGGARAN" else "BUAT ANGGARAN BARU",
+                            text = if (isEditing) "Edit Anggaran" else "Buat Anggaran Baru",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp,
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
 
                         Box(
@@ -114,14 +117,14 @@ fun BudgetFormDialog(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Close,
                                     contentDescription = "Tutup",
-                                    tint = DarkSurface,
+                                    tint = duit.textPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -135,7 +138,7 @@ fun BudgetFormDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
                     ) {
                         // 1. Period Selector (BULANAN vs MINGGUAN)
                         Column {
@@ -152,9 +155,9 @@ fun BudgetFormDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
-                                    .padding(3.dp),
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(8.dp))
+                                    .padding(4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 listOf("monthly" to "BULANAN", "weekly" to "MINGGUAN").forEach { (typeKey, label) ->
@@ -165,7 +168,7 @@ fun BudgetFormDialog(
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(
                                                 if (isSelected) {
-                                                    if (isSystemInDarkTheme()) JadePrimary else LightDarkSurface
+                                                    if (isDark) duit.accentLime else Color(0xFF111111)
                                                 } else Color.Transparent
                                             )
                                             .clickable(role = Role.Tab) { periodTypeInput = typeKey }
@@ -178,7 +181,9 @@ fun BudgetFormDialog(
                                                 fontWeight = FontWeight.ExtraBold,
                                                 letterSpacing = 0.8.sp
                                             ),
-                                            color = if (isSelected) Color.White else TextSecondary
+                                            color = if (isSelected) {
+                                                if (isDark) Color(0xFF111111) else Color.White
+                                            } else duit.textSecondary
                                         )
                                     }
                                 }
@@ -222,7 +227,7 @@ fun BudgetFormDialog(
                                     Text(
                                         text = "Rp ",
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = JadePrimary,
+                                        color = duit.primary,
                                         fontSize = 18.sp
                                     )
                                 },
@@ -242,10 +247,13 @@ fun BudgetFormDialog(
                                     fontSize = 20.sp
                                 ),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = JadePrimary,
-                                    unfocusedBorderColor = DarkBorder.copy(alpha = 0.35f),
-                                    focusedContainerColor = PebbleSurface,
-                                    unfocusedContainerColor = PebbleSurface
+                                    focusedBorderColor = duit.primary,
+                                    unfocusedBorderColor = duit.border,
+                                    focusedContainerColor = duit.surface,
+                                    unfocusedContainerColor = duit.surface,
+                                    focusedTextColor = duit.textPrimary,
+                                    unfocusedTextColor = duit.textPrimary,
+                                    cursorColor = duit.primary
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -256,9 +264,9 @@ fun BudgetFormDialog(
                                     text = "Terbaca: ${Formatters.formatRupiah(amount)}",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                        fontSize = 12.sp
                                     ),
-                                    color = JadePrimary
+                                    color = duit.primary
                                 )
                             }
 
@@ -268,7 +276,7 @@ fun BudgetFormDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                             ) {
                                 listOf(
                                     250_000L to "+250rb",
@@ -280,22 +288,22 @@ fun BudgetFormDialog(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(PebbleSurfaceVariant)
-                                            .border(1.dp, DarkBorder.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                            .background(duit.surfaceVariant)
+                                            .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                         .clickable(role = Role.Button) {
                                             val cur = targetAmountInput.toLongOrNull() ?: 0L
                                             targetAmountInput = (cur + presetVal).toString()
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = chipText,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = DarkSurface
+                                        color = duit.textPrimary
                                     )
                                 }
                             }
@@ -309,7 +317,7 @@ fun BudgetFormDialog(
                 val isFormValid = selectedCategoryId.isNotBlank() && amount > 0L
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     DuitAingButton(
                         text = "BATAL",
@@ -317,7 +325,7 @@ fun BudgetFormDialog(
                         variant = DuitAingButtonVariant.OUTLINE,
                         modifier = Modifier.weight(1f),
                         height = 44.dp,
-                        shadowOffset = 2.dp
+                        shadowOffset = 0.dp
                     )
 
                     DuitAingButton(
@@ -325,6 +333,7 @@ fun BudgetFormDialog(
                         enabled = isFormValid,
                         onClick = {
                             if (isFormValid) {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                 if (isEditing) {
                                     val updated = editingBudget!!.copy(
                                         categoryId = selectedCategoryId,
@@ -347,7 +356,7 @@ fun BudgetFormDialog(
                         modifier = Modifier.weight(1.5f),
                         variant = DuitAingButtonVariant.PRIMARY,
                         height = 44.dp,
-                        shadowOffset = 2.dp
+                        shadowOffset = 0.dp
                     )
                 }
             }

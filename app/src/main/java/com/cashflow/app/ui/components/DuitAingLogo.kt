@@ -67,6 +67,7 @@ fun DuitAingBrandHeader(
     modifier: Modifier = Modifier,
     onSettingsClick: () -> Unit
 ) {
+    val duit = MaterialTheme.duit
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -76,7 +77,7 @@ fun DuitAingBrandHeader(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
         ) {
             DuitAingLogo(size = 38.dp)
 
@@ -87,18 +88,18 @@ fun DuitAingBrandHeader(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.2.sp
                     ),
-                    color = DarkSurface,
+                    color = duit.textPrimary,
                     maxLines = 1,
                     softWrap = false
                 )
                 Text(
                     text = "MANAJEMEN KAS PRIBADI",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 9.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp
                     ),
-                    color = TextSecondary,
+                    color = duit.textSecondary,
                     maxLines = 1,
                     softWrap = false
                 )
@@ -108,32 +109,19 @@ fun DuitAingBrandHeader(
         Box(
             modifier = Modifier
                 .minimumInteractiveComponentSize()
-                .size(44.dp)
-                .padding(end = 2.dp, bottom = 2.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(duit.surface)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onSettingsClick),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 1.5.dp, y = 1.5.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DarkBorder.copy(alpha = 0.18f))
+            Icon(
+                imageVector = Icons.Rounded.Settings,
+                contentDescription = "Pengaturan",
+                tint = duit.textPrimary,
+                modifier = Modifier.size(20.dp)
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(PebbleSurface)
-                    .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onSettingsClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Settings,
-                    contentDescription = "Pengaturan",
-                    tint = DarkSurface,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
         }
     }
 }

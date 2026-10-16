@@ -68,42 +68,41 @@ fun AssetDetailContent(
 
     val catMap = remember(categories) { categories.associateBy { it.id } }
     val assetMap = remember(activeAssets) { activeAssets.associateBy { it.id } }
+    val currentAsset = activeAssets.find { it.id == asset.id } ?: asset
 
     // Filter transactions involving this asset
-    val assetTransactions = remember(transactions, asset) {
-        transactions.filter { it.assetId == asset.id || it.destinationAssetId == asset.id }
+    val assetTransactions = remember(transactions, currentAsset) {
+        transactions.filter { it.assetId == currentAsset.id || it.destinationAssetId == currentAsset.id }
     }
 
     // Calculate Inflow, Outflow, Transfer In, Transfer Out
-    val inflow = remember(assetTransactions, asset) {
-        assetTransactions.filter { it.type == TransactionType.INCOME.value && it.assetId == asset.id }
+    val inflow = remember(assetTransactions, currentAsset) {
+        assetTransactions.filter { it.type == TransactionType.INCOME.value && it.assetId == currentAsset.id }
             .sumOf { it.amount }
     }
 
-    val outflow = remember(assetTransactions, asset) {
-        assetTransactions.filter { it.type == TransactionType.EXPENSE.value && it.assetId == asset.id }
+    val outflow = remember(assetTransactions, currentAsset) {
+        assetTransactions.filter { it.type == TransactionType.EXPENSE.value && it.assetId == currentAsset.id }
             .sumOf { it.amount }
     }
 
-    val transferIn = remember(assetTransactions, asset) {
-        assetTransactions.filter { it.type == TransactionType.TRANSFER.value && it.destinationAssetId == asset.id }
+    val transferIn = remember(assetTransactions, currentAsset) {
+        assetTransactions.filter { it.type == TransactionType.TRANSFER.value && it.destinationAssetId == currentAsset.id }
             .sumOf { it.amount }
     }
 
-    val transferOut = remember(assetTransactions, asset) {
-        assetTransactions.filter { it.type == TransactionType.TRANSFER.value && it.assetId == asset.id }
+    val transferOut = remember(assetTransactions, currentAsset) {
+        assetTransactions.filter { it.type == TransactionType.TRANSFER.value && it.assetId == currentAsset.id }
             .sumOf { it.amount }
     }
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var showAdjustBalanceDialog by remember { mutableStateOf(false) }
-    var targetBalanceInput by remember { mutableStateOf(asset.currentBalance.toString()) }
-    var adjustNoteInput by remember { mutableStateOf("") }
+    val duit = MaterialTheme.duit
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
             .navigationBarsPadding()
     ) {
                 // Header Bar
@@ -112,29 +111,41 @@ fun AssetDetailContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = asset.name.uppercase(),
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 1.sp
-                                ),
-                                color = TextPrimary
-                            )
-                            if (asset.isDefault) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                AssetBadge(text = "UTAMA")
-                            }
-                        }
-                        Text(
-                            text = asset.type.uppercase(),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            ),
-                            color = TextSecondary
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        AssetIcon(
+                            assetType = asset.type,
+                            size = 44.dp,
+                            iconSize = 22.dp
                         )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = asset.name,
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 18.sp
+                                    ),
+                                    color = duit.textPrimary
+                                )
+                                if (asset.isDefault) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    AssetBadge(text = "Utama")
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = asset.type.uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = duit.textSecondary
+                            )
+                        }
                     }
 
                     Box(
@@ -150,10 +161,10 @@ fun AssetDetailContent(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp)),
+                                .border(1.dp, duit.border, RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(imageVector = Icons.Rounded.Close, contentDescription = "Tutup", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                            Icon(imageVector = Icons.Rounded.Close, contentDescription = "Tutup", tint = duit.textPrimary, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -164,8 +175,8 @@ fun AssetDetailContent(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.20f)),
-                    colors = CardDefaults.cardColors(containerColor = PebbleSurfaceVariant),
+                    border = BorderStroke(1.dp, duit.border),
+                    colors = CardDefaults.cardColors(containerColor = duit.surfaceVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -175,22 +186,22 @@ fun AssetDetailContent(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 1.2.sp
                             ),
-                            color = TextSecondary
+                            color = duit.textSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         AnimatedNumberText(
-                            value = asset.currentBalance,
+                            value = currentAsset.currentBalance,
                             style = MaterialTheme.typography.displayMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = (-1).sp
                             ),
-                            color = JadePrimary,
+                            color = duit.textPrimary,
                             maxLines = 1,
                             softWrap = false
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
-                        HorizontalDivider(color = DarkBorder.copy(alpha = 0.15f), thickness = 1.dp)
+                        HorizontalDivider(color = duit.border, thickness = 1.dp)
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Row(
@@ -204,12 +215,12 @@ fun AssetDetailContent(
                                         fontWeight = FontWeight.ExtraBold,
                                         letterSpacing = 0.8.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                                 Text(
-                                    text = "+" + Formatters.formatRupiah(inflow),
+                                    text = "+" + Formatters.displayRupiah(inflow),
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                    color = StatusPositive,
+                                    color = duit.income,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -221,12 +232,12 @@ fun AssetDetailContent(
                                         fontWeight = FontWeight.ExtraBold,
                                         letterSpacing = 0.8.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                                 Text(
-                                    text = "−" + Formatters.formatRupiah(outflow),
+                                    text = "−" + Formatters.displayRupiah(outflow),
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                    color = StatusNegative,
+                                    color = duit.expense,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -238,12 +249,12 @@ fun AssetDetailContent(
                                         fontWeight = FontWeight.ExtraBold,
                                         letterSpacing = 0.8.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                                 Text(
-                                    text = "+${Formatters.formatRupiah(transferIn, false)} / -${Formatters.formatRupiah(transferOut, false)}",
+                                    text = "+${Formatters.displayRupiah(transferIn, false)} / -${Formatters.displayRupiah(transferOut, false)}",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                    color = StatusTransfer,
+                                    color = duit.transfer,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -251,40 +262,26 @@ fun AssetDetailContent(
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
-                        HorizontalDivider(color = DarkBorder.copy(alpha = 0.15f), thickness = 1.dp)
+                        HorizontalDivider(color = duit.border, thickness = 1.dp)
                         Spacer(modifier = Modifier.height(10.dp))
 
                         AssetSparkline(
                             transactions = assetTransactions,
-                            currentBalance = asset.currentBalance
+                            currentBalance = currentAsset.currentBalance
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Action Buttons: Sesuaikan Saldo, Edit, Delete & Default
+                // Action Buttons: Edit, Delete & Default
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DuitAingButton(
-                        text = "SESUAIKAN SALDO",
-                        onClick = {
-                            targetBalanceInput = asset.currentBalance.toString()
-                            adjustNoteInput = ""
-                            showAdjustBalanceDialog = true
-                        },
-                        leadingIcon = Icons.Rounded.Tune,
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = DuitAingButtonVariant.SECONDARY,
-                        height = 42.dp,
-                        shadowOffset = 2.dp
-                    )
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         DuitAingButton(
                             text = "EDIT ASET",
@@ -337,7 +334,7 @@ fun AssetDetailContent(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.sp
                     ),
-                    color = TextPrimary
+                    color = duit.textPrimary
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -347,6 +344,7 @@ fun AssetDetailContent(
                         icon = Icons.Rounded.ReceiptLong,
                         title = "BELUM ADA TRANSAKSI",
                         description = "Belum ada transaksi tercatat pada rekening / aset ini.",
+                        lottieRawRes = com.cashflow.app.R.raw.lottie_no_transactions,
                         modifier = Modifier.weight(1f)
                     )
                 } else {
@@ -354,7 +352,7 @@ fun AssetDetailContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         items(assetTransactions, key = { it.id }) { tx ->
                             TransactionItemCard(
@@ -386,62 +384,6 @@ fun AssetDetailContent(
         },
         onDismiss = { showDeleteConfirmDialog = false }
     )
-
-    // Adjust Balance Dialog (4E)
-    if (showAdjustBalanceDialog) {
-        AlertDialog(
-            onDismissRequest = { showAdjustBalanceDialog = false },
-            title = {
-                Text("Sesuaikan Saldo ${asset.name}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Saldo tersimpan di aplikasi: ${Formatters.formatRupiah(asset.currentBalance)}.\nMasukkan saldo aktual rekening/kas fisik Anda. Selisih akan dicatat sebagai transaksi penyesuaian khusus (tidak mempengaruhi statistik pemasukan/pengeluaran).",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.5.sp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = targetBalanceInput,
-                        onValueChange = { targetBalanceInput = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("Saldo Aktual (Rp)") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = adjustNoteInput,
-                        onValueChange = { adjustNoteInput = it },
-                        label = { Text("Keterangan Penyesuaian (Opsional)") },
-                        placeholder = { Text("Mis. Rekonsiliasi kas / selisih fisik") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val newBal = targetBalanceInput.toLongOrNull() ?: asset.currentBalance
-                        viewModel.adjustAssetBalance(asset.id, newBal, adjustNoteInput) { success ->
-                            if (success) {
-                                showAdjustBalanceDialog = false
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = JadePrimary)
-                ) {
-                    Text("SIMPAN PENYESUAIAN", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdjustBalanceDialog = false }) {
-                    Text("BATAL", color = TextSecondary)
-                }
-            }
-        )
-    }
 }
 
 /**
@@ -481,6 +423,8 @@ fun AssetSparkline(
         reversePoints.reversed()
     }
 
+    val duit = MaterialTheme.duit
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -491,10 +435,10 @@ fun AssetSparkline(
                 text = "TREN SALDO 30 HARI",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 9.sp,
+                    fontSize = 12.sp,
                     letterSpacing = 0.8.sp
                 ),
-                color = TextSecondary
+                color = duit.textSecondary
             )
             val firstVal = dailyBalances.firstOrNull() ?: currentBalance
             val isUp = currentBalance >= firstVal
@@ -502,15 +446,15 @@ fun AssetSparkline(
                 text = if (isUp) "STABIL / NAIK" else "MENURUN",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 9.sp
+                    fontSize = 12.sp
                 ),
-                color = if (isUp) JadePrimary else StatusNegative
+                color = if (isUp) duit.income else duit.expense
             )
         }
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        val chartJadePrimary = JadePrimary
+        val chartColor = duit.primary
 
         Canvas(
             modifier = Modifier
@@ -536,14 +480,14 @@ fun AssetSparkline(
 
             drawPath(
                 path = path,
-                color = chartJadePrimary,
+                color = chartColor,
                 style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
             )
 
             // Highlight current end point
             val lastY = height - (((dailyBalances.last() - minVal) / range) * (height - 8f) + 4f)
             drawCircle(
-                color = chartJadePrimary,
+                color = chartColor,
                 radius = 3.5.dp.toPx(),
                 center = Offset(width, lastY)
             )

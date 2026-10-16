@@ -12,7 +12,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cashflow.app.ui.theme.PebbleBackground
+import androidx.compose.material3.MaterialTheme
+import com.cashflow.app.ui.theme.duit
 
 /**
  * Reusable horizontal scroll container with edge-fading gradients and generous trailing padding.
@@ -22,7 +23,7 @@ import com.cashflow.app.ui.theme.PebbleBackground
 fun FadingHorizontalScrollRow(
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
-    fadeColor: Color = PebbleBackground,
+    fadeColor: Color = MaterialTheme.duit.background,
     fadeWidth: Dp = 20.dp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),

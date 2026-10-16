@@ -1,163 +1,186 @@
-# 💸 Duit Aing — Manajemen Kas & Kekayaan Pribadi
+# Duit Aing
 
-<div align="center">
+**Pencatatan keuangan pribadi untuk Android, dengan data lokal sebagai fondasi.**
 
-![Duit Aing Banner](docs/screenshots/screenshot_home_final.png)
+Kelola transaksi, rekening, anggaran, hutang, dan target tabungan dalam satu aplikasi. Duit Aing menyediakan pencatatan manual, input suara, pemindaian struk, laporan berdasarkan periode, serta asisten keuangan **Vina**.
 
-### *"Kelola uang tanpa pusing, catat transaksi secepat berucap."*
+![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin&logoColor=white)
+![UI](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4)
+![Storage](https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white)
 
-**Aplikasi pencatat keuangan pribadi yang tenang, taktil, dan 100% privat (Offline-First).**  
-Didesain khusus untuk ritme hidup sehari-hari di Indonesia dengan arsitektur modern **Android Jetpack Compose**, **Material 3**, serta bahasa visual **"Jade Pebble Morning"** yang elegan dan tidak melelahkan mata.
+[Mulai menggunakan](#mulai-menggunakan) · [Fitur](#fitur) · [Vina](#asisten-keuangan-vina) · [Build](#menjalankan-proyek) · [Pengujian](#pengujian) · [Privasi](#data-privasi-dan-koneksi)
 
-[![Platform](https://img.shields.io/badge/Platform-Android_15_(API_35)-3DDC84.svg?style=flat-square&logo=android)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-7F52FF.svg?style=flat-square&logo=kotlin)](https://kotlinlang.org)
-[![Compose](https://img.shields.io/badge/Jetpack_Compose-Declarative_UI-4285F4.svg?style=flat-square&logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
-[![Database](https://img.shields.io/badge/Room-100%25_Offline_First-00C853.svg?style=flat-square)](https://developer.android.com/training/data-storage/room)
-[![Privacy](https://img.shields.io/badge/Privasi-Zero_Telemetry-success.svg?style=flat-square)](PRIVACY.md)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
+## Sekilas
 
-</div>
+Duit Aing membantu menjawab tiga pertanyaan sehari-hari: berapa saldo yang dimiliki, ke mana uang dibelanjakan, dan apakah pengeluaran masih sesuai rencana.
 
----
+Pencatatan utama menggunakan database lokal dan tidak memerlukan pembuatan akun. Fitur online bersifat opsional. Ketersediaan pengenalan suara dan OCR bergantung pada layanan serta kemampuan perangkat.
 
-## 🌿 Cerita di Balik "Duit Aing"
+| Informasi | Nilai |
+| --- | --- |
+| Versi aplikasi | `1.1.0` — version code `110` |
+| Application ID | `com.cashflow.app` |
+| Android minimum | Android 8.0 — API 26 |
+| Compile / target SDK | API 36 |
+| Bahasa antarmuka | Bahasa Indonesia |
+| Penyimpanan utama | SQLite di perangkat |
 
-Mengelola uang sering kali menjadi rutinitas yang melelahkan: membuka aplikasi finansial yang penuh iklan promo, menunggu loading lambat, mengetik nominal angka nol yang terlalu banyak tanpa tanda baca, atau cemas data privasi rekening bocor ke pihak luar.
+## Fitur
 
-**Duit Aing** lahir dari satu keinginan sederhana:  
-> *Membuat pencatatan uang terasa manusiawi, sekejap selesai, dan memberi rasa tenang saat melihat kondisi finansial kita.*
+| Area | Kemampuan |
+| --- | --- |
+| **Transaksi** | Pemasukan, pengeluaran, transfer antar rekening, kategori, tanggal, catatan, tag, dan lampiran struk. |
+| **Rekening & aset** | Pisahkan uang tunai, rekening bank, e-wallet, serta aset lainnya; pantau saldo masing-masing. |
+| **Pencatatan cepat** | Input nominal Rupiah, tombol penambah nominal, pengenalan suara, OCR struk, pintasan, dan jadwal transaksi berulang. |
+| **Riwayat** | Pencarian, filter jenis/periode/kategori/rekening, detail transaksi, serta penyuntingan catatan. |
+| **Laporan** | Ringkasan pemasukan dan pengeluaran, komposisi kategori, tren, periode cepat, serta rentang tanggal melalui kalender. |
+| **Anggaran** | Batas belanja per kategori dengan periode mingguan atau bulanan dan pemantauan pemakaian. |
+| **Hutang & piutang** | Catatan pihak terkait, jatuh tempo, sisa pinjaman, dan pembayaran bertahap. |
+| **Target keuangan** | Tujuan tabungan, progres, setoran, dan pencairan dana target. |
+| **Vina** | Tanya jawab keuangan dari catatan lokal; integrasi Gemini tersedia sebagai pilihan online. |
+| **Backup & ekspor** | Cadangan JSON, opsi cadangan terenkripsi, ZIP dengan struk, pemulihan data, impor CSV, serta ekspor PDF/CSV. |
+| **Kenyamanan** | Tema terang/gelap, penyembunyian nominal, kunci biometrik, pengaturan privasi, dan pengingat. |
+| **Panduan pengguna** | Tur 14 langkah pada layar aplikasi serta panduan tambahan yang bisa dibaca per fitur. |
 
-Tidak ada formulir bertingkat yang membingungkan. Tidak ada sinkronisasi cloud yang menguras kuota atau mengintip saldo Anda. Semuanya tersimpan aman di saku Anda sendiri.
+## Mulai menggunakan
 
----
+1. **Buat rekening pertama.** Isi nama, jenis, dan saldo awal sesuai uang yang sudah dimiliki. Saldo awal tidak perlu dicatat ulang sebagai pemasukan.
+2. **Ikuti tur aplikasi.** Tur mengenalkan saldo, rekening, setiap bagian formulir transaksi, pencarian, Vina, dan laporan. Contoh tur tidak disimpan sebagai transaksi.
+3. **Catat transaksi melalui tombol `+`.** Pilih jenis, nominal, kategori, rekening, dan tanggal; periksa sebelum menyimpan.
+4. **Periksa hasilnya.** Riwayat tersedia di **Transaksi** dan ringkasannya di **Laporan**. Sesuaikan periode dengan tanggal transaksi.
+5. **Buat cadangan berkala.** Buka **Pengaturan → Data & Cadangan** dan simpan file di lokasi yang dapat diakses kembali.
 
-## ✨ Fitur-Fitur Andalan
+Tur dapat dilewati dan diulang melalui **Pengaturan → Tentang Aplikasi → Panduan Aplikasi**. Panduan tambahan membahas anggaran, target keuangan, hutang/piutang, Vina, backup, dan pencatatan cepat.
 
-### 🎙️ 1. Sat-Set Voice-to-Transaction (Bahasa Indonesia)
-Cukup ucapkan pengeluaran Anda layaknya berbicara dengan teman:
-> *"Beli bensin pertalite 35 ribu pakai Cash"*  
-> *"Nasi padang 25 ribu bayar pakai QRIS BCA"*  
-> *"Dapat transferan gaji 7 juta ke rekening Mandiri"*
+> **Pilih jenis transaksi dengan tepat:** gaji adalah pemasukan, membeli makan adalah pengeluaran, sedangkan memindahkan saldo BCA ke GoPay adalah transfer antar rekening sendiri.
 
-Sistem pemrosesan bahasa alami (NLP) yang tertanam di perangkat akan langsung membedah tipe transaksi, nominal uang, kategori belanja, hingga aset pembayarannya secara otomatis tanpa perlu koneksi internet.
+## Asisten keuangan Vina
 
-### 🧮 2. Input Rupiah Cerdas & Alami (Titik Otomatis)
-Tidak perlu lagi menghitung manual apakah nolnya kurang atau kelebihan saat mengetik nominal:
-- Saat Anda mengetik `50000`, layar langsung memformat menjadi `50.000` dengan pembaca teks konfirmasi: *"Terbaca: Rp 50.000"*.
-- Dilengkapi tombol cepat nominal (`+10rb`, `+50rb`, `+100rb`, `+1jt`) untuk pengisian secepat kilat.
+### Mode lokal
 
-### 🛡️ 3. Privasi Nyaman & Keamanan Sesi Biometrik
-- **Sensor Saldo Satu Ketukan (Eye-Toggle)**: Sembunyikan seluruh nominal uang menjadi `••••••` saat Anda membuka aplikasi di transportasi umum atau tempat ramai.
-- **Kunci Sidik Jari (Biometric Lock)**: Proteksi akses dengan sensor biometrik perangkat. Dilengkapi pengaturan **Timeout Sesi** (Langsung, 30 detik, 1 menit, 5 menit) agar Anda tidak perlu membuka kunci berulang kali saat bolak-balik memeriksa struk.
+Vina lokal menggunakan aturan bahasa dan perhitungan atas data aplikasi. Mode ini tidak membutuhkan API key dan bukan model bahasa besar yang dilatih di perangkat.
 
-### 📊 4. Dasbor Ringkas & Bernapas
-- **Arus Kas Hidup (Living Pulse)**: Indikator visual real-time yang memperlihatkan apakah arus kas bulan ini surplus atau defisit.
-- **Preview Anggaran Bersahaja**: Di Beranda hanya ditampilkan pratinjau kategori belanja utama agar antarmuka tidak sesak, dengan navigasi geser mulus (*slide transition*) ke Halaman Anggaran penuh.
-- **Grafik Komposisi & Tren**: Diagram donat dan tren arus kas dengan palet warna lembut yang informatif.
+Contoh pertanyaan:
 
-### ↩️ 5. Jaring Pengaman "Undo" Transaksi
-Tidak sengaja menghapus transaksi penting? Jangan panik. Duit Aing menyediakan tombol aksi **`BATALKAN`** pada notifikasi snackbar bawah untuk mengembalikan data dan mengoreksi saldo Anda seketika.
+- `Berapa pengeluaran saya bulan lalu?`
+- `Berapa pemasukan saya minggu ini?`
+- `Kategori apa yang paling banyak saya belanjakan bulan ini?`
+- `Tampilkan 5 pengeluaran terbesar bulan ini.`
 
-### 💼 6. Manajemen Rekening, Hutang & Target Finansial
-- **Multi-Aset**: Kelola uang tunai (Cash), tabungan bank, dompet digital, hingga pos investasi.
-- **Buku Catatan Hutang/Piutang**: Pantau pinjaman uang yang harus dibayar maupun dana yang dipinjam teman secara terorganisir.
-- **Target Keuangan (Goals)**: Tetapkan impian (misal: *Dana Darurat*, *DP Rumah*, *Qurban*) lengkap dengan alokasi tabungan berkala.
+Sebutkan periode, kategori, atau rekening bila diperlukan. Dukungan pertanyaan mengikuti kemampuan parser lokal; pertanyaan di luar cakupannya dapat memerlukan penjelasan ulang. Jika hasil kosong, periksa data dan tanggal transaksi terlebih dahulu.
 
-### 📄 7. Ekspor Laporan Bersih (PDF & CSV)
-Butuh mencetak rekapitulasi bulanan atau menganalisisnya di Excel/Google Sheets? Ekspor riwayat pembukuan Anda kapan saja dalam format PDF siap cetak atau tabel CSV rapi.
+### Mode online
 
----
+Integrasi online yang tersedia pada kode saat ini adalah **Google Gemini**. Pengguna mengatur API key dan izin melalui **Pengaturan → AI & Suara**. API dari provider lain belum dapat dipasang sebagai pengganti langsung melalui antarmuka aplikasi.
 
-## 📱 Galeri Tampilan Aplikasi
+Mode online bergantung pada internet, ketersediaan model, kuota, dan layanan provider. Saat layanan gagal, jalur bantuan lokal tetap tersedia. Mengaktifkan AI online memungkinkan pertanyaan, riwayat percakapan, dan konteks keuangan yang disusun aplikasi diproses oleh provider; periksa pengaturannya sebelum menggunakan fitur ini.
 
-<div align="center">
+## Data, privasi, dan koneksi
 
-| 1. Beranda Finansial | 2. Anggaran Kategori | 3. Riwayat & Filter |
-|:---:|:---:|:---:|
-| <img src="docs/screenshots/screenshot_home_final.png" width="250" alt="Beranda" /> | <img src="docs/screenshots/screenshot_anggaran.png" width="250" alt="Halaman Anggaran" /> | <img src="docs/screenshots/screenshot_tx.png" width="250" alt="Transaksi" /> |
+| Komponen | Perilaku |
+| --- | --- |
+| Pencatatan & laporan | Data utama disimpan dan dihitung menggunakan SQLite lokal. |
+| Vina lokal | Analisis berbasis catatan aplikasi tanpa panggilan API AI. |
+| Vina online | Memanggil layanan Gemini bila dikonfigurasi dan diizinkan. |
+| Input suara | Parsing transaksi berjalan lokal. Pengenalan audio memakai layanan Android; mode lokal memerlukan dukungan on-device, sedangkan layanan online memerlukan izin pengguna. |
+| OCR struk | Menggunakan ML Kit di perangkat; ketersediaannya mengikuti komponen pengenalan teks perangkat. |
+| API key | Disimpan terenkripsi dengan kunci yang dikelola Android Keystore. |
+| Backup | Cadangan manual dibuat atau dipulihkan oleh pengguna. Enkripsi memerlukan kata sandi. Android Auto Backup juga diizinkan oleh manifest, mengikuti pengaturan sistem; berkas kredensial dikecualikan melalui aturan backup. |
+| Biometrik & tangkapan layar | Perlindungan mengikuti konfigurasi aplikasi dan kemampuan perangkat. |
 
-<br />
+File backup, struk, dan ekspor dapat berisi informasi pribadi. Simpan di lokasi yang sesuai dan buat cadangan sebelum pemulihan atau penghapusan data. Jangan memasukkan database, API key, kata sandi, atau backup pribadi ke repositori.
 
-| 4. Manajemen Multi-Aset | 5. Laporan & Distribusi |
-|:---:|:---:|
-| <img src="docs/screenshots/screenshot_aset.png" width="250" alt="Aset & Hutang" /> | <img src="docs/screenshots/screenshot_laporan.png" width="250" alt="Laporan Kas" /> |
-
-</div>
-
----
-
-## 🎨 Filosofi Desain: *Jade Pebble Morning*
-
-Duit Aing menghindari tren antarmuka fintech yang serba dingin atau neon silau. Kami menerapkan gaya desain berkarakter:
-- **Taktil & Berbobot**: Menggunakan konsep *Double-Bezel Card Architecture* dengan kedalaman bayangan solid halus, memberikan sensasi fisik seperti menyentuh buku catatan berkualitas.
-- **Palet Warna Alami**: Kombinasi hijau giok lembut (*Jade Primary*), warna batu alam pekat (*Dark Surface*), dan aksen hangat yang ramah bagi mata, baik di siang hari maupun malam hari (*Dark Mode*).
-- **Aksesibilitas Nyaman**: Seluruh tombol interaktif telah dioptimalkan dengan target sentuh standar 44–48dp dan label pembaca layar (*TalkBack*).
-
----
-
-## 🏗️ Arsitektur & Tumpukan Teknologi
-
-Aplikasi ini dibangun mengedepankan prinsip **Ponytail (Minimal, Efisien, Tanpa Bloatware)** dan **Clean Architecture**:
-
-| Komponen | Teknologi |
-|---|---|
-| **Bahasa Utama** | [Kotlin 2.0+](https://kotlinlang.org) dengan Kotlin Coroutines & Flow |
-| **User Interface** | [Jetpack Compose](https://developer.android.com/jetpack/compose) + Material 3 Design Tokens |
-| **Arsitektur UI** | Unidirectional Data Flow (UDF) + MVVM (`StateFlow` & `SharedFlow`) |
-| **Basis Data Lokal** | [Room Database](https://developer.android.com/training/data-storage/room) (SQLite Engine dengan enkripsi lokal) |
-| **Keamanan** | AndroidX BiometricPrompt API + SharedPreferences aman |
-| **Audio & NLP** | Android SpeechRecognizer terintegrasi dengan pemroses aturan regex lokal bahasa Indonesia |
-| **Animasi** | Jetpack Compose Animations (`AnimatedContent`, `animateFloatAsState`, `animateColorAsState`) |
-
----
-
-## 🚀 Memulai & Menjalankan Proyek
+## Menjalankan proyek
 
 ### Prasyarat
-- **Android Studio** Ladybug (2024.2+) atau versi lebih baru
-- **JDK 17** atau **JDK 21**
-- **Android SDK** API 35 (Android 15) dengan build-tools terbaru
 
-### Langkah Menjalankan
-1. **Clone repositori**:
-   ```bash
-   git clone https://github.com/agungrmdniiii/cashflow-android.git
-   cd cashflow-android
-   ```
-2. **Buka di Android Studio**:  
-   Pilih `File` > `Open...` dan arahkan ke direktori proyek. Tunggu proses *Gradle Sync* selesai.
-3. **Jalankan Unit Test**:
-   ```bash
-   ./gradlew testDebugUnitTest
-   ```
-4. **Deploy ke Emulator / HP Fisik**:
-   ```bash
-   ./gradlew installDebug
-   ```
+- Android Studio dengan dukungan versi Android Gradle Plugin yang digunakan proyek.
+- Android SDK Platform 36 dan Android SDK Platform-Tools.
+- JDK **25** untuk daemon Gradle, sesuai `gradle/gradle-daemon-jvm.properties`. Target kompatibilitas sumber Java pada modul aplikasi adalah Java 17.
+- Perangkat atau emulator Android API 26 atau lebih baru.
 
----
+Versi build dikunci melalui Gradle Wrapper dan version catalog: **Gradle 9.5.0**, **Android Gradle Plugin 9.3.1**, serta **Kotlin 2.2.10**. Gunakan konfigurasi proyek sebagai acuan saat menyiapkan lingkungan.
 
-## 🔒 Jaminan Privasi 100%
+### Build debug
 
-- 🚫 **Tanpa Iklan**: Bebas dari banner atau pop-up yang mengganggu.
-- 🚫 **Tanpa Registrasi / Akun Cloud**: Anda tidak perlu mendaftarkan email atau nomor ponsel.
-- 🚫 **Tanpa Pelacak (Zero Analytics)**: Tidak ada SDK analitik pihak ketiga yang mengumpulkan perilaku Anda.
-- 💾 **Data Milik Anda Sepenuhnya**: Seluruh transaksi tersimpan di memori perangkat Anda. Anda bebas mencadangkan atau menghapus database kapan saja.
+```bash
+git clone https://github.com/agungrmdniiii/cashflow-android.git
+cd cashflow-android
+```
 
----
+Buka direktori tersebut di Android Studio dan tunggu sinkronisasi Gradle. Pastikan lokasi SDK tersedia melalui konfigurasi lokal Android Studio atau `local.properties` milik mesin Anda.
 
-## 🤝 Kontribusi
+**Windows / PowerShell**
 
-Saran, perbaikan bug, dan ide fitur baru selalu disambut dengan hangat!
-1. Lakukan *Fork* repositori ini.
-2. Buat branch fitur Anda (`git checkout -b fitur/fitur-keren-anda`).
-3. Commit perubahan Anda (`git commit -m "feat: Menambahkan fitur keren"`).
-4. Push ke branch Anda (`git push origin fitur/fitur-keren-anda`).
-5. Buka *Pull Request*.
+```powershell
+.\gradlew.bat :app:assembleDebug
+```
 
----
+**macOS / Linux**
 
-## 📄 Lisensi
+```bash
+./gradlew :app:assembleDebug
+```
 
-Proyek ini dilisensikan di bawah [Apache License 2.0](LICENSE).  
-Dibuat dengan dedikasi untuk pencatatan keuangan pribadi yang lebih jujur, tenang, dan mandiri.
+APK hasil build tersedia di:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+Pasang ke satu perangkat/emulator yang terhubung:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Jika ada beberapa perangkat, tambahkan `-s SERIAL` pada perintah `adb`. Opsi `-r` mempertahankan data untuk pembaruan yang kompatibel dengan package dan tanda tangan yang sama. APK debug ditujukan untuk pengujian; distribusi produksi memerlukan konfigurasi penandatanganan release.
+
+## Pengujian
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+```
+
+Tes instrumentasi memerlukan perangkat atau emulator. Untuk menjalankan tes tur secara terpisah:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.cashflow.app.AppTourTest"
+```
+
+Cakupan pengujian meliputi integritas saldo, operasi ledger, periode anggaran, grafik, rentang laporan, impor CSV, parser suara, Vina lokal, penanganan jaringan, dan tur aplikasi.
+
+Pada verifikasi **17 Oktober 2026**, **194 tes unit** dan **6 tes tur** lulus; build debug dan lint selesai tanpa error. Masih ada peringatan lint. Pengujian UI tur dilakukan pada emulator, termasuk lebar 360 dp; hasil tersebut tidak mewakili pengujian seluruh perangkat fisik.
+
+> Tes database audit tertentu mengubah data pengujian. Gunakan emulator khusus pengujian, bukan instalasi yang berisi catatan keuangan pribadi. Tes tur memakai berkas preferences terisolasi dan tidak menyimpan transaksi contoh. Sebagian tes UI berbasis Espresso dibatasi hingga API 36 karena kompatibilitas injector versi yang digunakan proyek.
+
+Laporan lokal dihasilkan di `app/build/reports/`. Folder build, bukti audit lokal, dan konfigurasi mesin tidak termasuk sumber yang dipublikasikan.
+
+## Struktur proyek
+
+```text
+app/src/main/java/com/cashflow/app/
+├── data/
+│   ├── backup/       # Pembuatan dan pemulihan cadangan
+│   ├── db/           # Skema SQLite dan migrasi
+│   ├── export/       # Pembuatan laporan PDF
+│   ├── importer/     # Impor data
+│   ├── model/        # Model transaksi, rekening, anggaran, dan laporan
+│   ├── network/      # Penanganan permintaan dan kegagalan jaringan
+│   ├── preferences/  # Preferensi dan penyimpanan kredensial
+│   ├── repository/   # Akses data dan operasi ledger
+│   └── service/      # Analisis, Vina, OCR, dan pengingat
+├── security/         # Dukungan biometrik
+├── ui/               # StateFlow/ViewModel, layar Compose, komponen, dan tema
+├── voice/            # Pengenalan suara dan parser transaksi
+└── widget/           # Akses cepat dari layar utama Android
+```
+
+Tes unit berada di `app/src/test/`, sedangkan tes yang memerlukan Android berada di `app/src/androidTest/`.
+
+## Kontribusi dan laporan masalah
+
+Laporkan masalah melalui [GitHub Issues](https://github.com/agungrmdniiii/cashflow-android/issues). Sertakan versi aplikasi, versi Android, langkah reproduksi, serta hasil yang diharapkan dan yang terjadi. Hapus informasi pribadi dari screenshot atau contoh data.
+
+Untuk kontribusi kode, buat branch terpisah, pertahankan pola proyek yang ada, jalankan pemeriksaan yang relevan, dan jelaskan perubahan beserta hasil validasinya dalam pull request. Panduan perubahan versi tersedia di [CHANGELOG.md](CHANGELOG.md).

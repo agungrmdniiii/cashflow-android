@@ -3,159 +3,179 @@ package com.cashflow.app.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 
 val LocalIsDarkTheme = compositionLocalOf { false }
 
 // ============================================================================
-// FINTECH DEEP GREEN & OFF-WHITE DESIGN SYSTEM
+// DUIT AING "MONO DAN LIME" DESIGN TOKENS
 // ============================================================================
 
-// Brand Colors matching Reference Fintech Design
-val FintechPrimary = Color(0xFF133E2B)           // Reference Deep Forest Green
-val FintechPrimaryDark = Color(0xFF0C261B)
-val FintechSecondary = Color(0xFF2D6A4F)         // Secondary Forest Green
-val FintechAccentMint = Color(0xFFA3D9A5)        // Reference Luminous Mint ("Better Days" & Delta)
-val FintechAccentLight = Color(0xFFA3D9A5)
-val FintechAccentSoft = Color(0xFFDDEBD8)        // Soft Mint Wash
-val FintechBorderDark = Color(0xFF1C3A2D)
+data class DuitAingColors(
+    val background: Color,
+    val surface: Color,
+    val surfaceVariant: Color,
+    val border: Color,
+    val borderStrong: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textTertiary: Color,
+    val primary: Color,
+    val onPrimary: Color,
+    val primaryContainer: Color,
+    val onPrimaryContainer: Color,
+    val accentLime: Color,
+    val onAccentLime: Color,
+    val hero: Color,
+    val onHero: Color,
+    val onHeroSecondary: Color,
+    val heroAccent: Color,
+    val income: Color,
+    val incomeContainer: Color,
+    val expense: Color,
+    val expenseContainer: Color,
+    val transfer: Color,
+    val transferContainer: Color,
+    val warning: Color,
+    val warningContainer: Color,
+    val track: Color,
+    val chartInactive: Color,
+    val chartOther: Color,
+    val chart: List<Color>
+)
 
-// Reference Canvas & Card Colors
-val FintechCanvasLight = Color(0xFFF7F6F0)       // Reference Warm Creamy Off-White Canvas
-val FintechActionSquareLight = Color(0xFFEBEBE3) // Reference Quick Action Square background
-val FintechActionSquareDark = Color(0xFF182E23)
-val FintechInsightCardLight = Color(0xFFEBF5ED)  // Reference Pale Mint Sprout Banner
-val FintechInsightCardDark = Color(0xFF132A1F)
-val FintechBarMutedLight = Color(0xFFCCD7D0)     // Reference Inactive Trend Bars
-val FintechBarMutedDark = Color(0xFF243B30)
+val LightColors = DuitAingColors(
+    background = Color(0xFFF4F4F1),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFEDEDE8),
+    border = Color(0xFFE6E6E1),
+    borderStrong = Color(0xFFD6D6D0),
+    textPrimary = Color(0xFF111111),
+    textSecondary = Color(0xFF5A5A55),
+    textTertiary = Color(0xFF666661),
+    primary = Color(0xFF111111),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFEDEDE8),
+    onPrimaryContainer = Color(0xFF111111),
+    accentLime = Color(0xFFC8F25A),
+    onAccentLime = Color(0xFF111111),
+    hero = Color(0xFF111111),
+    onHero = Color(0xFFFFFFFF),
+    onHeroSecondary = Color(0xFFB8B8B2),
+    heroAccent = Color(0xFFC8F25A),
+    income = Color(0xFF0A7559),
+    incomeContainer = Color(0xFFE3F3EC),
+    expense = Color(0xFFC42B30),
+    expenseContainer = Color(0xFFFBE9E9),
+    transfer = Color(0xFF2563EB),
+    transferContainer = Color(0xFFE8EFFD),
+    warning = Color(0xFFA64A07),
+    warningContainer = Color(0xFFFBEEDD),
+    track = Color(0xFFE4E4DE),
+    chartInactive = Color(0xFFD6D6D0),
+    chartOther = Color(0xFF8A8A82),
+    chart = listOf(
+        Color(0xFF111111),
+        Color(0xFF6F8F00),
+        Color(0xFF2563EB),
+        Color(0xFFC9731A),
+        Color(0xFF7C4DDB),
+        Color(0xFF0E8F80)
+    )
+)
 
-// Light Palette Constants
-val LightJadePrimary = FintechPrimary
-val LightJadePrimaryDark = FintechPrimaryDark
-val LightJadePrimaryLight = Color(0xFFDDEBD8)
-val LightJadePrimaryContainer = Color(0xFFDDEBD8)
-val LightJadeOnPrimaryContainer = FintechPrimary
+val DarkColors = DuitAingColors(
+    background = Color(0xFF0C0C0C),
+    surface = Color(0xFF161616),
+    surfaceVariant = Color(0xFF1F1F1F),
+    border = Color(0xFF2B2B2B),
+    borderStrong = Color(0xFF3A3A3A),
+    textPrimary = Color(0xFFF2F2EE),
+    textSecondary = Color(0xFF9C9C96),
+    textTertiary = Color(0xFF8C8C86),
+    primary = Color(0xFFC8F25A),
+    onPrimary = Color(0xFF111111),
+    primaryContainer = Color(0xFF232B10),
+    onPrimaryContainer = Color(0xFFC8F25A),
+    accentLime = Color(0xFFC8F25A),
+    onAccentLime = Color(0xFF111111),
+    hero = Color(0xFFC8F25A),
+    onHero = Color(0xFF111111),
+    onHeroSecondary = Color(0xFF3A4A0A),
+    heroAccent = Color(0xFF111111),
+    income = Color(0xFF3DD6A5),
+    incomeContainer = Color(0xFF11291F),
+    expense = Color(0xFFFF7A80),
+    expenseContainer = Color(0xFF2E1517),
+    transfer = Color(0xFF6EA8FF),
+    transferContainer = Color(0xFF14223A),
+    warning = Color(0xFFF5B84B),
+    warningContainer = Color(0xFF2E2410),
+    track = Color(0xFF2B2B2B),
+    chartInactive = Color(0xFF2B2B2B),
+    chartOther = Color(0xFF8E8E88),
+    chart = listOf(
+        Color(0xFFC8F25A),
+        Color(0xFF6EA8FF),
+        Color(0xFFFFB454),
+        Color(0xFFB69CFF),
+        Color(0xFF4FD1C5),
+        Color(0xFFFF8FB1)
+    )
+)
 
-val LightPebbleBackground = Color(0xFFF6F5EF)   // Mode Terang Background #F6F5EF
-val LightPebbleSurface = Color(0xFFFFFFFF)      // Surface Putih #FFFFFF
-val LightPebbleSurfaceVariant = Color(0xFFF0EFE7)
-val LightPebbleBorder = Color(0xFFECEAE0)       // Border #ECEAE0
-val LightDarkBorder = FintechPrimary
-val LightDarkSurface = Color(0xFF121A16)        // Text #121A16
-val LightDarkSurfaceVariant = Color(0xFF2B3A33)
+val LocalDuitAingColors = staticCompositionLocalOf { LightColors }
 
-val LightTextPrimary = Color(0xFF121A16)        // Contrast 15.2:1 (AAA)
-val LightTextSecondary = Color(0xFF4A5C54)      // Contrast 6.1:1 (AA)
-val LightTextTertiary = Color(0xFF62746C)       // Contrast 4.6:1 (AA)
-val LightTextOnDark = Color(0xFFFFFFFF)         // Crisp white on dark cards
-val LightTextOnDarkSecondary = Color(0xFFA3D9A5)
-
-// Dark Palette Constants
-val JadePrimaryDarkTheme = Color(0xFFA3D9A5)
-val PebbleBackgroundDark = Color(0xFF0B1512)    // Mode Gelap Background #0B1512
-val PebbleSurfaceDark = Color(0xFF12201B)       // Mode Gelap Surface #12201B
-val PebbleSurfaceVariantDark = Color(0xFF162822)// Mode Gelap Surface Variant #162822
-val PebbleBorderDark = Color(0xFF223730)       // Mode Gelap Border #223730
-val DarkBorderDarkTheme = Color(0xFF223730)
-val DarkSurfaceDarkTheme = Color(0xFFF2F5F1)
-val TextPrimaryDark = Color(0xFFF2F5F1)        // Mode Gelap Teks #F2F5F1 (Contrast 16.5:1)
-val TextSecondaryDark = Color(0xFF9DB2A8)      // Mode Gelap Teks Sekunder #9DB2A8 (Contrast 8.5:1)
-val TextTertiaryDark = Color(0xFF7A9187)       // Metadata text (Contrast 4.8:1)
-
-// Semantic Colors
-val AccentAmber = Color(0xFFE5A83B)               // Amber for Transport/Gold
-val AccentAmberLight = Color(0xFFFDF4E5)
-val StatusPositive = Color(0xFF2D6A4F)            // Forest Emerald
-val StatusPositiveContainer = Color(0xFFDDEBD8)
-val StatusNegative = Color(0xFFDF5B55)            // Soft Coral Red
-val StatusNegativeContainer = Color(0xFFFDEEED)
-val CoralPrimary = StatusNegative
-val CoralLight = StatusNegativeContainer
-val StatusTransfer = Color(0xFF3D7E9A)            // Cyan Slate Teal
-val StatusTransferContainer = Color(0xFFEEF5F8)
-
-// Reactive Theme Tokens (Seamlessly adapts between Light and Dark mode)
-val JadePrimary: Color
+val MaterialTheme.duit: DuitAingColors
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) JadePrimaryDarkTheme else LightJadePrimary
+    get() = LocalDuitAingColors.current
 
-val JadePrimaryDark: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFF5A8472) else LightJadePrimaryDark
-
-val JadePrimaryLight: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFFAFD3C2) else LightJadePrimaryLight
-
-val JadePrimaryContainer: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFF24332B) else LightJadePrimaryContainer
-
-val JadeOnPrimaryContainer: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFFC8E6D8) else LightJadeOnPrimaryContainer
-
-val PebbleBackground: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) PebbleBackgroundDark else LightPebbleBackground
-
-val PebbleSurface: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) PebbleSurfaceDark else LightPebbleSurface
-
-val PebbleSurfaceVariant: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) PebbleSurfaceVariantDark else LightPebbleSurfaceVariant
-
-val PebbleBorder: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) PebbleBorderDark else LightPebbleBorder
-
-val DarkBorder: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) DarkBorderDarkTheme else LightDarkBorder
-
-val DarkSurface: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) TextPrimaryDark else LightDarkSurface
-
-val DarkSurfaceVariant: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFF27332D) else LightDarkSurfaceVariant
+// Category Palette (Centralized in theme so Color(0x...) only exists here)
+object CategoryPalette {
+    val Orange = Color(0xFFFF9800)
+    val Amber = Color(0xFFFFC107)
+    val Red = Color(0xFFE53935)
+    val Green = Color(0xFF4CAF50)
+    val Blue = Color(0xFF2196F3)
+    val Cyan = Color(0xFF00BCD4)
+    val Purple = Color(0xFF9C27B0)
+    val Pink = Color(0xFFE91E63)
+    val Teal = Color(0xFF009688)
+    val Indigo = Color(0xFF3F51B5)
+    val Brown = Color(0xFF795548)
+    val Grey = Color(0xFF757575)
+    val LightBlue = Color(0xFF03A9F4)
+    val DeepPurple = Color(0xFF673AB7)
+    val BlueGrey = Color(0xFF607D8B)
+    val DeepOrange = Color(0xFFFF5722)
+    val LightGreen = Color(0xFF8BC34A)
+    val Yellow = Color(0xFFFFEB3B)
+}
 
 val TextPrimary: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) TextPrimaryDark else LightTextPrimary
+    get() = MaterialTheme.duit.textPrimary
 
 val TextSecondary: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) TextSecondaryDark else LightTextSecondary
+    get() = MaterialTheme.duit.textSecondary
 
 val TextTertiary: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) TextTertiaryDark else LightTextTertiary
+    get() = MaterialTheme.duit.textTertiary
 
 val TextOnDark: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFFF7F5F0) else LightTextOnDark
+    get() = MaterialTheme.duit.onPrimary
 
 val TextOnDarkSecondary: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFFAAB8B0) else LightTextOnDarkSecondary
+    get() = MaterialTheme.duit.onHeroSecondary

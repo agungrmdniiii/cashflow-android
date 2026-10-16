@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +18,9 @@ import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,13 +45,16 @@ import java.util.UUID
 @Composable
 fun TransactionsScreen(
     viewModel: CashflowViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onTourSearchPositioned: (Rect) -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val isDark = LocalIsDarkTheme.current
 
     var showExportDialog by remember { mutableStateOf(false) }
+    var showActionsMenu by remember { mutableStateOf(false) }
+    var showTransactionTools by remember { mutableStateOf(false) }
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     val isFilterSheetOpen by viewModel.isFilterSheetOpen.collectAsState()
 
@@ -69,6 +77,8 @@ fun TransactionsScreen(
     val catMap = remember(categories) { categories.associateBy { it.id } }
     val assetMap = remember(assets) { assets.associateBy { it.id } }
 
+    val duit = MaterialTheme.duit
+
     // Group transactions by date
     val groupedTransactions = remember(transactions) {
         transactions.groupBy { it.transactionDate }
@@ -77,13 +87,13 @@ fun TransactionsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(PebbleBackground)
+            .background(duit.background)
     ) {
         // Screen Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 10.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -99,7 +109,7 @@ fun TransactionsScreen(
                         fontSize = 24.sp,
                         letterSpacing = (-0.5).sp
                     ),
-                    color = DarkSurface,
+                    color = duit.textPrimary,
                     maxLines = 1,
                     softWrap = false
                 )
@@ -107,135 +117,100 @@ fun TransactionsScreen(
                 Text(
                     text = "${transactions.size} transaksi tercatat",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Filter Bottom Sheet Button with Badge
-                Box(
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (activeFilterCount > 0) JadePrimary else PebbleSurface)
-                        .border(1.dp, if (activeFilterCount > 0) Color.Transparent else PebbleBorder, CircleShape)
-                        .clickable(role = Role.Button) {
-                            viewModel.isFilterSheetOpen.value = true
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Tune,
-                        contentDescription = "Filter Transaksi",
-                        tint = if (activeFilterCount > 0) Color.White else DarkSurface,
-                        modifier = Modifier.size(19.dp)
-                    )
+            Box {
+                IconButton(onClick = { showActionsMenu = true }) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "Menu transaksi", tint = duit.textPrimary)
                 }
-
-                // Export Dialog Trigger Button
-                Box(
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(PebbleSurface)
-                        .border(1.dp, PebbleBorder, CircleShape)
-                        .clickable(role = Role.Button) {
-                            showExportDialog = true
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Download,
-                        contentDescription = "Pilihan Ekspor (PDF / CSV)",
-                        tint = DarkSurface,
-                        modifier = Modifier.size(18.dp)
+                DropdownMenu(expanded = showActionsMenu, onDismissRequest = { showActionsMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Ekspor laporan") },
+                        leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
+                        onClick = { showActionsMenu = false; showExportDialog = true }
                     )
-                }
-
-                // Catat Button
-                Button(
-                    onClick = {
-                        viewModel.addTransactionInitialType.value = TransactionType.EXPENSE
-                        viewModel.editingTransaction.value = null
-                        viewModel.isAddTransactionOpen.value = true
-                    },
-                    shape = RoundedCornerShape(999.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = FintechPrimary,
-                        contentColor = Color.White
-                    ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                    DropdownMenuItem(
+                        text = { Text("Jadwal berulang") },
+                        leadingIcon = { Icon(Icons.Rounded.EventRepeat, contentDescription = null) },
+                        onClick = { showActionsMenu = false; viewModel.isRecurringScreenOpen.value = true }
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Catat",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.5.sp
-                        )
+                    DropdownMenuItem(
+                        text = { Text("Kelola pintasan") },
+                        leadingIcon = { Icon(Icons.Rounded.StarOutline, contentDescription = null) },
+                        onClick = { showActionsMenu = false; showTransactionTools = true }
                     )
                 }
             }
         }
 
-        // Search Bar (Multi-field: description, notes, category, amount)
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { viewModel.searchQuery.value = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            placeholder = { Text("Cari transaksi, nominal, catatan...", fontSize = 13.sp, color = TextSecondary) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = null,
-                    tint = DarkSurface,
-                    modifier = Modifier.size(19.dp)
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Hapus",
-                            tint = DarkSurface,
-                            modifier = Modifier.size(18.dp)
-                        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                .onGloballyPositioned { onTourSearchPositioned(it.boundsInRoot()) },
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Search Bar (Multi-field: description, notes, category, amount)
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.searchQuery.value = it },
+                modifier = Modifier
+                    .weight(1f),
+                placeholder = { Text("Cari transaksi...", fontSize = 13.sp, color = duit.textSecondary) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = duit.textPrimary,
+                        modifier = Modifier.size(19.dp)
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Hapus",
+                                tint = duit.textPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
-                }
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = PebbleSurface,
-                unfocusedContainerColor = PebbleSurface,
-                unfocusedBorderColor = DarkBorder.copy(alpha = 0.20f),
-                focusedBorderColor = JadePrimary
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = duit.surface,
+                    unfocusedContainerColor = duit.surface,
+                    unfocusedBorderColor = duit.border,
+                    focusedBorderColor = duit.primary
+                )
             )
-        )
+            BadgedBox(badge = { if (activeFilterCount > 0) Badge { Text(activeFilterCount.toString()) } }) {
+                IconButton(
+                    onClick = { focusManager.clearFocus(); viewModel.isFilterSheetOpen.value = true },
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
+                        .background(if (activeFilterCount > 0) duit.primary else duit.surface)
+                        .border(1.dp, if (activeFilterCount > 0) Color.Transparent else duit.border, RoundedCornerShape(12.dp))
+                ) {
+                    Icon(Icons.Rounded.Tune, contentDescription = "Filter Transaksi",
+                        tint = if (activeFilterCount > 0) duit.onPrimary else duit.textPrimary)
+                }
+            }
+        }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         // Active Filter Chips Row (if any filter is applied)
-        AnimatedVisibility(visible = hasActiveFilters) {
+        val showActiveChips = hasActiveFilters || searchQuery.isNotBlank()
+        AnimatedVisibility(visible = showActiveChips) {
             FadingHorizontalScrollRow(
-                fadeColor = PebbleBackground,
+                fadeColor = duit.background,
                 contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 // Reset all chip
@@ -244,14 +219,54 @@ fun TransactionsScreen(
                     onClick = { viewModel.resetFilters() },
                     label = { Text("Reset Filter", style = MaterialTheme.typography.labelSmall) },
                     trailingIcon = {
-                        Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Rounded.Close, contentDescription = "Reset semua filter", modifier = Modifier.size(14.dp))
                     },
                     colors = InputChipDefaults.inputChipColors(
-                        selectedContainerColor = StatusNegative.copy(alpha = 0.15f),
-                        selectedLabelColor = StatusNegative
+                        selectedContainerColor = duit.expenseContainer,
+                        selectedLabelColor = duit.expense
                     ),
                     shape = RoundedCornerShape(999.dp)
                 )
+
+                // Search query chip
+                if (searchQuery.isNotBlank()) {
+                    InputChip(
+                        selected = true,
+                        onClick = { viewModel.searchQuery.value = "" },
+                        label = { Text("\"$searchQuery\"", style = MaterialTheme.typography.labelSmall) },
+                        trailingIcon = {
+                            Icon(Icons.Rounded.Close, contentDescription = "Hapus pencarian", modifier = Modifier.size(14.dp))
+                        },
+                        colors = InputChipDefaults.inputChipColors(
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary
+                        ),
+                        shape = RoundedCornerShape(999.dp)
+                    )
+                }
+
+                // Type filter chip
+                if (filterType != null && filterType != "all") {
+                    val typeLabel = when (filterType) {
+                        "expense" -> "Pengeluaran"
+                        "income" -> "Pemasukan"
+                        "transfer" -> "Transfer"
+                        else -> filterType ?: ""
+                    }
+                    InputChip(
+                        selected = true,
+                        onClick = { viewModel.filterType.value = "all" },
+                        label = { Text(typeLabel, style = MaterialTheme.typography.labelSmall) },
+                        trailingIcon = {
+                            Icon(Icons.Rounded.Close, contentDescription = "Hapus filter tipe", modifier = Modifier.size(14.dp))
+                        },
+                        colors = InputChipDefaults.inputChipColors(
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary
+                        ),
+                        shape = RoundedCornerShape(999.dp)
+                    )
+                }
 
                 // Date filter chip
                 if (filterDatePreset != DateFilterPreset.ALL) {
@@ -263,8 +278,8 @@ fun TransactionsScreen(
                             Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp))
                         },
                         colors = InputChipDefaults.inputChipColors(
-                            selectedContainerColor = JadePrimary.copy(alpha = 0.15f),
-                            selectedLabelColor = JadePrimary
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary
                         ),
                         shape = RoundedCornerShape(999.dp)
                     )
@@ -281,8 +296,8 @@ fun TransactionsScreen(
                             Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp))
                         },
                         colors = InputChipDefaults.inputChipColors(
-                            selectedContainerColor = JadePrimary.copy(alpha = 0.15f),
-                            selectedLabelColor = JadePrimary
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary
                         ),
                         shape = RoundedCornerShape(999.dp)
                     )
@@ -299,8 +314,8 @@ fun TransactionsScreen(
                             Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp))
                         },
                         colors = InputChipDefaults.inputChipColors(
-                            selectedContainerColor = JadePrimary.copy(alpha = 0.15f),
-                            selectedLabelColor = JadePrimary
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary
                         ),
                         shape = RoundedCornerShape(999.dp)
                     )
@@ -324,8 +339,8 @@ fun TransactionsScreen(
                             Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp))
                         },
                         colors = InputChipDefaults.inputChipColors(
-                            selectedContainerColor = JadePrimary.copy(alpha = 0.15f),
-                            selectedLabelColor = JadePrimary
+                            selectedContainerColor = duit.primary,
+                            selectedLabelColor = duit.onPrimary
                         ),
                         shape = RoundedCornerShape(999.dp)
                     )
@@ -333,70 +348,17 @@ fun TransactionsScreen(
             }
         }
 
-        // Quick Type Filter Row
-        FadingHorizontalScrollRow(
-            fadeColor = PebbleBackground,
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val typeOptions = listOf(
-                "all" to "Semua",
-                "expense" to "Pengeluaran",
-                "income" to "Pemasukan",
-                "transfer" to "Transfer"
-            )
-
-            typeOptions.forEach { (key, label) ->
-                val isSelected = filterType == key
-                val activeBg = when (key) {
-                    "expense" -> StatusNegative
-                    "income" -> FintechPrimary
-                    "transfer" -> StatusTransfer
-                    else -> if (isDark) FintechAccentLight else FintechPrimary
-                }
-                val activeText = when (key) {
-                    "all" -> if (isDark) PebbleBackgroundDark else TextOnDark
-                    else -> TextOnDark
-                }
-                Box(
-                    modifier = Modifier
-                        .defaultMinSize(minHeight = 36.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (isSelected) activeBg else PebbleSurface)
-                        .border(
-                            width = 1.dp,
-                            color = if (isSelected) Color.Transparent else PebbleBorder,
-                            shape = RoundedCornerShape(999.dp)
-                        )
-                        .clickable(role = Role.Tab) { viewModel.filterType.value = key }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (key != "all") {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSelected) activeText else activeBg)
-                            )
-                        }
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                letterSpacing = 0.4.sp
-                            ),
-                            color = if (isSelected) activeText else TextPrimary
-                        )
-                    }
-                }
-            }
-        }
+        DuitAingSegmentedControl(
+            items = listOf(
+                SegmentItem("all", "Semua"),
+                SegmentItem("expense", "Keluar"),
+                SegmentItem("income", "Masuk"),
+                SegmentItem("transfer", "Transfer")
+            ),
+            selectedValue = filterType ?: "all",
+            onValueChange = { viewModel.filterType.value = it },
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -416,6 +378,7 @@ fun TransactionsScreen(
                         "Coba ubah kata kunci atau sesuaikan filter transaksi."
                     else
                         "Mulai rekam pengeluaran atau pemasukan untuk memantau arus kas harian Anda.",
+                    lottieRawRes = com.cashflow.app.R.raw.lottie_no_transactions,
                     actionText = if (hasActiveFilter) "Reset Filter" else "Catat Transaksi",
                     actionIcon = if (hasActiveFilter) Icons.Rounded.FilterAltOff else Icons.Rounded.Add,
                     onActionClick = {
@@ -454,7 +417,7 @@ fun TransactionsScreen(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp
                                 ),
-                                color = DarkSurface
+                                color = duit.textPrimary
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -465,9 +428,9 @@ fun TransactionsScreen(
                                         text = if (isBalanceHidden) "−Rp ••••" else "−${Formatters.formatRupiah(dayExpense)}",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = StatusNegative
+                                        color = duit.expense
                                     )
                                 }
                                 if (dayIncome > 0) {
@@ -475,15 +438,15 @@ fun TransactionsScreen(
                                         text = if (isBalanceHidden) "+Rp ••••" else "+${Formatters.formatRupiah(dayIncome)}",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = FintechSecondary
+                                        color = duit.income
                                     )
                                 }
                                 Text(
                                     text = "(${txGroup.size})",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                                    color = TextTertiary
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                                    color = duit.textTertiary
                                 )
                             }
                         }
@@ -526,6 +489,22 @@ fun TransactionsScreen(
     }
 
     // Filter Bottom Sheet
+    if (showTransactionTools) {
+        val favorites by viewModel.favoriteTemplates.collectAsState()
+        val directSave by viewModel.isFavoriteDirectSave.collectAsState()
+        val recurring by viewModel.recurringTransactions.collectAsState()
+        DuitAingModalBottomSheet(onDismissRequest = { showTransactionTools = false }) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp).navigationBarsPadding()) {
+                com.cashflow.app.ui.screens.settings.FavoritesSettingsSection(
+                    favoriteTemplates = favorites, isFavoriteDirectSave = directSave,
+                    currentAssets = assets, categories = categories, recurringCount = recurring.size,
+                    onToggleFavoriteDirectSave = viewModel::setFavoriteDirectSave,
+                    onDeleteFavorite = viewModel::deleteFavoriteTemplate,
+                    onOpenRecurring = { showTransactionTools = false; viewModel.isRecurringScreenOpen.value = true }
+                )
+            }
+        }
+    }
     if (isFilterSheetOpen) {
         TransactionFilterSheet(
             viewModel = viewModel,
@@ -551,7 +530,7 @@ fun TransactionsScreen(
                 Icon(
                     imageVector = Icons.Rounded.DeleteForever,
                     contentDescription = null,
-                    tint = StatusNegative,
+                    tint = duit.expense,
                     modifier = Modifier.size(32.dp)
                 )
             },
@@ -559,20 +538,22 @@ fun TransactionsScreen(
                 Text(
                     text = "Hapus Transaksi?",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = duit.textPrimary
                 )
             },
             text = {
                 Column {
                     Text(
                         text = "Transaksi \"${tx.description}\" senilai ${Formatters.formatRupiah(tx.amount)} akan dihapus.",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = duit.textPrimary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Saldo rekening $assetName akan disesuaikan kembali secara otomatis.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = duit.textSecondary
                     )
                 }
             },
@@ -583,18 +564,21 @@ fun TransactionsScreen(
                         transactionToDelete = null
                         viewModel.deleteTransactionWithUndo(deletedTx)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusNegative)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = duit.expense,
+                        contentColor = Color.White
+                    )
                 ) {
-                    Text("Hapus Transaksi", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Hapus Transaksi", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { transactionToDelete = null }) {
-                    Text("Batal")
+                    Text("Batal", color = duit.textSecondary)
                 }
             },
             shape = RoundedCornerShape(16.dp),
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = duit.surface
         )
     }
 }

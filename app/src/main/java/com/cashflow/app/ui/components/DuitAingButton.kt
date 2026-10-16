@@ -32,24 +32,17 @@ import androidx.compose.ui.unit.sp
 import com.cashflow.app.ui.theme.*
 
 enum class DuitAingButtonVariant {
-    PRIMARY,     // JadePrimary surface, TextOnDark
-    SECONDARY,   // PebbleSurface, DarkBorder, TextPrimary
-    DARK,        // DarkSurface, TextOnDark
-    OUTLINE,     // PebbleSurface, DarkBorder, TextPrimary
-    DANGER,      // StatusNegative, TextOnDark
-    DESTRUCTIVE  // StatusNegative, TextOnDark
+    PRIMARY,     // duit.primary, duit.onPrimary
+    SECONDARY,   // duit.surface, duit.border, duit.textPrimary
+    DARK,        // duit.hero, duit.onHero
+    OUTLINE,     // duit.surface, duit.borderStrong, duit.textPrimary
+    DANGER,      // duit.expense, duit.onPrimary
+    DESTRUCTIVE  // duit.expense, duit.onPrimary
 }
 
 /**
- * Reusable Neo-Brutalist Button for "Duit Aing"
- *
- * Specifications from High-End Visual Design:
- * - Single border outline (1.5dp DarkBorder)
- * - Hard offset shadow (solid 3dp dark background block)
- * - Tactile mechanical press effect: on press, surface shifts with Spring Physics
- * - Button-in-Button Trailing Icon: enclosed in a concentric island badge wrapper
- * - Compact, substantial height (48-52dp)
- * - Guarantees Icon + Text + Trailing Icon stay on a SINGLE horizontal line
+ * Standardized Neo-Brutalist Button for "Duit Aing"
+ * Strictly uses design tokens and 4-8-12-16-20-24-32dp scale.
  */
 @Composable
 fun DuitAingButton(
@@ -61,9 +54,9 @@ fun DuitAingButton(
     trailingIcon: ImageVector? = null,
     enabled: Boolean = true,
     isLoading: Boolean = false,
-    height: Dp = 50.dp,
+    height: Dp = AppTouchTarget.comfortable, // 48dp standard touch target
     shadowOffset: Dp = 0.dp,
-    shapeRadius: Dp = 999.dp,
+    shapeRadius: Dp = AppRadius.pill,
     containerColor: Color? = null,
     contentColorOverride: Color? = null
 ) {
@@ -77,49 +70,53 @@ fun DuitAingButton(
     )
 
     val shape = RoundedCornerShape(shapeRadius)
+    val duit = MaterialTheme.duit
 
-    val isDark = LocalIsDarkTheme.current
     val surfaceColor = when {
-        !enabled -> PebbleBorder
+        !enabled -> duit.track
         containerColor != null -> containerColor
-        variant == DuitAingButtonVariant.PRIMARY -> if (isDark) FintechAccentLight else FintechPrimary
-        variant == DuitAingButtonVariant.DARK -> if (isDark) PebbleSurfaceDark else FintechPrimary
-        variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> PebbleSurface
-        variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> StatusNegative
-        else -> if (isDark) FintechAccentLight else FintechPrimary
+        variant == DuitAingButtonVariant.PRIMARY -> duit.primary
+        variant == DuitAingButtonVariant.DARK -> duit.hero
+        variant == DuitAingButtonVariant.SECONDARY -> duit.surfaceVariant
+        variant == DuitAingButtonVariant.OUTLINE -> duit.surface
+        variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> duit.expense
+        else -> duit.primary
     }
 
     val contentColor = when {
-        !enabled -> TextTertiary
+        !enabled -> duit.textTertiary
         contentColorOverride != null -> contentColorOverride
         containerColor != null -> {
             val luminance = (0.299 * containerColor.red + 0.587 * containerColor.green + 0.114 * containerColor.blue)
-            if (luminance > 0.55) PebbleBackgroundDark else Color.White
+            if (luminance > 0.55) LightColors.primary else Color.White
         }
-        variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> TextPrimary
-        variant == DuitAingButtonVariant.PRIMARY && isDark -> PebbleBackgroundDark
-        else -> TextOnDark
+        variant == DuitAingButtonVariant.SECONDARY || variant == DuitAingButtonVariant.OUTLINE -> duit.textPrimary
+        variant == DuitAingButtonVariant.PRIMARY -> duit.onPrimary
+        variant == DuitAingButtonVariant.DARK -> duit.onHero
+        variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> Color.White
+        else -> duit.onPrimary
     }
 
     val borderColor = when {
         !enabled -> Color.Transparent
         variant == DuitAingButtonVariant.PRIMARY -> Color.Transparent
-        variant == DuitAingButtonVariant.OUTLINE || variant == DuitAingButtonVariant.SECONDARY -> PebbleBorder
+        variant == DuitAingButtonVariant.OUTLINE -> duit.borderStrong
+        variant == DuitAingButtonVariant.SECONDARY -> Color.Transparent
         variant == DuitAingButtonVariant.DARK -> Color.Transparent
         variant == DuitAingButtonVariant.DESTRUCTIVE || variant == DuitAingButtonVariant.DANGER -> Color.Transparent
         else -> Color.Transparent
     }
 
-    val isCompact = height <= 48.dp
-    val actualIconSize = if (isCompact) 16.dp else 18.dp
-    val actualIconSpacing = if (isCompact) 6.dp else 8.dp
-    val actualPadding = if (isCompact) 14.dp else 20.dp
-    val actualFontSize = if (isCompact) 12.sp else 13.5.sp
+    val isCompact = height <= AppTouchTarget.comfortable
+    val actualIconSize = if (isCompact) 16.dp else 20.dp
+    val actualIconSpacing = AppSpacing.xs // 8dp
+    val actualPadding = if (isCompact) AppSpacing.md else AppSpacing.lg // 16dp / 20dp
+    val actualFontSize = if (isCompact) 13.sp else 14.sp
 
     Box(
         modifier = modifier
-            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-            .height(height)
+            .defaultMinSize(minWidth = AppTouchTarget.comfortable, minHeight = AppTouchTarget.comfortable)
+            .heightIn(min = maxOf(height, 48.dp))
             .graphicsLayer {
                 scaleX = pressScale
                 scaleY = pressScale
@@ -160,9 +157,10 @@ fun DuitAingButton(
 
                 Text(
                     text = text,
+                    modifier = Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.8.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.2.sp,
                         fontSize = actualFontSize
                     ),
                     color = contentColor,
@@ -172,15 +170,15 @@ fun DuitAingButton(
                 )
 
                 if (trailingIcon != null) {
-                    Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 10.dp))
+                    Spacer(modifier = Modifier.width(AppSpacing.xs))
                     val badgeBg = when (variant) {
-                        DuitAingButtonVariant.PRIMARY -> Color.White.copy(alpha = 0.18f)
-                        DuitAingButtonVariant.DARK -> Color.White.copy(alpha = 0.15f)
+                        DuitAingButtonVariant.PRIMARY -> duit.onPrimary.copy(alpha = 0.18f)
+                        DuitAingButtonVariant.DARK -> duit.onHero.copy(alpha = 0.15f)
                         DuitAingButtonVariant.DESTRUCTIVE, DuitAingButtonVariant.DANGER -> Color.White.copy(alpha = 0.2f)
-                        else -> DarkBorder.copy(alpha = 0.08f)
+                        else -> duit.borderStrong.copy(alpha = 0.2f)
                     }
                     val badgeSize = if (isCompact) 20.dp else 24.dp
-                    val badgeIconSize = if (isCompact) 11.dp else 13.dp
+                    val badgeIconSize = 12.dp
                     Box(
                         modifier = Modifier
                             .size(badgeSize)

@@ -45,6 +45,7 @@ object RecurringSchedulerService {
         upToDate: LocalDate
     ): List<LocalDate> {
         val dates = mutableListOf<LocalDate>()
+        require(recurring.interval > 0) { "Interval jadwal harus lebih dari 0." }
         val start = try {
             LocalDate.parse(recurring.startDate, DATE_FORMATTER)
         } catch (_: Exception) {
@@ -98,34 +99,9 @@ object RecurringSchedulerService {
             val scheduledDates = generateScheduledDates(rec, today)
             for (date in scheduledDates) {
                 val dateStr = date.format(DATE_FORMATTER)
-                // Cek idempotensi: apakah jadwal ini sudah dieksekusi sebelumnya?
-                if (!repository.isOccurrenceExecuted(rec.id, dateStr)) {
-                    if (rec.mode == RecurringMode.AUTO.value) {
-                        val newTx = Transaction(
-                            id = "tx_rec_${UUID.randomUUID()}",
-                            type = rec.type,
-                            amount = rec.amount,
-                            description = rec.name,
-                            categoryId = rec.categoryId,
-                            assetId = rec.assetId,
-                            destinationAssetId = rec.destinationAssetId,
-                            transactionDate = dateStr,
-                            transactionTime = "08:00",
-                            note = "[Otomatis Berulang] ${rec.note ?: ""}".trim(),
-                            debtId = rec.linkedDebtId
-                        )
-                        val res = repository.addTransaction(newTx)
-                        if (res.isSuccess) {
-                            generatedTransactions.add(newTx)
-                            val exec = RecurringExecution(
-                                id = UUID.randomUUID().toString(),
-                                recurringId = rec.id,
-                                scheduledDate = dateStr,
-                                transactionId = newTx.id,
-                                status = "completed"
-                            )
-                            repository.recordRecurringExecution(exec)
-                        }
+                if (rec.mode == RecurringMode.AUTO.value) {
+                    repository.executeRecurringOccurrence(rec.id, dateStr).getOrThrow()?.let {
+                        generatedTransactions.add(it)
                     }
                 }
             }
@@ -170,16 +146,32 @@ object RecurringSchedulerService {
     }
 
     fun getUpcomingBills(
+        repo: CashflowRepository,
+        recurringList: List<RecurringTransaction>,
+        daysAhead: Int = 7
+    ): List<UpcomingRecurringItem> {
+        val executed = repo.executedOccurrenceKeys()
+        return getUpcomingOccurrences(
+            recurringList = recurringList,
+            isExecuted = { id, date -> (id to date) in executed },
+            daysAhead = daysAhead
+        )
+    }
+
+    fun getUpcomingBills(
         context: Context,
         recurringList: List<RecurringTransaction>,
         daysAhead: Int = 7
     ): List<UpcomingRecurringItem> {
         val repo = CashflowRepository(context)
-        return getUpcomingOccurrences(
-            recurringList = recurringList,
-            isExecuted = { id, date -> repo.isOccurrenceExecuted(id, date) },
-            daysAhead = daysAhead
-        )
+        return getUpcomingBills(repo, recurringList, daysAhead)
+    }
+
+    suspend fun processDueRecurringSchedules(
+        repo: CashflowRepository
+    ): Int {
+        val created = processDueRecurringTransactions(repo)
+        return created.size
     }
 
     suspend fun processDueRecurringSchedules(
@@ -187,8 +179,22 @@ object RecurringSchedulerService {
         recurringList: List<RecurringTransaction>
     ): Int {
         val repo = CashflowRepository(context)
-        val created = processDueRecurringTransactions(repo)
-        return created.size
+        return processDueRecurringSchedules(repo)
+    }
+
+    suspend fun skipRecurringOccurrence(
+        repo: CashflowRepository,
+        recurringId: String,
+        occurrenceDate: String
+    ) {
+        val exec = RecurringExecution(
+            id = UUID.randomUUID().toString(),
+            recurringId = recurringId,
+            scheduledDate = occurrenceDate,
+            transactionId = null,
+            status = "skipped"
+        )
+        repo.recordRecurringExecution(exec).getOrThrow()
     }
 
     suspend fun skipRecurringOccurrence(
@@ -197,13 +203,6 @@ object RecurringSchedulerService {
         occurrenceDate: String
     ) {
         val repo = CashflowRepository(context)
-        val exec = RecurringExecution(
-            id = UUID.randomUUID().toString(),
-            recurringId = recurringId,
-            scheduledDate = occurrenceDate,
-            transactionId = null,
-            status = "skipped"
-        )
-        repo.recordRecurringExecution(exec)
+        skipRecurringOccurrence(repo, recurringId, occurrenceDate)
     }
 }

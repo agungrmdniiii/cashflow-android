@@ -8,6 +8,7 @@ import com.cashflow.app.data.backup.BackupManager
 import com.cashflow.app.data.backup.BackupSummary
 import com.cashflow.app.data.backup.BackupValidationResult
 import com.cashflow.app.data.db.DatabaseHelper
+import com.cashflow.app.data.diagnostic.DiagnosticLogManager
 import com.cashflow.app.data.model.*
 import com.cashflow.app.data.preferences.PreferenceManager
 import org.json.JSONObject
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
@@ -28,6 +31,7 @@ class CashflowRepository(private val context: Context) {
 
     private val dbHelper = DatabaseHelper(context)
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val balanceWriteMutex = Mutex()
 
     private val _assets = MutableStateFlow<List<Asset>>(emptyList())
     val assets: StateFlow<List<Asset>> = _assets.asStateFlow()
@@ -53,12 +57,35 @@ class CashflowRepository(private val context: Context) {
     private val _recurringTransactions = MutableStateFlow<List<RecurringTransaction>>(emptyList())
     val recurringTransactions: StateFlow<List<RecurringTransaction>> = _recurringTransactions.asStateFlow()
 
+    private val _integrityDiscrepancies = MutableStateFlow<List<BalanceDiscrepancy>>(emptyList())
+    val integrityDiscrepancies: StateFlow<List<BalanceDiscrepancy>> = _integrityDiscrepancies.asStateFlow()
+
+    private val _integrityReportItems = MutableStateFlow<List<BalanceDiscrepancy>>(emptyList())
+    val integrityReportItems: StateFlow<List<BalanceDiscrepancy>> = _integrityReportItems.asStateFlow()
+
+    private val _initError = MutableStateFlow<String?>(null)
+    val initError: StateFlow<String?> = _initError.asStateFlow()
+
+    fun clearInitError() {
+        _initError.value = null
+    }
+
     init {
         scope.launch {
-            try {
-                val db = dbHelper.writableDatabase
-                LedgerService.recalculateAllBalances(db)
-            } catch (_: Exception) {}
+            balanceWriteMutex.withLock {
+                try {
+                    val db = dbHelper.writableDatabase
+                    val result = LedgerService.recalculateAllBalances(db, autoFix = false)
+                    _integrityReportItems.value = result.allItems
+                    if (result.discrepanciesFound > 0) {
+                        _integrityDiscrepancies.value = result.details
+                        DiagnosticLogManager.logDiscrepancy(context, result.details)
+                    }
+                } catch (e: Exception) {
+                    DiagnosticLogManager.logError(context, "INIT_RECALCULATE", e)
+                    _initError.value = "Gagal memverifikasi integritas saldo awal: ${e.message ?: "Kesalahan database"}"
+                }
+            }
             loadFromDb()
         }
     }
@@ -68,6 +95,8 @@ class CashflowRepository(private val context: Context) {
             loadFromDb()
         }
     }
+
+    suspend fun reloadForBackgroundCheck() = balanceWriteMutex.withLock { loadFromDb() }
 
     private suspend fun loadFromDb() = withContext(Dispatchers.IO) {
         val db = dbHelper.readableDatabase
@@ -123,66 +152,9 @@ class CashflowRepository(private val context: Context) {
             }
         }
 
-        // Calculate actual spending for current month for each budget (O(T + B) linear pass instead of O(B * T))
-        val currentMonthPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        val catMap = categoryList.associateBy { it.id }
-        val spentByCategory = mutableMapOf<String, Long>()
-        for (tx in txList) {
-            if (tx.type == TransactionType.EXPENSE.value &&
-                tx.categoryId != null &&
-                tx.transactionDate.startsWith(currentMonthPrefix)
-            ) {
-                spentByCategory[tx.categoryId] = (spentByCategory[tx.categoryId] ?: 0L) + tx.amount
-            }
-        }
-
         val prefManager = PreferenceManager(context)
-        val isRolloverEnabled = prefManager.isBudgetRolloverEnabled()
-        val prevMonthPrefix = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        val prevSpentByCategory = if (isRolloverEnabled) {
-            val map = mutableMapOf<String, Long>()
-            for (tx in txList) {
-                if (tx.type == TransactionType.EXPENSE.value &&
-                    tx.categoryId != null &&
-                    tx.transactionDate.startsWith(prevMonthPrefix)
-                ) {
-                    map[tx.categoryId] = (map[tx.categoryId] ?: 0L) + tx.amount
-                }
-            }
-            map
-        } else emptyMap()
-
-        val budgetWithProgressList = budgetList.map { budget ->
-            val cat = catMap[budget.categoryId]
-            val spent = spentByCategory[budget.categoryId] ?: 0L
-
-            val rolloverAmount = if (isRolloverEnabled) {
-                val prevSpent = prevSpentByCategory[budget.categoryId] ?: 0L
-                (budget.targetAmount - prevSpent).coerceAtLeast(0L)
-            } else 0L
-
-            val effectiveTarget = budget.targetAmount + rolloverAmount
-            val remaining = (effectiveTarget - spent).coerceAtLeast(0L)
-            val percentage = if (effectiveTarget > 0) {
-                (spent.toFloat() / effectiveTarget.toFloat()).coerceIn(0f, 2f)
-            } else 0f
-
-            val status = when {
-                spent > effectiveTarget -> BudgetStatus.EXCEEDED
-                percentage >= 0.85f -> BudgetStatus.NEAR_LIMIT
-                percentage >= 0.60f -> BudgetStatus.WARNING
-                else -> BudgetStatus.SAFE
-            }
-
-            BudgetWithProgress(
-                budget = if (rolloverAmount > 0) budget.copy(targetAmount = effectiveTarget) else budget,
-                category = cat,
-                spentAmount = spent,
-                remainingAmount = remaining,
-                progressPercentage = percentage,
-                status = status
-            )
-        }
+        val budgetWithProgressList = calculateBudgetProgress(budgetList, categoryList, txList,
+            prefManager.isBudgetRolloverEnabled(), periodStartDay = prefManager.getBudgetStartDay())
         _budgets.value = budgetWithProgressList
 
         // Trigger budget notification alerts if threshold (80% or 100%) reached
@@ -258,145 +230,182 @@ class CashflowRepository(private val context: Context) {
 
     // --- TRANSACTION OPERATIONS (WITH ATOMIC BALANCE UPDATE & VALIDATION) ---
 
-    suspend fun addTransaction(transaction: Transaction): Result<Unit> = withContext(Dispatchers.IO) {
-        val validation = LedgerService.validateTransaction(transaction)
-        if (validation.isFailure) return@withContext validation
+    suspend fun addTransaction(transaction: Transaction): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val validation = LedgerService.validateTransaction(transaction)
+            if (validation.isFailure) return@withContext validation
 
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            val now = System.currentTimeMillis()
-            LedgerService.applyTransactionEffect(db, transaction, now)
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                val now = System.currentTimeMillis()
+                LedgerService.applyTransactionEffect(db, transaction, now)
+                insertTransactionRow(db, transaction, now)
 
-            val cv = ContentValues().apply {
-                put("id", transaction.id.ifBlank { UUID.randomUUID().toString() })
-                put("type", transaction.type)
-                put("amount", transaction.amount)
-                put("description", transaction.description.ifBlank { "Transaksi ${transaction.type}" })
-                put("category_id", transaction.categoryId)
-                put("asset_id", transaction.assetId)
-                put("destination_asset_id", transaction.destinationAssetId)
-                put("transaction_date", transaction.transactionDate)
-                put("transaction_time", transaction.transactionTime)
-                put("note", transaction.note)
-                put("attachment", transaction.attachment)
-                put("input_method", transaction.inputMethod)
-                put("debt_id", transaction.debtId)
-                put("goal_id", transaction.goalId)
-                put("is_sample", if (transaction.isSample) 1 else 0)
-                put("tags", transaction.tags)
-                put("is_adjustment", if (transaction.isAdjustment) 1 else 0)
-                put("created_at", transaction.createdAt)
-                put("updated_at", now)
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
             }
-            db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, cv)
-
-            db.setTransactionSuccessful()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
-            loadFromDb()
         }
     }
 
-    suspend fun updateTransaction(newTx: Transaction): Result<Unit> = withContext(Dispatchers.IO) {
-        val validation = LedgerService.validateTransaction(newTx)
-        if (validation.isFailure) return@withContext validation
+    private fun insertTransactionRow(db: SQLiteDatabase, transaction: Transaction, now: Long) {
+        val cv = ContentValues().apply {
+                    put("id", transaction.id.ifBlank { UUID.randomUUID().toString() })
+                    put("type", transaction.type)
+                    put("amount", transaction.amount)
+                    put("description", transaction.description.ifBlank { "Transaksi ${transaction.type}" })
+                    put("category_id", if (transaction.type != TransactionType.TRANSFER.value) transaction.categoryId else null)
+                    put("asset_id", transaction.assetId)
+                    put("destination_asset_id", if (transaction.type == TransactionType.TRANSFER.value) transaction.destinationAssetId else null)
+                    put("transaction_date", transaction.transactionDate)
+                    put("transaction_time", transaction.transactionTime)
+                    put("note", transaction.note)
+                    put("attachment", transaction.attachment)
+                    put("input_method", transaction.inputMethod)
+                    put("debt_id", if (transaction.type == TransactionType.EXPENSE.value) transaction.debtId else null)
+                    put("goal_id", transaction.goalId)
+                    put("is_sample", if (transaction.isSample) 1 else 0)
+                    put("tags", transaction.tags)
+                    put("is_adjustment", if (transaction.type == TransactionType.ADJUSTMENT.value) (if (transaction.isAdjustment) 1 else 0) else 0)
+                    put("adjustment_direction", if (transaction.type == TransactionType.ADJUSTMENT.value) transaction.adjustmentDirection else 0)
+                    put("created_at", transaction.createdAt)
+                    put("updated_at", now)
+                }
+        db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, cv)
+    }
 
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            // Find existing transaction to revert
-            val oldTxCursor = db.query(
-                DatabaseHelper.TABLE_TRANSACTIONS,
-                null, "id = ?", arrayOf(newTx.id),
-                null, null, null
-            )
-            val oldTx = oldTxCursor.use {
-                if (it.moveToNext()) cursorToTransaction(it) else null
-            } ?: return@withContext Result.failure(IllegalStateException("Transaksi lama tidak ditemukan"))
+    suspend fun updateTransaction(newTx: Transaction): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                // Find existing transaction to revert
+                val oldTxCursor = db.query(
+                    DatabaseHelper.TABLE_TRANSACTIONS,
+                    null, "id = ?", arrayOf(newTx.id),
+                    null, null, null
+                )
+                val oldTx = oldTxCursor.use {
+                    if (it.moveToNext()) cursorToTransaction(it) else null
+                } ?: return@withContext Result.failure(IllegalStateException("Transaksi lama tidak ditemukan"))
 
-            val now = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                if ((!oldTx.debtId.isNullOrBlank() || !oldTx.goalId.isNullOrBlank()) && newTx.type != oldTx.type) {
+                    return@withContext Result.failure(IllegalArgumentException("Jenis transaksi cicilan atau alokasi tidak dapat diubah."))
+                }
+                val linkedTx = newTx.copy(debtId = oldTx.debtId ?: newTx.debtId, goalId = oldTx.goalId ?: newTx.goalId)
+                val validation = LedgerService.validateTransaction(linkedTx)
+                if (validation.isFailure) return@withContext validation
 
-            // 1. Revert effect of old transaction
-            LedgerService.revertTransactionEffect(db, oldTx, now)
+                // 1. Revert effect of old transaction
+                LedgerService.revertTransactionEffect(db, oldTx, now)
 
-            // 2. Apply effect of new transaction
-            LedgerService.applyTransactionEffect(db, newTx, now)
+                // 2. Apply effect of new transaction
+                LedgerService.applyTransactionEffect(db, linkedTx, now)
 
-            // 3. Update transaction row
-            val cv = ContentValues().apply {
-                put("type", newTx.type)
-                put("amount", newTx.amount)
-                put("description", newTx.description)
-                put("category_id", newTx.categoryId)
-                put("asset_id", newTx.assetId)
-                put("destination_asset_id", newTx.destinationAssetId)
-                put("transaction_date", newTx.transactionDate)
-                put("transaction_time", newTx.transactionTime)
-                put("note", newTx.note)
-                put("attachment", newTx.attachment)
-                put("debt_id", newTx.debtId ?: oldTx.debtId)
-                put("goal_id", newTx.goalId ?: oldTx.goalId)
-                put("is_sample", if (newTx.isSample) 1 else 0)
-                put("tags", newTx.tags)
-                put("is_adjustment", if (newTx.isAdjustment) 1 else 0)
-                put("updated_at", now)
+                // 3. Update transaction row
+                val cv = ContentValues().apply {
+                    put("type", newTx.type)
+                    put("amount", newTx.amount)
+                    put("description", newTx.description)
+                    put("category_id", if (newTx.type != TransactionType.TRANSFER.value) newTx.categoryId else null)
+                    put("asset_id", newTx.assetId)
+                    put("destination_asset_id", if (newTx.type == TransactionType.TRANSFER.value) newTx.destinationAssetId else null)
+                    put("transaction_date", newTx.transactionDate)
+                    put("transaction_time", newTx.transactionTime)
+                    put("note", newTx.note)
+                    put("attachment", newTx.attachment)
+                    put("debt_id", linkedTx.debtId)
+                    put("goal_id", linkedTx.goalId)
+                    put("is_sample", if (newTx.isSample) 1 else 0)
+                    put("tags", newTx.tags)
+                    put("is_adjustment", if (newTx.type == TransactionType.ADJUSTMENT.value) (if (newTx.isAdjustment) 1 else 0) else 0)
+                    put("adjustment_direction", if (newTx.type == TransactionType.ADJUSTMENT.value) newTx.adjustmentDirection else 0)
+                    put("updated_at", now)
+                }
+                db.update(DatabaseHelper.TABLE_TRANSACTIONS, cv, "id = ?", arrayOf(newTx.id))
+
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
             }
-            db.update(DatabaseHelper.TABLE_TRANSACTIONS, cv, "id = ?", arrayOf(newTx.id))
-
-            db.setTransactionSuccessful()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
-            loadFromDb()
         }
     }
 
-    suspend fun deleteTransaction(txId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            val cursor = db.query(
-                DatabaseHelper.TABLE_TRANSACTIONS,
-                null, "id = ?", arrayOf(txId),
-                null, null, null
-            )
-            val tx = cursor.use {
-                if (it.moveToNext()) cursorToTransaction(it) else null
-            } ?: return@withContext Result.failure(IllegalStateException("Transaksi tidak ditemukan"))
+    suspend fun deleteTransaction(txId: String): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                val cursor = db.query(
+                    DatabaseHelper.TABLE_TRANSACTIONS,
+                    null, "id = ?", arrayOf(txId),
+                    null, null, null
+                )
+                val tx = cursor.use {
+                    if (it.moveToNext()) cursorToTransaction(it) else null
+                } ?: return@withContext Result.failure(IllegalStateException("Transaksi tidak ditemukan"))
 
-            val now = System.currentTimeMillis()
-            LedgerService.revertTransactionEffect(db, tx, now)
+                val now = System.currentTimeMillis()
+                LedgerService.revertTransactionEffect(db, tx, now)
 
-            db.delete(DatabaseHelper.TABLE_TRANSACTIONS, "id = ?", arrayOf(txId))
-            db.setTransactionSuccessful()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
-            loadFromDb()
+                db.delete(DatabaseHelper.TABLE_TRANSACTIONS, "id = ?", arrayOf(txId))
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
+            }
         }
     }
 
-    suspend fun recalculateBalances(): Result<LedgerRecalculateResult> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            val result = LedgerService.recalculateAllBalances(db)
-            db.setTransactionSuccessful()
-            Result.success(result)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
-            loadFromDb()
+    suspend fun recalculateBalances(autoFix: Boolean = true): Result<LedgerRecalculateResult> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                val result = LedgerService.recalculateAllBalances(db, autoFix = autoFix)
+                db.setTransactionSuccessful()
+                _integrityReportItems.value = result.allItems
+                if (autoFix) {
+                    _integrityDiscrepancies.value = emptyList()
+                } else {
+                    _integrityDiscrepancies.value = result.details
+                }
+                Result.success(result)
+            } catch (e: Exception) {
+                DiagnosticLogManager.logError(context, "RECALCULATE_BALANCES", e)
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
+            }
         }
+    }
+
+    suspend fun repairBalanceDiscrepancies(): Result<LedgerRecalculateResult> {
+        // Buat backup pengaman otomatis sebelum perbaikan saldo
+        try {
+            val db = dbHelper.readableDatabase
+            val json = BackupManager.createBackupJson(db)
+            val backupDir = File(context.filesDir, "backups/safety")
+            if (!backupDir.exists()) backupDir.mkdirs()
+            val safetyFile = File(backupDir, "safety_repair_${System.currentTimeMillis()}.json")
+            safetyFile.writeText(json)
+        } catch (_: Exception) {}
+
+        return recalculateBalances(autoFix = true)
     }
 
     fun checkBalanceSufficiency(assetId: String, amount: Long): Boolean {
@@ -404,83 +413,141 @@ class CashflowRepository(private val context: Context) {
         return LedgerService.checkBalanceSufficiency(asset.currentBalance, amount)
     }
 
-    suspend fun deleteSampleData(): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        try {
-            dbHelper.deleteSampleData(db)
-            LedgerService.recalculateAllBalances(db)
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+    suspend fun deleteSampleData(): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            try {
+                dbHelper.deleteSampleData(db)
+                LedgerService.recalculateAllBalances(db, autoFix = true)
+                loadFromDb()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 
-    suspend fun deleteAllUserData(): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        try {
-            dbHelper.deleteAllUserData(db)
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+    suspend fun deleteAllUserData(): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            try {
+                dbHelper.deleteAllUserData(db)
+                loadFromDb()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 
     // --- ASSET OPERATIONS ---
 
-    suspend fun addAsset(asset: Asset): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        try {
-            if (asset.isDefault) {
-                // Remove default flag from all other assets
-                val cvDef = ContentValues().apply { put("is_default", 0) }
-                db.update(DatabaseHelper.TABLE_ASSETS, cvDef, null, null)
-            }
+    suspend fun addAsset(asset: Asset): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            try {
+                if (asset.isDefault) {
+                    // Remove default flag from all other assets
+                    val cvDef = ContentValues().apply { put("is_default", 0) }
+                    db.update(DatabaseHelper.TABLE_ASSETS, cvDef, null, null)
+                }
 
-            val cv = ContentValues().apply {
-                put("id", asset.id.ifBlank { UUID.randomUUID().toString() })
-                put("name", asset.name)
-                put("type", asset.type)
-                put("opening_balance", asset.openingBalance)
-                put("current_balance", asset.openingBalance) // starts at opening balance
-                put("currency", asset.currency)
-                put("is_default", if (asset.isDefault) 1 else 0)
-                put("is_active", if (asset.isActive) 1 else 0)
-                put("is_sample", if (asset.isSample) 1 else 0)
-                put("note", asset.note)
-                put("created_at", asset.createdAt)
-                put("updated_at", asset.updatedAt)
+                val cv = ContentValues().apply {
+                    put("id", asset.id.ifBlank { UUID.randomUUID().toString() })
+                    put("name", asset.name)
+                    put("type", asset.type)
+                    put("opening_balance", asset.openingBalance)
+                    put("current_balance", asset.openingBalance) // starts at opening balance
+                    put("currency", asset.currency)
+                    put("is_default", if (asset.isDefault) 1 else 0)
+                    put("is_active", if (asset.isActive) 1 else 0)
+                    put("is_sample", if (asset.isSample) 1 else 0)
+                    put("note", asset.note)
+                    put("created_at", asset.createdAt)
+                    put("updated_at", asset.updatedAt)
+                }
+                db.insertOrThrow(DatabaseHelper.TABLE_ASSETS, null, cv)
+                loadFromDb()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
             }
-            db.insertOrThrow(DatabaseHelper.TABLE_ASSETS, null, cv)
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
-    suspend fun updateAsset(asset: Asset): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        try {
-            if (asset.isDefault) {
-                val cvDef = ContentValues().apply { put("is_default", 0) }
-                db.update(DatabaseHelper.TABLE_ASSETS, cvDef, null, null)
-            }
+    suspend fun updateAsset(asset: Asset): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                if (asset.isDefault) {
+                    val cvDef = ContentValues().apply { put("is_default", 0) }
+                    db.update(DatabaseHelper.TABLE_ASSETS, cvDef, null, null)
+                }
 
-            val cv = ContentValues().apply {
-                put("name", asset.name)
-                put("type", asset.type)
-                put("is_default", if (asset.isDefault) 1 else 0)
-                put("note", asset.note)
-                put("current_balance", asset.currentBalance)
-                put("updated_at", System.currentTimeMillis())
+                val cv = ContentValues().apply {
+                    put("name", asset.name)
+                    put("type", asset.type)
+                    put("is_default", if (asset.isDefault) 1 else 0)
+                    put("note", asset.note)
+                    put("updated_at", System.currentTimeMillis())
+                }
+                db.update(DatabaseHelper.TABLE_ASSETS, cv, "id = ?", arrayOf(asset.id))
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
             }
-            db.update(DatabaseHelper.TABLE_ASSETS, cv, "id = ?", arrayOf(asset.id))
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+        }
+    }
+
+    suspend fun hasTransactions(assetId: String): Boolean = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT COUNT(*) FROM ${DatabaseHelper.TABLE_TRANSACTIONS} WHERE asset_id = ? OR destination_asset_id = ?",
+            arrayOf(assetId, assetId)
+        )
+        cursor.use {
+            if (it.moveToNext()) it.getInt(0) > 0 else false
+        }
+    }
+
+    suspend fun updateAssetOpeningBalance(assetId: String, newOpeningBalance: Long): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                val cursor = db.rawQuery(
+                    "SELECT COUNT(*) FROM ${DatabaseHelper.TABLE_TRANSACTIONS} WHERE asset_id = ? OR destination_asset_id = ?",
+                    arrayOf(assetId, assetId)
+                )
+                val txCount = cursor.use { if (it.moveToNext()) it.getInt(0) else 0 }
+                if (txCount > 0) {
+                    return@withContext Result.failure(IllegalStateException("Saldo awal tidak dapat diubah karena aset sudah memiliki riwayat transaksi."))
+                }
+
+                val cv = ContentValues().apply {
+                    put("opening_balance", newOpeningBalance)
+                    put("updated_at", System.currentTimeMillis())
+                }
+                val rows = db.update(DatabaseHelper.TABLE_ASSETS, cv, "id = ?", arrayOf(assetId))
+                if (rows > 0) {
+                    // Jalur sah (b): hitung ulang saldo via LedgerService
+                    LedgerService.recalculateAllBalances(db, autoFix = true)
+                    db.setTransactionSuccessful()
+                    Result.success(Unit)
+                } else {
+                    Result.failure(IllegalArgumentException("Aset tidak ditemukan."))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
+            }
         }
     }
 
@@ -678,63 +745,77 @@ class CashflowRepository(private val context: Context) {
         amount: Long,
         sourceAssetId: String?,
         note: String = ""
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            val goal = _goals.value.find { it.id == goalId }
-                ?: return@withContext Result.failure(IllegalArgumentException("Target tidak ditemukan"))
+    ): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                require(amount > 0L) { "Nominal alokasi harus lebih dari 0." }
+                val goal = _goals.value.find { it.id == goalId }
+                    ?: return@withContext Result.failure(IllegalArgumentException("Target tidak ditemukan"))
 
-            val newCurrent = goal.currentAmount + amount
-            val cvGoal = ContentValues().apply {
-                put("current_amount", newCurrent)
-                put("updated_at", System.currentTimeMillis())
-            }
-            db.update(DatabaseHelper.TABLE_GOALS, cvGoal, "id = ?", arrayOf(goalId))
-
-            if (!sourceAssetId.isNullOrBlank()) {
-                val asset = _assets.value.find { it.id == sourceAssetId }
-                if (asset != null) {
-                    val newBalance = asset.currentBalance - amount
-                    val cvAsset = ContentValues().apply {
-                        put("current_balance", newBalance)
-                    }
-                    db.update(DatabaseHelper.TABLE_ASSETS, cvAsset, "id = ?", arrayOf(sourceAssetId))
-
-                    val now = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                if (!sourceAssetId.isNullOrBlank()) {
                     val todayStr = LocalDate.now().toString()
                     val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
                     val savingsCatId = _categories.value.find { it.name.contains("tabung", ignoreCase = true) }?.id
                         ?: _categories.value.firstOrNull { it.type == "expense" }?.id
                         ?: "cat_lainnya_exp"
 
+                    val tx = Transaction(
+                        id = "tx_goal_${System.currentTimeMillis()}",
+                        type = TransactionType.ALLOCATION.value,
+                        amount = amount,
+                        description = if (note.isNotBlank()) note else "Tabungan: ${goal.name}",
+                        categoryId = savingsCatId,
+                        assetId = sourceAssetId,
+                        destinationAssetId = null,
+                        transactionDate = todayStr,
+                        transactionTime = timeStr,
+                        note = "Alokasi target: ${goal.name}",
+                        inputMethod = "manual",
+                        goalId = goalId,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+
                     val cvTx = ContentValues().apply {
-                        put("id", "tx_goal_${System.currentTimeMillis()}")
-                        put("type", TransactionType.EXPENSE.value)
-                        put("amount", amount)
-                        put("description", if (note.isNotBlank()) note else "Tabungan: ${goal.name}")
-                        put("category_id", savingsCatId)
-                        put("asset_id", sourceAssetId)
-                        put("destination_asset_id", null as String?)
-                        put("transaction_date", todayStr)
-                        put("transaction_time", timeStr)
-                        put("note", "Alokasi target: ${goal.name}")
-                        put("input_method", "manual")
-                        put("goal_id", goalId)
-                        put("created_at", now)
+                        put("id", tx.id)
+                        put("type", tx.type)
+                        put("amount", tx.amount)
+                        put("description", tx.description)
+                        put("category_id", tx.categoryId)
+                        put("asset_id", tx.assetId)
+                        put("destination_asset_id", tx.destinationAssetId)
+                        put("transaction_date", tx.transactionDate)
+                        put("transaction_time", tx.transactionTime)
+                        put("note", tx.note)
+                        put("input_method", tx.inputMethod)
+                        put("goal_id", tx.goalId)
+                        put("created_at", tx.createdAt)
+                        put("updated_at", tx.updatedAt)
+                    }
+                    db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, cvTx)
+
+                    // Jalur sah (a): perbarui saldo aset dan saldo target lewat LedgerService
+                    LedgerService.applyTransactionEffect(db, tx, now)
+                } else {
+                    val newCurrent = goal.currentAmount + amount
+                    val cvGoal = ContentValues().apply {
+                        put("current_amount", newCurrent)
                         put("updated_at", now)
                     }
-                    db.insert(DatabaseHelper.TABLE_TRANSACTIONS, null, cvTx)
+                    db.update(DatabaseHelper.TABLE_GOALS, cvGoal, "id = ?", arrayOf(goalId))
                 }
-            }
 
-            db.setTransactionSuccessful()
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
+            }
         }
     }
 
@@ -743,61 +824,76 @@ class CashflowRepository(private val context: Context) {
         amount: Long,
         destinationAssetId: String?,
         note: String = ""
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            val goal = _goals.value.find { it.id == goalId }
-                ?: return@withContext Result.failure(IllegalArgumentException("Target tidak ditemukan"))
+    ): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                require(amount > 0L) { "Nominal pelepasan harus lebih dari 0." }
+                val goal = _goals.value.find { it.id == goalId }
+                    ?: return@withContext Result.failure(IllegalArgumentException("Target tidak ditemukan"))
+                require(amount <= goal.currentAmount) { "Nominal melebihi dana yang dialokasikan." }
 
-            val newCurrent = (goal.currentAmount - amount).coerceAtLeast(0L)
-            val cvGoal = ContentValues().apply {
-                put("current_amount", newCurrent)
-                put("updated_at", System.currentTimeMillis())
-            }
-            db.update(DatabaseHelper.TABLE_GOALS, cvGoal, "id = ?", arrayOf(goalId))
-
-            if (!destinationAssetId.isNullOrBlank()) {
-                val asset = _assets.value.find { it.id == destinationAssetId }
-                if (asset != null) {
-                    val newBalance = asset.currentBalance + amount
-                    val cvAsset = ContentValues().apply {
-                        put("current_balance", newBalance)
-                    }
-                    db.update(DatabaseHelper.TABLE_ASSETS, cvAsset, "id = ?", arrayOf(destinationAssetId))
-
-                    val now = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                if (!destinationAssetId.isNullOrBlank()) {
                     val todayStr = LocalDate.now().toString()
                     val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
                     val incCatId = _categories.value.firstOrNull { it.type == "income" }?.id ?: "cat_lainnya_inc"
 
+                    val tx = Transaction(
+                        id = "tx_goal_wd_${System.currentTimeMillis()}",
+                        type = TransactionType.RELEASE.value,
+                        amount = amount,
+                        description = if (note.isNotBlank()) note else "Pencairan: ${goal.name}",
+                        categoryId = incCatId,
+                        assetId = destinationAssetId,
+                        destinationAssetId = null,
+                        transactionDate = todayStr,
+                        transactionTime = timeStr,
+                        note = "Pencairan target: ${goal.name}",
+                        inputMethod = "manual",
+                        goalId = goalId,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+
                     val cvTx = ContentValues().apply {
-                        put("id", "tx_goal_wd_${System.currentTimeMillis()}")
-                        put("type", TransactionType.INCOME.value)
-                        put("amount", amount)
-                        put("description", if (note.isNotBlank()) note else "Pencairan: ${goal.name}")
-                        put("category_id", incCatId)
-                        put("asset_id", destinationAssetId)
-                        put("destination_asset_id", null as String?)
-                        put("transaction_date", todayStr)
-                        put("transaction_time", timeStr)
-                        put("note", "Pencairan target: ${goal.name}")
-                        put("input_method", "manual")
-                        put("goal_id", goalId)
-                        put("created_at", now)
+                        put("id", tx.id)
+                        put("type", tx.type)
+                        put("amount", tx.amount)
+                        put("description", tx.description)
+                        put("category_id", tx.categoryId)
+                        put("asset_id", tx.assetId)
+                        put("destination_asset_id", tx.destinationAssetId)
+                        put("transaction_date", tx.transactionDate)
+                        put("transaction_time", tx.transactionTime)
+                        put("note", tx.note)
+                        put("input_method", tx.inputMethod)
+                        put("goal_id", tx.goalId)
+                        put("created_at", tx.createdAt)
+                        put("updated_at", tx.updatedAt)
+                    }
+                    db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, cvTx)
+
+                    // Jalur sah (a): perbarui saldo aset dan saldo target lewat LedgerService
+                    LedgerService.applyTransactionEffect(db, tx, now)
+                } else {
+                    val newCurrent = (goal.currentAmount - amount).coerceAtLeast(0L)
+                    val cvGoal = ContentValues().apply {
+                        put("current_amount", newCurrent)
                         put("updated_at", now)
                     }
-                    db.insert(DatabaseHelper.TABLE_TRANSACTIONS, null, cvTx)
+                    db.update(DatabaseHelper.TABLE_GOALS, cvGoal, "id = ?", arrayOf(goalId))
                 }
-            }
 
-            db.setTransactionSuccessful()
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
+            }
         }
     }
 
@@ -809,71 +905,89 @@ class CashflowRepository(private val context: Context) {
         totalAmount: Long,
         dueDate: String,
         note: String = "",
-        receiveAssetId: String? = null
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            if (totalAmount <= 0) {
-                return@withContext Result.failure(IllegalArgumentException("Nominal pinjaman harus lebih dari 0"))
-            }
-            if (title.isBlank() || lenderName.isBlank()) {
-                return@withContext Result.failure(IllegalArgumentException("Nama pinjaman dan pemberi pinjaman wajib diisi"))
-            }
+        receiveAssetId: String? = null,
+        direction: String = "debt"
+    ): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                if (totalAmount <= 0) {
+                    return@withContext Result.failure(IllegalArgumentException("Nominal pinjaman harus lebih dari 0"))
+                }
+                if (title.isBlank() || lenderName.isBlank()) {
+                    return@withContext Result.failure(IllegalArgumentException("Nama pinjaman dan pemberi pinjaman wajib diisi"))
+                }
 
-            val now = System.currentTimeMillis()
-            val debtId = UUID.randomUUID().toString()
-            val debtCv = ContentValues().apply {
-                put("id", debtId)
-                put("title", title.trim())
-                put("lender_name", lenderName.trim())
-                put("total_amount", totalAmount)
-                put("paid_amount", 0L)
-                put("due_date", dueDate.trim())
-                put("status", DebtStatus.UNPAID.key)
-                put("note", note.trim())
-                put("created_at", now)
-                put("updated_at", now)
-            }
-            db.insertOrThrow(DatabaseHelper.TABLE_DEBTS, null, debtCv)
-
-            // If user selected an asset to receive borrowed funds, increment asset balance & record INCOME transaction
-            if (!receiveAssetId.isNullOrBlank()) {
-                db.execSQL(
-                    "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance + ?, updated_at = ? WHERE id = ?",
-                    arrayOf(totalAmount, now, receiveAssetId)
-                )
-
-                val txId = "tx_${UUID.randomUUID()}"
-                val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
-                val txCv = ContentValues().apply {
-                    put("id", txId)
-                    put("type", TransactionType.INCOME.value)
-                    put("amount", totalAmount)
-                    put("description", "Pinjaman Diterima: ${title.trim()} (${lenderName.trim()})")
-                    put("category_id", "cat_lainnya_inc")
-                    put("asset_id", receiveAssetId)
-                    put("destination_asset_id", null as String?)
-                    put("transaction_date", todayStr)
-                    put("transaction_time", timeStr)
-                    put("note", if (note.isNotBlank()) note.trim() else "Penerimaan dana pinjaman dari ${lenderName.trim()}")
-                    put("attachment", null as String?)
-                    put("input_method", "manual")
-                    put("debt_id", debtId)
+                val now = System.currentTimeMillis()
+                require(direction in listOf("debt", "receivable"))
+                LocalDate.parse(dueDate)
+                val debtId = UUID.randomUUID().toString()
+                val debtCv = ContentValues().apply {
+                    put("id", debtId)
+                    put("title", title.trim())
+                    put("lender_name", lenderName.trim())
+                    put("direction", direction)
+                    put("total_amount", totalAmount)
+                    put("paid_amount", 0L)
+                    put("due_date", dueDate.trim())
+                    put("status", DebtStatus.UNPAID.key)
+                    put("note", note.trim())
                     put("created_at", now)
                     put("updated_at", now)
                 }
-                db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, txCv)
-            }
+                db.insertOrThrow(DatabaseHelper.TABLE_DEBTS, null, debtCv)
 
-            db.setTransactionSuccessful()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
-            loadFromDb()
+                // If user selected an asset to receive borrowed funds, increment asset balance & record INCOME transaction via LedgerService
+                if (!receiveAssetId.isNullOrBlank()) {
+                    val txId = "tx_${UUID.randomUUID()}"
+                    val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val txCv = ContentValues().apply {
+                        put("id", txId)
+                        put("type", if (direction == "receivable") TransactionType.LOAN_GIVEN.value else TransactionType.LOAN_RECEIVED.value)
+                        put("amount", totalAmount)
+                        put("description", "Dana Pinjaman: ${title.trim()} (${lenderName.trim()})")
+                        put("category_id", "cat_lainnya_inc")
+                        put("asset_id", receiveAssetId)
+                        put("destination_asset_id", null as String?)
+                        put("transaction_date", todayStr)
+                        put("transaction_time", timeStr)
+                        put("note", if (note.isNotBlank()) note.trim() else "Penerimaan dana pinjaman dari ${lenderName.trim()}")
+                        put("attachment", null as String?)
+                        put("input_method", "manual")
+                        put("debt_id", debtId)
+                        put("created_at", now)
+                        put("updated_at", now)
+                    }
+                    db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, txCv)
+
+                    val tx = Transaction(
+                        id = txId,
+                        type = if (direction == "receivable") TransactionType.LOAN_GIVEN.value else TransactionType.LOAN_RECEIVED.value,
+                        amount = totalAmount,
+                        description = "Dana Pinjaman: ${title.trim()} (${lenderName.trim()})",
+                        categoryId = "cat_lainnya_inc",
+                        assetId = receiveAssetId,
+                        destinationAssetId = null,
+                        transactionDate = todayStr,
+                        transactionTime = timeStr,
+                        debtId = debtId,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                    // Jalur sah (a): perbarui saldo aset lewat LedgerService
+                    LedgerService.applyTransactionEffect(db, tx, now)
+                }
+
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
+            }
         }
     }
 
@@ -883,88 +997,81 @@ class CashflowRepository(private val context: Context) {
         sourceAssetId: String,
         paymentDate: String = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
         note: String = ""
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            if (paymentAmount <= 0) {
-                return@withContext Result.failure(IllegalArgumentException("Nominal pembayaran harus lebih dari 0"))
+    ): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                if (paymentAmount <= 0) {
+                    return@withContext Result.failure(IllegalArgumentException("Nominal pembayaran harus lebih dari 0"))
+                }
+                if (sourceAssetId.isBlank()) {
+                    return@withContext Result.failure(IllegalArgumentException("Pilih aset sumber pembayaran cicilan"))
+                }
+
+                // Fetch Debt details for transaction description
+                val cursor = db.query(
+                    DatabaseHelper.TABLE_DEBTS,
+                    null, "id = ?", arrayOf(debtId),
+                    null, null, null
+                )
+                val existingDebt = cursor.use {
+                    if (it.moveToNext()) cursorToDebt(it) else null
+                } ?: return@withContext Result.failure(IllegalStateException("Data hutang tidak ditemukan"))
+
+                val now = System.currentTimeMillis()
+                val txId = "tx_${UUID.randomUUID()}"
+                require(paymentAmount <= existingDebt.remainingAmount) { "Nominal melebihi sisa hutang/piutang." }
+                val paymentType = if (existingDebt.direction == "receivable") TransactionType.RECEIVABLE_PAYMENT.value else TransactionType.DEBT_PAYMENT.value
+                val debtCategory = _categories.value.firstOrNull {
+                    it.type == "expense" && (it.name.contains("Hutang", ignoreCase = true) || it.name.contains("Tagihan", ignoreCase = true))
+                }?.id ?: "cat_tagihan"
+                val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+
+                val txCv = ContentValues().apply {
+                    put("id", txId)
+                    put("type", paymentType)
+                    put("amount", paymentAmount)
+                    put("description", "Pelunasan Pinjaman: ${existingDebt.title} (${existingDebt.lenderName})")
+                    put("category_id", debtCategory)
+                    put("asset_id", sourceAssetId)
+                    put("destination_asset_id", null as String?)
+                    put("transaction_date", paymentDate)
+                    put("transaction_time", timeStr)
+                    put("note", if (note.isNotBlank()) note.trim() else "Cicilan/pelunasan pinjaman kepada ${existingDebt.lenderName}")
+                    put("attachment", null as String?)
+                    put("input_method", "manual")
+                    put("debt_id", debtId)
+                    put("created_at", now)
+                    put("updated_at", now)
+                }
+                db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, txCv)
+
+                val tx = Transaction(
+                    id = txId,
+                    type = paymentType,
+                    amount = paymentAmount,
+                    description = "Pelunasan Pinjaman: ${existingDebt.title} (${existingDebt.lenderName})",
+                    categoryId = debtCategory,
+                    assetId = sourceAssetId,
+                    destinationAssetId = null,
+                    transactionDate = paymentDate,
+                    transactionTime = timeStr,
+                    debtId = debtId,
+                    createdAt = now,
+                    updatedAt = now
+                )
+                // Jalur sah (a): potong saldo aset DAN sinkronkan cicilan hutang lewat LedgerService secara atomik
+                LedgerService.applyTransactionEffect(db, tx, now)
+
+                db.setTransactionSuccessful()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
             }
-            if (sourceAssetId.isBlank()) {
-                return@withContext Result.failure(IllegalArgumentException("Pilih aset sumber pembayaran cicilan"))
-            }
-
-            // 1. Fetch Debt
-            val cursor = db.query(
-                DatabaseHelper.TABLE_DEBTS,
-                null, "id = ?", arrayOf(debtId),
-                null, null, null
-            )
-            val existingDebt = cursor.use {
-                if (it.moveToNext()) cursorToDebt(it) else null
-            } ?: return@withContext Result.failure(IllegalStateException("Data hutang tidak ditemukan"))
-
-            // 2. Fetch Asset
-            val assetCursor = db.query(
-                DatabaseHelper.TABLE_ASSETS,
-                null, "id = ?", arrayOf(sourceAssetId),
-                null, null, null
-            )
-            val existingAsset = assetCursor.use {
-                if (it.moveToNext()) cursorToAsset(it) else null
-            } ?: return@withContext Result.failure(IllegalStateException("Aset sumber pembayaran tidak ditemukan"))
-
-            val newPaidAmount = (existingDebt.paidAmount + paymentAmount).coerceAtMost(existingDebt.totalAmount)
-            val newStatus = if (newPaidAmount >= existingDebt.totalAmount) DebtStatus.PAID.key else DebtStatus.PARTIAL.key
-            val now = System.currentTimeMillis()
-
-            // 3. Update Debt
-            val debtCv = ContentValues().apply {
-                put("paid_amount", newPaidAmount)
-                put("status", newStatus)
-                put("updated_at", now)
-            }
-            db.update(DatabaseHelper.TABLE_DEBTS, debtCv, "id = ?", arrayOf(debtId))
-
-            // 4. Deduct Asset Balance
-            db.execSQL(
-                "UPDATE ${DatabaseHelper.TABLE_ASSETS} SET current_balance = current_balance - ?, updated_at = ? WHERE id = ?",
-                arrayOf(paymentAmount, now, sourceAssetId)
-            )
-
-            // 5. Insert EXPENSE Transaction
-            val txId = "tx_${UUID.randomUUID()}"
-            val debtCategory = _categories.value.firstOrNull {
-                it.type == "expense" && (it.name.contains("Hutang", ignoreCase = true) || it.name.contains("Tagihan", ignoreCase = true))
-            }?.id ?: "cat_tagihan"
-            val timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
-
-            val txCv = ContentValues().apply {
-                put("id", txId)
-                put("type", TransactionType.EXPENSE.value)
-                put("amount", paymentAmount)
-                put("description", "Pembayaran Hutang: ${existingDebt.title} (${existingDebt.lenderName})")
-                put("category_id", debtCategory)
-                put("asset_id", sourceAssetId)
-                put("destination_asset_id", null as String?)
-                put("transaction_date", paymentDate)
-                put("transaction_time", timeStr)
-                put("note", if (note.isNotBlank()) note.trim() else "Cicilan/pelunasan pinjaman kepada ${existingDebt.lenderName}")
-                put("attachment", null as String?)
-                put("input_method", "manual")
-                put("debt_id", debtId)
-                put("created_at", now)
-                put("updated_at", now)
-            }
-            db.insertOrThrow(DatabaseHelper.TABLE_TRANSACTIONS, null, txCv)
-
-            db.setTransactionSuccessful()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            db.endTransaction()
-            loadFromDb()
         }
     }
 
@@ -1008,17 +1115,6 @@ class CashflowRepository(private val context: Context) {
         }
     }
 
-    suspend fun resetToDemo(): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        try {
-            dbHelper.resetToDemo(db)
-            loadFromDb()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     // --- JSON BACKUP & RESTORE ---
 
     suspend fun createBackupJson(): Result<String> = withContext(Dispatchers.IO) {
@@ -1035,13 +1131,18 @@ class CashflowRepository(private val context: Context) {
         return BackupManager.validateBackupJson(jsonString)
     }
 
-    suspend fun restoreFromJson(data: JSONObject): Result<Unit> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        val res = BackupManager.restoreBackup(db, data)
-        if (res.isSuccess) {
-            loadFromDb()
+    suspend fun restoreFromJson(data: JSONObject): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            val res = runCatching {
+                BackupManager.writeSafetyBackup(context, db)
+                BackupManager.restoreBackup(db, data).getOrThrow()
+            }
+            if (res.isSuccess) {
+                loadFromDb()
+            }
+            res
         }
-        res
     }
 
     suspend fun createBackupZip(destZipFile: File): Result<Unit> = withContext(Dispatchers.IO) {
@@ -1049,13 +1150,15 @@ class CashflowRepository(private val context: Context) {
         BackupManager.createBackupZipWithReceipts(context, db, destZipFile)
     }
 
-    suspend fun restoreFromZip(zipFile: File): Result<BackupSummary> = withContext(Dispatchers.IO) {
-        val db = dbHelper.writableDatabase
-        val res = BackupManager.restoreBackupFromZip(context, db, zipFile)
-        if (res.isSuccess) {
-            loadFromDb()
+    suspend fun restoreFromZip(zipFile: File): Result<BackupSummary> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            val res = BackupManager.restoreBackupFromZip(context, db, zipFile)
+            if (res.isSuccess) {
+                loadFromDb()
+            }
+            res
         }
-        res
     }
 
     // --- CSV EXPORT GENERATOR ---
@@ -1074,6 +1177,8 @@ class CashflowRepository(private val context: Context) {
                 TransactionType.INCOME.value -> "Pemasukan"
                 TransactionType.EXPENSE.value -> "Pengeluaran"
                 TransactionType.TRANSFER.value -> "Transfer"
+                TransactionType.ALLOCATION.value -> "Alokasi Tabungan"
+                TransactionType.RELEASE.value -> "Pelepasan Alokasi"
                 else -> tx.type
             }
             val catName = tx.categoryId?.let { catMap[it]?.name } ?: "-"
@@ -1084,9 +1189,9 @@ class CashflowRepository(private val context: Context) {
             sb.append("\"${tx.transactionTime}\",")
             sb.append("\"${escapeCsv(tx.description)}\",")
             sb.append("\"$typeName\",")
-            sb.append("\"$catName\",")
-            sb.append("\"$assetName\",")
-            sb.append("\"$destAssetName\",")
+            sb.append("\"${escapeCsv(catName)}\",")
+            sb.append("\"${escapeCsv(assetName)}\",")
+            sb.append("\"${escapeCsv(destAssetName)}\",")
             sb.append("${tx.amount},")
             sb.append("\"${escapeCsv(tx.note)}\",")
             sb.append("\"${escapeCsv(tx.inputMethod)}\"\n")
@@ -1096,6 +1201,28 @@ class CashflowRepository(private val context: Context) {
 
     private fun escapeCsv(str: String): String {
         return str.replace("\"", "\"\"")
+    }
+
+    suspend fun importCsv(content: String): Result<Int> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                loadFromDb()
+                val preview = com.cashflow.app.data.importer.CsvImport.preview(content, _assets.value, _categories.value, _transactions.value)
+                require(preview.errors.isEmpty()) { preview.errors.take(5).joinToString("\n") }
+                val db = dbHelper.writableDatabase
+                db.beginTransaction()
+                try {
+                    val now = System.currentTimeMillis()
+                    preview.transactions.forEach { tx ->
+                        LedgerService.applyTransactionEffect(db, tx, now)
+                        insertTransactionRow(db, tx, now)
+                    }
+                    db.setTransactionSuccessful()
+                } finally { db.endTransaction() }
+                loadFromDb()
+                preview.transactions.size
+            }
+        }
     }
 
     // --- CURSOR MAPPERS ---
@@ -1136,6 +1263,17 @@ class CashflowRepository(private val context: Context) {
         val sampleIdx = cursor.getColumnIndex("is_sample")
         val tagsIdx = cursor.getColumnIndex("tags")
         val adjIdx = cursor.getColumnIndex("is_adjustment")
+        val dirIdx = cursor.getColumnIndex("adjustment_direction")
+        val isAdj = if (adjIdx >= 0) cursor.getInt(adjIdx) == 1 else false
+        val rawDir = if (dirIdx >= 0) cursor.getInt(dirIdx) else 0
+        val resolvedDir = if (rawDir != 0) {
+            rawDir
+        } else if (cursor.getString(cursor.getColumnIndexOrThrow("type")) == TransactionType.ADJUSTMENT.value || isAdj) {
+            val noteVal = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: ""
+            if (noteVal.contains("(-)")) -1 else 1
+        } else {
+            0
+        }
         return Transaction(
             id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
             type = cursor.getString(cursor.getColumnIndexOrThrow("type")),
@@ -1153,7 +1291,8 @@ class CashflowRepository(private val context: Context) {
             goalId = if (goalIdx >= 0) cursor.getString(goalIdx) else null,
             isSample = if (sampleIdx >= 0) cursor.getInt(sampleIdx) == 1 else false,
             tags = if (tagsIdx >= 0) cursor.getString(tagsIdx) ?: "" else "",
-            isAdjustment = if (adjIdx >= 0) cursor.getInt(adjIdx) == 1 else false,
+            isAdjustment = isAdj,
+            adjustmentDirection = resolvedDir,
             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
         )
@@ -1188,6 +1327,7 @@ class CashflowRepository(private val context: Context) {
             id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
             title = cursor.getString(cursor.getColumnIndexOrThrow("title")),
             lenderName = cursor.getString(cursor.getColumnIndexOrThrow("lender_name")),
+            direction = cursor.getString(cursor.getColumnIndexOrThrow("direction")),
             totalAmount = cursor.getLong(cursor.getColumnIndexOrThrow("total_amount")),
             paidAmount = cursor.getLong(cursor.getColumnIndexOrThrow("paid_amount")),
             dueDate = cursor.getString(cursor.getColumnIndexOrThrow("due_date")),
@@ -1247,6 +1387,15 @@ class CashflowRepository(private val context: Context) {
 
     suspend fun saveRecurringTransaction(rec: RecurringTransaction): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            require(rec.name.isNotBlank() && rec.amount > 0L) { "Nama dan nominal jadwal wajib diisi." }
+            require(rec.interval in 1..365) { "Interval jadwal harus antara 1 dan 365." }
+            require(RecurringFrequency.entries.any { it.value == rec.frequency }) { "Frekuensi jadwal tidak valid." }
+            require(RecurringMode.entries.any { it.value == rec.mode }) { "Mode jadwal tidak valid." }
+            val startDate = LocalDate.parse(rec.startDate)
+            require(rec.endDate == null || !LocalDate.parse(rec.endDate).isBefore(startDate)) { "Tanggal akhir mendahului tanggal mulai." }
+            require(rec.totalOccurrences == null || rec.totalOccurrences > 0) { "Jumlah pengulangan harus lebih dari 0." }
+            LedgerService.validateTransaction(Transaction(rec.id, rec.type, rec.amount, rec.name,
+                assetId = rec.assetId, destinationAssetId = rec.destinationAssetId, transactionDate = rec.startDate)).getOrThrow()
             val db = dbHelper.writableDatabase
             val cv = ContentValues().apply {
                 put("id", rec.id)
@@ -1269,7 +1418,15 @@ class CashflowRepository(private val context: Context) {
                 put("note", rec.note)
                 put("created_at", rec.createdAt)
             }
-            db.insertWithOnConflict(DatabaseHelper.TABLE_RECURRING, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+            // UPDATE preserves occurrence history; REPLACE would cascade-delete it.
+            val editableValues = ContentValues(cv).apply {
+                remove("occurrences_done")
+                remove("last_executed_date")
+                remove("created_at")
+            }
+            if (db.update(DatabaseHelper.TABLE_RECURRING, editableValues, "id = ?", arrayOf(rec.id)) == 0) {
+                db.insertOrThrow(DatabaseHelper.TABLE_RECURRING, null, cv)
+            }
             loadFromDb()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1289,27 +1446,74 @@ class CashflowRepository(private val context: Context) {
         }
     }
 
-    suspend fun recordRecurringExecution(execution: RecurringExecution): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
+    suspend fun executeRecurringOccurrence(recurringId: String, scheduledDate: String, confirmed: Boolean = false): Result<Transaction?> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
             val db = dbHelper.writableDatabase
-            val cv = ContentValues().apply {
-                put("id", execution.id)
-                put("recurring_id", execution.recurringId)
-                put("scheduled_date", execution.scheduledDate)
-                put("transaction_id", execution.transactionId)
-                put("executed_at", execution.executedAt)
-                put("status", execution.status)
+            db.beginTransaction()
+            try {
+                val rec = db.query(DatabaseHelper.TABLE_RECURRING, null, "id = ?", arrayOf(recurringId),
+                    null, null, null).use { if (it.moveToFirst()) cursorToRecurringTransaction(it) else null }
+                    ?: throw IllegalArgumentException("Jadwal tidak ditemukan.")
+                require(rec.isActive) { "Jadwal tidak aktif." }
+                if (isOccurrenceExecuted(rec.id, scheduledDate)) return@withContext Result.success(null)
+                require(rec.mode == RecurringMode.AUTO.value || confirmed) { "Jadwal memerlukan konfirmasi." }
+                require(rec.interval > 0) { "Interval jadwal tidak valid." }
+                val date = LocalDate.parse(scheduledDate)
+                require(com.cashflow.app.data.service.RecurringSchedulerService.generateScheduledDates(rec, date).lastOrNull() == date) {
+                    "Tanggal bukan bagian dari jadwal."
+                }
+                val tx = Transaction(id = "tx_rec_${rec.id}_$scheduledDate", type = rec.type, amount = rec.amount,
+                    description = rec.name, categoryId = rec.categoryId, assetId = rec.assetId,
+                    destinationAssetId = rec.destinationAssetId, transactionDate = if (confirmed) LocalDate.now().toString() else scheduledDate,
+                    transactionTime = "08:00", note = "[Otomatis Berulang] ${rec.note.orEmpty()}".trim(), debtId = rec.linkedDebtId)
+                LedgerService.validateTransaction(tx).getOrThrow()
+                val now = System.currentTimeMillis()
+                LedgerService.applyTransactionEffect(db, tx, now)
+                insertTransactionRow(db, tx, now)
+                insertRecurringExecution(db, RecurringExecution(recurringId = rec.id, scheduledDate = scheduledDate,
+                    transactionId = tx.id, status = "completed"))
+                db.setTransactionSuccessful()
+                Result.success(tx)
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                db.endTransaction()
+                loadFromDb()
             }
-            db.insertWithOnConflict(DatabaseHelper.TABLE_RECURRING_EXECUTIONS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
-            // Update last_executed_date on recurring
-            db.execSQL(
-                "UPDATE ${DatabaseHelper.TABLE_RECURRING} SET last_executed_date = ?, occurrences_done = occurrences_done + 1 WHERE id = ?",
-                arrayOf(execution.scheduledDate, execution.recurringId)
-            )
-            loadFromDb()
+        }
+    }
+
+    private fun insertRecurringExecution(db: SQLiteDatabase, execution: RecurringExecution) {
+        val cv = ContentValues().apply {
+            put("id", execution.id)
+            put("recurring_id", execution.recurringId)
+            put("scheduled_date", execution.scheduledDate)
+            put("transaction_id", execution.transactionId)
+            put("executed_at", execution.executedAt)
+            put("status", execution.status)
+        }
+        if (db.insertWithOnConflict(DatabaseHelper.TABLE_RECURRING_EXECUTIONS, null, cv, SQLiteDatabase.CONFLICT_IGNORE) != -1L) {
+            db.execSQL("UPDATE ${DatabaseHelper.TABLE_RECURRING} SET last_executed_date = MAX(COALESCE(last_executed_date, ''), ?), occurrences_done = occurrences_done + 1 WHERE id = ?",
+                arrayOf(execution.scheduledDate, execution.recurringId))
+        }
+    }
+
+    suspend fun recordRecurringExecution(execution: RecurringExecution): Result<Unit> = balanceWriteMutex.withLock {
+        withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            LocalDate.parse(execution.scheduledDate)
+            require(execution.status == "skipped") { "Eksekusi transaksi harus dicatat bersama transaksi keuangannya." }
+            insertRecurringExecution(db, execution)
+            db.setTransactionSuccessful()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            db.endTransaction()
+            loadFromDb()
+        }
         }
     }
 
@@ -1320,6 +1524,14 @@ class CashflowRepository(private val context: Context) {
             arrayOf(recurringId, scheduledDate)
         )
         return cursor.use { it.moveToFirst() }
+    }
+
+    fun executedOccurrenceKeys(): Set<Pair<String, String>> {
+        val keys = mutableSetOf<Pair<String, String>>()
+        dbHelper.readableDatabase.rawQuery("SELECT recurring_id, scheduled_date FROM ${DatabaseHelper.TABLE_RECURRING_EXECUTIONS}", null).use {
+            while (it.moveToNext()) keys.add(it.getString(0) to it.getString(1))
+        }
+        return keys
     }
 
     private fun cursorToRecurringTransaction(cursor: Cursor): RecurringTransaction {
@@ -1345,5 +1557,38 @@ class CashflowRepository(private val context: Context) {
             note = cursor.getString(cursor.getColumnIndexOrThrow("note")),
             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
         )
+    }
+
+    suspend fun seedSyntheticTransactions(count: Int = 10_000): Result<Long> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            val currentAssets = _assets.value.map { it.id }
+            val assetIds = if (currentAssets.isNotEmpty()) currentAssets else listOf("asset_tunai", "asset_bank", "asset_ewallet")
+
+            val syntheticList = com.cashflow.app.data.benchmark.PerformanceBenchmarker.generateSyntheticTransactions(
+                count = count,
+                years = 3,
+                referenceDate = LocalDate.now(),
+                assetIds = assetIds
+            )
+            val insertDuration = com.cashflow.app.data.benchmark.PerformanceBenchmarker.insertBatchFast(db, syntheticList)
+            LedgerService.recalculateAllBalances(db)
+            loadFromDb()
+            Result.success(insertDuration)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun clearSyntheticTransactions(): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val db = dbHelper.writableDatabase
+            val deletedCount = db.delete(DatabaseHelper.TABLE_TRANSACTIONS, "is_sample = 1", null)
+            LedgerService.recalculateAllBalances(db)
+            loadFromDb()
+            Result.success(deletedCount)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

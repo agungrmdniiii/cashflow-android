@@ -19,7 +19,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.cashflow.app.ui.theme.*
 
 data class SegmentItem<T>(
@@ -30,9 +29,9 @@ data class SegmentItem<T>(
 )
 
 /**
- * High-End Unified Segmented Control for Duit Aing
+ * Standardized Unified Segmented Control for Duit Aing
  * Emulates precision hardware toggles with smooth animated transitions,
- * concentric pill container, and tactile spring feedback.
+ * concentric pill container, and tactile tokens.
  */
 @Composable
 fun <T> DuitAingSegmentedControl(
@@ -40,29 +39,30 @@ fun <T> DuitAingSegmentedControl(
     selectedValue: T,
     onValueChange: (T) -> Unit,
     modifier: Modifier = Modifier,
-    height: Dp = 44.dp
+    height: Dp = AppTouchTarget.comfortable
 ) {
-    val isDark = LocalIsDarkTheme.current
+    val duit = MaterialTheme.duit
+    val pillShape = RoundedCornerShape(AppRadius.pill)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(999.dp))
-            .background(PebbleSurface)
-            .border(1.dp, PebbleBorder, RoundedCornerShape(999.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .clip(pillShape)
+            .background(duit.surfaceVariant)
+            .border(1.dp, duit.border, pillShape)
+            .padding(AppSpacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         items.forEach { item ->
             val isSelected = item.value == selectedValue
             val activeBg by animateColorAsState(
-                targetValue = if (isSelected) (if (isDark) FintechAccentLight else FintechPrimary) else Color.Transparent,
+                targetValue = if (isSelected) duit.primary else Color.Transparent,
                 animationSpec = tween(durationMillis = 180, easing = DuitAingMotion.SubtleEasing),
                 label = "SegmentBg_${item.label}"
             )
             val activeText by animateColorAsState(
-                targetValue = if (isSelected) (if (isDark) PebbleBackgroundDark else TextOnDark) else DarkSurface,
+                targetValue = if (isSelected) duit.onPrimary else duit.textSecondary,
                 animationSpec = tween(durationMillis = 180, easing = DuitAingMotion.SubtleEasing),
                 label = "SegmentText_${item.label}"
             )
@@ -70,27 +70,25 @@ fun <T> DuitAingSegmentedControl(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(height - 8.dp)
-                    .clip(RoundedCornerShape(999.dp))
+                    .height(height - AppSpacing.xs)
+                    .clip(pillShape)
                     .background(activeBg)
                     .clickable(
                         role = Role.Tab,
                         onClick = { onValueChange(item.value) }
                     )
-                    .padding(horizontal = 6.dp),
+                    .padding(horizontal = AppSpacing.xs),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs)
                 ) {
                     item.icon?.invoke()
                     Text(
                         text = item.label,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            fontSize = 11.5.sp,
-                            letterSpacing = 0.3.sp
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         ),
                         color = activeText,
                         maxLines = 1
@@ -98,17 +96,16 @@ fun <T> DuitAingSegmentedControl(
                     if (item.badgeCount > 0) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(100.dp))
-                                .background(if (isSelected) (if (isDark) FintechPrimaryDark else FintechAccentLight) else StatusNegative)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .clip(pillShape)
+                                .background(if (isSelected) duit.onPrimary.copy(alpha = 0.2f) else duit.expense)
+                                .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.xxs)
                         ) {
                             Text(
                                 text = "${item.badgeCount}",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.sp
+                                    fontWeight = FontWeight.Bold
                                 ),
-                                color = if (isSelected) (if (isDark) FintechAccentLight else Color.White) else Color.White
+                                color = if (isSelected) duit.onPrimary else Color.White
                             )
                         }
                     }

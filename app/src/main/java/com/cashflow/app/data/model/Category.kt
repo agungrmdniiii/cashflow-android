@@ -5,7 +5,7 @@ data class Category(
     val name: String,
     val type: String, // "income" or "expense"
     val icon: String = "category",
-    val color: String = "#0F6B56",
+    val color: String = "#111111",
     val isDefault: Boolean = false,
     val isActive: Boolean = true
 )

@@ -92,6 +92,7 @@ fun AssetsScreen(
     }
 
     val isDark = LocalIsDarkTheme.current
+    val duit = MaterialTheme.duit
     var showGoalFormSheet by remember { mutableStateOf(false) }
     var goalToEdit by remember { mutableStateOf<FinancialGoal?>(null) }
     var goalToDeposit by remember { mutableStateOf<FinancialGoal?>(null) }
@@ -99,13 +100,13 @@ fun AssetsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(PebbleBackground)
+            .background(duit.background)
     ) {
         // 1. Top Bar Header with spacious layout
         Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -121,7 +122,7 @@ fun AssetsScreen(
                             fontSize = 24.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = DarkSurface,
+                        color = duit.textPrimary,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -156,11 +157,11 @@ fun AssetsScreen(
         DuitAingSegmentedControl(
             items = listOf(
                 SegmentItem(value = 0, label = "ASET SAYA"),
-                SegmentItem(value = 1, label = "HUTANG SAYA", badgeCount = activeDebtsCount)
+                SegmentItem(value = 1, label = "HUTANG / PIUTANG", badgeCount = activeDebtsCount)
             ),
             selectedValue = subTab,
             onValueChange = { viewModel.setAssetScreenSubTab(it) },
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         )
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -204,6 +205,7 @@ fun AssetsScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
             ) {
+                val duit = MaterialTheme.duit
                 DarkDoubleBezelCard(
                     modifier = Modifier.fillMaxWidth(),
                     outerPadding = 5.dp,
@@ -222,7 +224,7 @@ fun AssetsScreen(
                         ) {
                             EyebrowTag(
                                 text = "TOTAL KEKAYAAN BERSIH",
-                                variant = EyebrowVariant.JADE
+                                variant = EyebrowVariant.DARK
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -234,14 +236,14 @@ fun AssetsScreen(
                                         .minimumInteractiveComponentSize()
                                         .size(32.dp)
                                         .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.08f))
+                                        .background(duit.onHero.copy(alpha = 0.12f))
                                         .clickable(role = Role.Button) { viewModel.toggleBalanceVisibility() },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = if (isBalanceHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
                                         contentDescription = if (isBalanceHidden) "Tampilkan nominal saldo" else "Sembunyikan nominal saldo",
-                                        tint = JadePrimaryLight,
+                                        tint = duit.onHeroSecondary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -261,7 +263,7 @@ fun AssetsScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 2.sp
                                 ),
-                                color = TextOnDark,
+                                color = duit.onHero,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -272,7 +274,7 @@ fun AssetsScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = (-1.2).sp
                                 ),
-                                color = TextOnDark,
+                                color = duit.onHero,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -299,7 +301,7 @@ fun AssetsScreen(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     EyebrowTag(
@@ -338,32 +340,11 @@ fun AssetsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isDark) Color(0xFF162822) else JadePrimaryLight)
-                            .border(
-                                width = 1.dp,
-                                color = if (isDark) Color(0xFF223730) else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = when (asset.type.lowercase()) {
-                                "tunai" -> Icons.Rounded.LocalAtm
-                                "bank" -> Icons.Rounded.AccountBalance
-                                "e-wallet" -> Icons.Rounded.PhoneAndroid
-                                "tabungan" -> Icons.Rounded.Savings
-                                "kartu kredit" -> Icons.Rounded.CreditCard
-                                else -> Icons.Rounded.Wallet
-                            },
-                            contentDescription = null,
-                            tint = if (isDark) Color(0xFFA3D9A5) else FintechPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    AssetIcon(
+                        assetType = asset.type,
+                        size = 40.dp,
+                        iconSize = 20.dp
+                    )
 
                     Spacer(modifier = Modifier.width(12.dp))
 
@@ -375,11 +356,11 @@ fun AssetsScreen(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 ),
-                                color = DarkSurface
+                                color = duit.textPrimary
                             )
                             if (asset.isDefault) {
                                 Spacer(modifier = Modifier.width(6.dp))
-                                AssetBadge(text = "UTAMA")
+                                AssetBadge(text = "Utama")
                             }
                         }
                         Spacer(modifier = Modifier.height(2.dp))
@@ -387,7 +368,7 @@ fun AssetsScreen(
                             text = asset.type.uppercase(),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 letterSpacing = 0.4.sp
                             ),
                             color = TextSecondary
@@ -403,7 +384,7 @@ fun AssetsScreen(
                             fontSize = 15.5.sp,
                             letterSpacing = (-0.4).sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
@@ -416,7 +397,7 @@ fun AssetsScreen(
             }
 
             HorizontalDivider(
-                color = PebbleBorder,
+                color = duit.border,
                 thickness = 0.8.dp,
                 modifier = Modifier.padding(start = 72.dp, end = 20.dp)
             )
@@ -439,7 +420,7 @@ fun AssetsScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         Text(
                             text = "TARGET KEUANGAN",
@@ -448,7 +429,7 @@ fun AssetsScreen(
                                 letterSpacing = 0.5.sp,
                                 fontSize = 15.sp
                             ),
-                            color = DarkSurface,
+                            color = duit.textPrimary,
                             maxLines = 1
                         )
                         EyebrowTag(
@@ -488,6 +469,7 @@ fun AssetsScreen(
                     icon = Icons.Rounded.Savings,
                     title = "BELUM ADA TARGET KEUANGAN",
                     description = "Tetapkan sasaran tabungan, dana darurat, atau impian penting dan pantau progresnya setiap hari.",
+                    lottieRawRes = com.cashflow.app.R.raw.lottie_calm_zen,
                     actionText = "BUAT TARGET PERTAMA",
                     actionIcon = Icons.Rounded.Add,
                     onActionClick = {
@@ -504,7 +486,7 @@ fun AssetsScreen(
                 DoubleBezelCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
                     shadowOffset = 2.dp,
                     outerPadding = 3.dp,
                     outerRadius = 14.dp,
@@ -516,27 +498,27 @@ fun AssetsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(JadePrimaryLight)
-                                    .border(1.dp, JadePrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .background(duit.primaryContainer)
+                                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Celebration,
                                         contentDescription = null,
-                                        tint = JadePrimary,
+                                        tint = duit.primary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = "🎉 TARGET TERCAPAI 100%!",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 11.sp
+                                            fontSize = 12.sp
                                         ),
-                                        color = JadePrimary
+                                        color = duit.primary
                                     )
                                 }
                             }
@@ -559,13 +541,13 @@ fun AssetsScreen(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 15.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "TARGET: ${Formatters.formatDateReadable(goal.deadline)}",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         letterSpacing = 0.4.sp
                                     ),
@@ -616,10 +598,10 @@ fun AssetsScreen(
                             progress = { goal.progressPercentage.coerceIn(0f, 1f) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = JadePrimary,
-                            trackColor = PebbleSurfaceVariant
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp)),
+                            color = duit.primary,
+                            trackColor = duit.track
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -634,7 +616,7 @@ fun AssetsScreen(
                                     text = "TERKUMPUL",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         letterSpacing = 0.5.sp
                                     ),
                                     color = TextTertiary
@@ -646,7 +628,7 @@ fun AssetsScreen(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp
                                     ),
-                                    color = JadePrimary
+                                    color = duit.primary
                                 )
                             }
 
@@ -658,7 +640,7 @@ fun AssetsScreen(
                                     text = "TARGET (${(goal.progressPercentage * 100).toInt()}%)",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         letterSpacing = 0.5.sp
                                     ),
                                     color = TextTertiary,
@@ -671,34 +653,44 @@ fun AssetsScreen(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
                                     ),
-                                    color = DarkSurface,
+                                    color = duit.textPrimary,
                                     textAlign = TextAlign.End
                                 )
                             }
                         }
 
-                        // 3-Month Savings Projection (4E)
+                        // Savings Projection / Estimated Completion
                         val remainingToSave = (goal.targetAmount - goal.currentAmount).coerceAtLeast(0L)
                         if (goal.progressPercentage < 1.0f && remainingToSave > 0L) {
-                            val projectionText = if (avg3MonthSavings > 0L) {
-                                val estMonths = kotlin.math.ceil(remainingToSave.toDouble() / avg3MonthSavings.toDouble()).toInt()
-                                "⏱ Proyeksi: ~$estMonths bln lagi (surplus rata-rata 3 bln: ${Formatters.formatCompact(avg3MonthSavings)}/bln)"
-                            } else {
-                                "⏱ Belum ada surplus 3 bln terakhir untuk proyeksi target"
+                            val estMonths = if (avg3MonthSavings > 0L) {
+                                kotlin.math.ceil(remainingToSave.toDouble() / avg3MonthSavings.toDouble()).toInt()
+                            } else null
+
+                            val deadlineMonths = try {
+                                val deadlineDate = LocalDate.parse(goal.deadline)
+                                val now = LocalDate.now()
+                                val period = java.time.Period.between(now, deadlineDate)
+                                (period.years * 12 + period.months).coerceAtLeast(1)
+                            } catch (e: Exception) { null }
+
+                            val projectionText = when {
+                                estMonths != null -> "⏱ Estimasi tercapai: ~$estMonths bulan lagi (surplus rata-rata: ${Formatters.formatCompact(avg3MonthSavings)}/bln)"
+                                deadlineMonths != null -> "⏱ Target tenggat: ~$deadlineMonths bulan lagi (${Formatters.formatDateReadable(goal.deadline)})"
+                                else -> "⏱ Tenggat target: ${Formatters.formatDateReadable(goal.deadline)}"
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant.copy(alpha = 0.6f))
-                                    .border(0.5.dp, PebbleBorder, RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .background(duit.surfaceVariant.copy(alpha = 0.6f))
+                                    .border(0.5.dp, duit.border, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
                             ) {
                                 Text(
                                     text = projectionText,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.5.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
                                     ),
                                     color = TextSecondary
@@ -739,6 +731,10 @@ fun AssetsScreen(
 
         // 2. Filter Chips Row (Accessible >= 48dp touch targets)
         item {
+            val receivables = debts.filter { it.direction == "receivable" }.sumOf { it.remainingAmount }
+            Text("Piutang belum diterima: ${Formatters.displayRupiah(receivables)}", modifier = Modifier.padding(horizontal = 20.dp), color = duit.textPrimary)
+        }
+        item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -752,29 +748,29 @@ fun AssetsScreen(
                     "PAID" to "LUNAS (${debts.count { it.status == DebtStatus.PAID.key }})"
                 )
 
-                val isDark = LocalIsDarkTheme.current
+                val duit = MaterialTheme.duit
                 filters.forEach { (key, label) ->
                     val isSelected = selectedDebtFilter == key
                     Box(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(999.dp))
-                            .background(if (isSelected) (if (isDark) FintechAccentLight else FintechPrimary) else PebbleSurface)
+                            .background(if (isSelected) duit.primary else duit.surfaceVariant)
                             .border(
                                 1.dp,
-                                if (isSelected) Color.Transparent else PebbleBorder,
+                                if (isSelected) Color.Transparent else duit.border,
                                 RoundedCornerShape(999.dp)
                             )
                             .clickable(role = Role.Button) { viewModel.setDebtFilter(key) }
-                            .padding(horizontal = 14.dp, vertical = 7.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             ),
-                            color = if (isSelected) (if (isDark) PebbleBackgroundDark else TextOnDark) else DarkSurface
+                            color = if (isSelected) duit.onPrimary else duit.textSecondary
                         )
                     }
                 }
@@ -793,7 +789,7 @@ fun AssetsScreen(
                     outerRadius = 18.dp,
                     innerRadius = 14.dp,
                     shadowOffset = 2.dp,
-                    innerColor = PebbleSurface
+                    innerColor = duit.surface
                 ) {
                     Column(
                         modifier = Modifier
@@ -813,7 +809,7 @@ fun AssetsScreen(
                         Box(
                             modifier = Modifier
                                 .size(130.dp)
-                                .padding(bottom = 6.dp),
+                                .padding(bottom = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             if (zenComposition != null) {
@@ -828,14 +824,14 @@ fun AssetsScreen(
                                     modifier = Modifier
                                         .size(56.dp)
                                         .clip(CircleShape)
-                                        .background(JadePrimaryLight)
-                                        .border(1.dp, JadePrimary.copy(alpha = 0.35f), CircleShape),
+                                        .background(duit.primaryContainer)
+                                        .border(1.dp, duit.border, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Verified,
                                         contentDescription = null,
-                                        tint = JadePrimary,
+                                        tint = duit.primary,
                                         modifier = Modifier.size(30.dp)
                                     )
                                 }
@@ -847,7 +843,7 @@ fun AssetsScreen(
                         // Status Tag
                         EyebrowTag(
                             text = if (selectedDebtFilter == "LUNAS") "SEMUA TERCATAT LUNAS" else "100% BEBAS HUTANG",
-                            variant = EyebrowVariant.JADE
+                            variant = EyebrowVariant.PRIMARY
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -862,7 +858,7 @@ fun AssetsScreen(
                                 fontSize = 16.5.sp,
                                 letterSpacing = (-0.2).sp
                             ),
-                            color = DarkSurface,
+                            color = duit.textPrimary,
                             textAlign = TextAlign.Center
                         )
 
@@ -953,8 +949,8 @@ fun AssetsScreen(
         assets = activeAssets,
         defaultAssetId = defaultAsset?.id,
         onDismiss = { viewModel.isAddDebtOpen.value = false },
-        onSave = { title, lender, amount, dueDate, note, receiveAssetId ->
-            viewModel.addDebt(title, lender, amount, dueDate, note, receiveAssetId)
+        onSave = { title, lender, amount, dueDate, note, receiveAssetId, direction ->
+            viewModel.addDebt(title, lender, amount, dueDate, note, receiveAssetId, direction)
         }
     )
 

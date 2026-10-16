@@ -18,7 +18,8 @@ data class Debt(
     val status: String = "unpaid",   // "unpaid" | "partial" | "paid"
     val note: String = "",           // Catatan opsional
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val direction: String = "debt"
 ) {
     val remainingAmount: Long
         get() = (totalAmount - paidAmount).coerceAtLeast(0L)

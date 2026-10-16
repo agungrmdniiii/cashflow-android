@@ -11,15 +11,18 @@ import com.cashflow.app.data.model.Debt
 import com.cashflow.app.data.model.DebtStatus
 import com.cashflow.app.data.model.FinancialGoal
 import com.cashflow.app.data.model.Transaction
+import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.repository.LedgerService
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+    private val appContext: Context = context.applicationContext
 
     companion object {
         const val DATABASE_NAME = "cashflow.db"
-        const val DATABASE_VERSION = 7
+        const val DATABASE_VERSION = 12
 
         const val TABLE_ASSETS = "assets"
         const val TABLE_CATEGORIES = "categories"
@@ -69,7 +72,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 name TEXT NOT NULL,
                 type TEXT NOT NULL,
                 icon TEXT NOT NULL DEFAULT 'category',
-                color TEXT NOT NULL DEFAULT '#0F6B56',
+                color TEXT NOT NULL DEFAULT '#111111',
                 is_default INTEGER NOT NULL DEFAULT 0,
                 is_active INTEGER NOT NULL DEFAULT 1
             );
@@ -96,6 +99,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 is_sample INTEGER NOT NULL DEFAULT 0,
                 tags TEXT NOT NULL DEFAULT '',
                 is_adjustment INTEGER NOT NULL DEFAULT 0,
+                adjustment_direction INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
@@ -138,6 +142,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        backupBeforeMigration(oldVersion)
         if (oldVersion < 2) {
             createDebtsTable(db)
         }
@@ -161,6 +166,39 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN tags TEXT NOT NULL DEFAULT '';") } catch (_: Exception) {}
             try { db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN is_adjustment INTEGER NOT NULL DEFAULT 0;") } catch (_: Exception) {}
         }
+        if (oldVersion < 8) {
+            createIndexes(db)
+        }
+        if (oldVersion < 9) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_TRANSACTIONS ADD COLUMN adjustment_direction INTEGER NOT NULL DEFAULT 0;")
+                db.execSQL("UPDATE $TABLE_TRANSACTIONS SET adjustment_direction = -1 WHERE (type = '${TransactionType.ADJUSTMENT.value}' OR is_adjustment = 1) AND note LIKE '%(-)%';")
+                db.execSQL("UPDATE $TABLE_TRANSACTIONS SET adjustment_direction = 1 WHERE (type = '${TransactionType.ADJUSTMENT.value}' OR is_adjustment = 1) AND (note NOT LIKE '%(-)%' OR note IS NULL);")
+            } catch (_: Exception) {}
+        }
+        if (oldVersion < 10) {
+            LedgerService.migrateLegacyGoalTransactions(db)
+        }
+        if (oldVersion < 11) {
+            db.execSQL("DELETE FROM $TABLE_RECURRING_EXECUTIONS WHERE rowid NOT IN (SELECT MIN(rowid) FROM $TABLE_RECURRING_EXECUTIONS GROUP BY recurring_id, scheduled_date)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_recurring_occurrence_unique ON $TABLE_RECURRING_EXECUTIONS (recurring_id, scheduled_date)")
+        }
+        if (oldVersion < 12) {
+            db.execSQL("ALTER TABLE $TABLE_DEBTS ADD COLUMN direction TEXT NOT NULL DEFAULT 'debt'")
+            LedgerService.migrateLegacyDebtTransactions(db)
+        }
+    }
+
+    private fun backupBeforeMigration(oldVersion: Int) {
+        try {
+            val dbFile = appContext.getDatabasePath(DATABASE_NAME)
+            if (dbFile != null && dbFile.exists() && dbFile.length() > 0) {
+                val backupFile = java.io.File(dbFile.parentFile, "$DATABASE_NAME.bak_v$oldVersion")
+                dbFile.copyTo(backupFile, overwrite = true)
+            }
+        } catch (_: Exception) {
+            // Ignore in restricted environments
+        }
     }
 
     fun createIndexes(db: SQLiteDatabase) {
@@ -169,6 +207,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_transactions_category ON $TABLE_TRANSACTIONS (category_id);")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_budgets_category ON $TABLE_BUDGETS (category_id);")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_debts_status ON $TABLE_DEBTS (status);")
+        // High-performance composite indexes for 10.000+ records
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_transactions_date_type ON $TABLE_TRANSACTIONS (transaction_date DESC, type);")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON $TABLE_TRANSACTIONS (category_id, transaction_date DESC);")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_transactions_asset_date ON $TABLE_TRANSACTIONS (asset_id, transaction_date DESC);")
     }
 
     fun createDebtsTable(db: SQLiteDatabase) {
@@ -178,6 +220,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 lender_name TEXT NOT NULL,
+                direction TEXT NOT NULL DEFAULT 'debt',
                 total_amount INTEGER NOT NULL,
                 paid_amount INTEGER NOT NULL DEFAULT 0,
                 due_date TEXT NOT NULL,
@@ -250,6 +293,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         )
 
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_recurring_executions ON $TABLE_RECURRING_EXECUTIONS (recurring_id, scheduled_date);")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_recurring_occurrence_unique ON $TABLE_RECURRING_EXECUTIONS (recurring_id, scheduled_date);")
     }
 
     fun getDefaultCategoriesList(): List<Category> = listOf(
@@ -270,9 +314,29 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         Category("cat_cicilan", "Cicilan & Asuransi", "expense", "credit_card", "#7A2E35", isDefault = true),
         Category("cat_investasi_exp", "Investasi & Emas", "expense", "savings", "#1C5A46", isDefault = true),
         Category("cat_lainnya_exp", "Lainnya", "expense", "more_horiz", "#4A5550", isDefault = true),
+        Category("cat_kopi_jajan", "Kopi & Jajan", "expense", "restaurant", "#8D3B3B", isDefault = true),
+        Category("cat_bahan_makanan", "Bahan Makanan", "expense", "shopping_bag", "#2D5D48", isDefault = true),
+        Category("cat_bensin", "Bensin & BBM", "expense", "directions_car", "#B57C1E", isDefault = true),
+        Category("cat_parkir_tol", "Parkir & Tol", "expense", "directions_car", "#B57C1E", isDefault = true),
+        Category("cat_servis_kendaraan", "Servis Kendaraan", "expense", "directions_car", "#B57C1E", isDefault = true),
+        Category("cat_pulsa_data", "Pulsa & Paket Data", "expense", "receipt_long", "#2E6F89", isDefault = true),
+        Category("cat_listrik", "Listrik", "expense", "receipt_long", "#2E6F89", isDefault = true),
+        Category("cat_air_pdam", "Air & PDAM", "expense", "receipt_long", "#2E6F89", isDefault = true),
+        Category("cat_internet_rumah", "Internet Rumah", "expense", "receipt_long", "#2E6F89", isDefault = true),
+        Category("cat_sewa_kos", "Sewa & Kos", "expense", "home", "#704E38", isDefault = true),
+        Category("cat_perbaikan_rumah", "Perbaikan Rumah", "expense", "home", "#704E38", isDefault = true),
+        Category("cat_obat_vitamin", "Obat & Vitamin", "expense", "medical_services", "#1E7063", isDefault = true),
+        Category("cat_liburan", "Liburan & Wisata", "expense", "movie", "#6B3E7A", isDefault = true),
+        Category("cat_langganan_digital", "Langganan Digital", "expense", "movie", "#6B3E7A", isDefault = true),
+        Category("cat_biaya_bank", "Biaya Admin Bank", "expense", "credit_card", "#7A2E35", isDefault = true),
+        Category("cat_pajak", "Pajak & Retribusi", "expense", "receipt_long", "#7A2E35", isDefault = true),
+        Category("cat_perlengkapan_anak", "Perlengkapan Anak", "expense", "family_restroom", "#9E4B3E", isDefault = true),
+        Category("cat_acara", "Pernikahan & Acara", "expense", "celebration", "#9E4B3E", isDefault = true),
+        Category("cat_laundry", "Laundry", "expense", "spa", "#8F5845", isDefault = true),
+        Category("cat_perlengkapan_kerja", "Perlengkapan Kerja", "expense", "laptop", "#1A586E", isDefault = true),
 
         // Income Categories (9 Variasi)
-        Category("cat_gaji", "Gaji Pokok", "income", "payments", "#0F3D2E", isDefault = true),
+        Category("cat_gaji", "Gaji Pokok", "income", "payments", "#0A7559", isDefault = true),
         Category("cat_freelance", "Freelance & Jasa", "income", "laptop", "#1A586E", isDefault = true),
         Category("cat_bonus", "Bonus & THR", "income", "celebration", "#1D5A85", isDefault = true),
         Category("cat_penjualan", "Hasil Usaha & Toko", "income", "storefront", "#945219", isDefault = true),
@@ -280,8 +344,19 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         Category("cat_cashback", "Cashback & Reward", "income", "currency_exchange", "#8F6B23", isDefault = true),
         Category("cat_hadiah", "Hadiah & Uang Saku", "income", "redeem", "#5E2B7A", isDefault = true),
         Category("cat_sewa", "Sewa Properti / Aset", "income", "home_work", "#2E5339", isDefault = true),
-        Category("cat_lainnya_inc", "Lainnya", "income", "attach_money", "#4A5550", isDefault = true)
-    )
+        Category("cat_lainnya_inc", "Lainnya", "income", "attach_money", "#4A5550", isDefault = true),
+        Category("cat_komisi", "Komisi Penjualan", "income", "storefront", "#945219", isDefault = true),
+        Category("cat_lembur", "Upah Lembur", "income", "payments", "#0A7559", isDefault = true),
+        Category("cat_insentif", "Insentif Kerja", "income", "celebration", "#1D5A85", isDefault = true),
+        Category("cat_royalti", "Royalti", "income", "laptop", "#1A586E", isDefault = true),
+        Category("cat_bunga_tabungan", "Bunga Tabungan", "income", "trending_up", "#165B33", isDefault = true),
+        Category("cat_pensiun", "Dana Pensiun", "income", "payments", "#0A7559", isDefault = true),
+        Category("cat_hasil_panen", "Hasil Panen", "income", "storefront", "#165B33", isDefault = true),
+        Category("cat_barang_bekas", "Jual Barang Bekas", "income", "storefront", "#945219", isDefault = true),
+        Category("cat_refund", "Pengembalian Dana", "income", "currency_exchange", "#8F6B23", isDefault = true),
+        Category("cat_bantuan", "Bantuan & Subsidi", "income", "redeem", "#5E2B7A", isDefault = true),
+        Category("cat_proyek_sampingan", "Proyek Sampingan", "income", "laptop", "#1A586E", isDefault = true)
+    ).map { it.copy(name = com.cashflow.app.data.model.shortDefaultCategoryLabels[it.name] ?: it.name) }
 
     fun seedMissingDefaultCategories(db: SQLiteDatabase) {
         val defaultCategories = getDefaultCategoriesList()
@@ -296,6 +371,12 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 put("is_active", if (cat.isActive) 1 else 0)
             }
             db.insertWithOnConflict(TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE)
+            for ((oldName, shortName) in com.cashflow.app.data.model.shortDefaultCategoryLabels) {
+                if (shortName == cat.name) {
+                    db.execSQL("UPDATE $TABLE_CATEGORIES SET name = ? WHERE id = ? AND is_default = 1 AND name = ?",
+                        arrayOf(shortName, cat.id, oldName))
+                }
+            }
         }
     }
 
@@ -318,17 +399,20 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
      * Kategori bawaan tetap dipertahankan.
      */
     fun deleteAllUserData(db: SQLiteDatabase) {
+        db.beginTransaction()
+        try {
+        db.execSQL("DELETE FROM $TABLE_RECURRING_EXECUTIONS")
+        db.execSQL("DELETE FROM $TABLE_RECURRING")
         db.execSQL("DELETE FROM $TABLE_TRANSACTIONS")
         db.execSQL("DELETE FROM $TABLE_BUDGETS")
         db.execSQL("DELETE FROM $TABLE_GOALS")
         db.execSQL("DELETE FROM $TABLE_DEBTS")
         db.execSQL("DELETE FROM $TABLE_ASSETS")
         db.execSQL("DELETE FROM $TABLE_FAVORITES")
+        db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
-    @Deprecated("Gunakan deleteAllUserData()")
-    fun resetToDemo(db: SQLiteDatabase) {
-        deleteAllUserData(db)
-        seedInitialData(db)
-    }
 }

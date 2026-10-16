@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,16 +20,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cashflow.app.ui.theme.FintechAccentLight
-import com.cashflow.app.ui.theme.FintechAccentMint
-import com.cashflow.app.ui.theme.FintechPrimary
-import com.cashflow.app.ui.theme.JadePrimary
+import com.cashflow.app.ui.theme.*
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -117,8 +120,8 @@ fun FlowingCashMotion(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF2E7557).copy(alpha = 0.45f),
-                            Color(0xFF0F382A).copy(alpha = 0.15f),
+                            MaterialTheme.duit.heroAccent.copy(alpha = 0.35f),
+                            MaterialTheme.duit.hero.copy(alpha = 0.15f),
                             Color.Transparent
                         )
                     )
@@ -134,22 +137,23 @@ fun FlowingCashMotion(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF348663),
-                            Color(0xFF133E2B)
+                            MaterialTheme.duit.primary,
+                            MaterialTheme.duit.hero
                         )
                     )
                 ),
             contentAlignment = Alignment.Center
         ) {
             // Rotating particle rim
+            val duit = MaterialTheme.duit
             Canvas(modifier = Modifier.fillMaxSize().rotate(shimmerSweep)) {
                 val strokeWidth = 2.dp.toPx()
                 drawCircle(
                     brush = Brush.sweepGradient(
                         colors = listOf(
-                            FintechAccentMint.copy(alpha = 0.8f),
+                            duit.accentLime.copy(alpha = 0.8f),
                             Color.Transparent,
-                            FintechAccentLight.copy(alpha = 0.6f),
+                            duit.accentLime.copy(alpha = 0.6f),
                             Color.Transparent
                         )
                     ),
@@ -173,7 +177,7 @@ fun FlowingCashMotion(
 
                 // Flap
                 drawRoundRect(
-                    color = FintechAccentMint,
+                    color = duit.accentLime,
                     size = Size(w * 0.45f, h * 0.36f),
                     topLeft = Offset(w * 0.55f, h * 0.32f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -181,7 +185,7 @@ fun FlowingCashMotion(
 
                 // Coin dot clasp
                 drawCircle(
-                    color = Color(0xFF0F382A),
+                    color = LightColors.primary,
                     radius = 4.dp.toPx(),
                     center = Offset(w * 0.8f, h * 0.5f)
                 )
@@ -198,8 +202,8 @@ fun FlowingCashMotion(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            FintechAccentMint,
-                            Color(0xFF65A786)
+                            MaterialTheme.duit.accentLime,
+                            MaterialTheme.duit.income
                         )
                     )
                 ),
@@ -209,14 +213,14 @@ fun FlowingCashMotion(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF133E2B)),
+                    .background(MaterialTheme.duit.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(FintechAccentMint)
+                        .background(MaterialTheme.duit.accentLime)
                 )
             }
         }
@@ -231,8 +235,8 @@ fun FlowingCashMotion(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            FintechAccentLight,
-                            Color(0xFF86BC9F)
+                            MaterialTheme.duit.accentLime,
+                            MaterialTheme.duit.income
                         )
                     )
                 ),
@@ -242,14 +246,14 @@ fun FlowingCashMotion(
                 modifier = Modifier
                     .size(20.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF0F382A)),
+                    .background(MaterialTheme.duit.hero),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(FintechAccentLight)
+                        .background(MaterialTheme.duit.heroAccent)
                 )
             }
         }
@@ -265,6 +269,7 @@ fun RevolvingDonutMotion(
     modifier: Modifier = Modifier,
     size: Dp = 220.dp
 ) {
+    val duit = MaterialTheme.duit
     val infiniteTransition = rememberInfiniteTransition(label = "revolvingDonutTransition")
 
     // Slow organic rotation
@@ -301,7 +306,7 @@ fun RevolvingDonutMotion(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF2E7557).copy(alpha = 0.35f),
+                            duit.accentLime.copy(alpha = 0.35f),
                             Color.Transparent
                         )
                     )
@@ -321,7 +326,7 @@ fun RevolvingDonutMotion(
 
             // Segment 1: Mint Accent (40% - 144 deg)
             drawArc(
-                color = FintechAccentMint,
+                color = duit.accentLime,
                 startAngle = 0f,
                 sweepAngle = 138f,
                 useCenter = false,
@@ -332,7 +337,7 @@ fun RevolvingDonutMotion(
 
             // Segment 2: Light Green (30% - 108 deg)
             drawArc(
-                color = FintechAccentLight,
+                color = duit.chart[1],
                 startAngle = 146f,
                 sweepAngle = 100f,
                 useCenter = false,
@@ -343,7 +348,7 @@ fun RevolvingDonutMotion(
 
             // Segment 3: Deep Emerald (20% - 72 deg)
             drawArc(
-                color = Color(0xFF65A786),
+                color = duit.income,
                 startAngle = 254f,
                 sweepAngle = 66f,
                 useCenter = false,
@@ -373,13 +378,14 @@ fun RevolvingDonutMotion(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF1B553D),
-                            Color(0xFF0D2D1F)
+                            duit.primary,
+                            duit.hero
                         )
                     )
                 ),
             contentAlignment = Alignment.Center
         ) {
+            val duit = MaterialTheme.duit
             Canvas(modifier = Modifier.size(size * 0.18f)) {
                 // Mini bar chart inside center core
                 val w = this.size.width
@@ -387,7 +393,7 @@ fun RevolvingDonutMotion(
                 val barW = w * 0.2f
 
                 drawRoundRect(
-                    color = FintechAccentLight.copy(alpha = 0.7f),
+                    color = duit.accentLime.copy(alpha = 0.7f),
                     topLeft = Offset(0f, h * 0.45f),
                     size = Size(barW, h * 0.55f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
@@ -399,7 +405,7 @@ fun RevolvingDonutMotion(
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
                 )
                 drawRoundRect(
-                    color = FintechAccentMint,
+                    color = duit.accentLime,
                     topLeft = Offset(w * 0.7f, h * 0.3f),
                     size = Size(barW, h * 0.7f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
@@ -418,6 +424,7 @@ fun SecurityVaultMotion(
     modifier: Modifier = Modifier,
     size: Dp = 220.dp
 ) {
+    val duit = MaterialTheme.duit
     val infiniteTransition = rememberInfiniteTransition(label = "securityVaultTransition")
 
     // Shield vertical floating
@@ -466,7 +473,7 @@ fun SecurityVaultMotion(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF2E7557).copy(alpha = 0.35f),
+                            duit.accentLime.copy(alpha = 0.35f),
                             Color.Transparent
                         )
                     )
@@ -479,7 +486,7 @@ fun SecurityVaultMotion(
             drawCircle(
                 brush = Brush.sweepGradient(
                     colors = listOf(
-                        FintechAccentMint.copy(alpha = 0.6f),
+                        duit.accentLime.copy(alpha = 0.6f),
                         Color.Transparent
                     )
                 ),
@@ -497,8 +504,8 @@ fun SecurityVaultMotion(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF2E7557),
-                            Color(0xFF0F382A)
+                            duit.primary,
+                            duit.hero
                         )
                     )
                 ),
@@ -518,7 +525,7 @@ fun SecurityVaultMotion(
 
                 // Shackle loop
                 drawArc(
-                    color = Color(0xFF0F382A),
+                    color = LightColors.primary,
                     startAngle = 180f,
                     sweepAngle = 180f,
                     useCenter = false,
@@ -529,7 +536,7 @@ fun SecurityVaultMotion(
 
                 // Padlock base
                 drawRoundRect(
-                    color = Color(0xFF0F382A),
+                    color = LightColors.primary,
                     topLeft = Offset(w * 0.1f, h * 0.35f),
                     size = Size(w * 0.8f, h * 0.65f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx(), 3.dp.toPx())
@@ -537,7 +544,7 @@ fun SecurityVaultMotion(
 
                 // Keyhole
                 drawCircle(
-                    color = FintechAccentMint,
+                    color = duit.accentLime,
                     radius = 2.dp.toPx(),
                     center = Offset(w * 0.5f, h * 0.6f)
                 )
@@ -556,112 +563,49 @@ fun SuccessBurstMotion(
     size: Dp = 100.dp,
     onAnimationEnd: () -> Unit = {}
 ) {
-    // Circle bloom animation
-    val scaleAnim = remember { Animatable(0f) }
-    // Checkmark draw-in progress (0f to 1f)
-    val checkmarkAnim = remember { Animatable(0f) }
-    // Particle ring expansion
-    val particlesAnim = remember { Animatable(0f) }
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(com.cashflow.app.R.raw.lottie_success_check))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = 1,
+        speed = 1.15f
+    )
+    val duit = MaterialTheme.duit
+    val limeArgb = duit.accentLime.toArgb()
+    val textPrimaryArgb = duit.textPrimary.toArgb()
+    val dynamicProps = com.airbnb.lottie.compose.rememberLottieDynamicProperties(
+        com.airbnb.lottie.compose.rememberLottieDynamicProperty(
+            property = com.airbnb.lottie.LottieProperty.COLOR,
+            value = limeArgb,
+            keyPath = arrayOf("**", "Fill 1")
+        ),
+        com.airbnb.lottie.compose.rememberLottieDynamicProperty(
+            property = com.airbnb.lottie.LottieProperty.COLOR,
+            value = limeArgb,
+            keyPath = arrayOf("**")
+        ),
+        com.airbnb.lottie.compose.rememberLottieDynamicProperty(
+            property = com.airbnb.lottie.LottieProperty.STROKE_COLOR,
+            value = textPrimaryArgb,
+            keyPath = arrayOf("**", "Stroke 1")
+        )
+    )
 
-    LaunchedEffect(Unit) {
-        // 1. Pop scale the success circle
-        scaleAnim.animateTo(
-            targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessLow
-            )
-        )
-        // 2. Draw in the checkmark path
-        checkmarkAnim.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
-        )
-        // 3. Radiate outer burst
-        particlesAnim.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 350, easing = LinearOutSlowInEasing)
-        )
-        delay(250)
-        onAnimationEnd()
+    LaunchedEffect(progress) {
+        if (progress >= 0.98f) {
+            delay(120)
+            onAnimationEnd()
+        }
     }
 
     Box(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center
     ) {
-        // Outer particle burst
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val pProgress = particlesAnim.value
-            if (pProgress > 0f) {
-                val center = Offset(this.size.width / 2f, this.size.height / 2f)
-                val baseRadius = this.size.minDimension * 0.38f
-                val distance = baseRadius + (pProgress * 18.dp.toPx())
-                val alpha = (1f - pProgress).coerceIn(0f, 1f)
-
-                // 8 radiating burst dots
-                for (i in 0 until 8) {
-                    val angle = (i * 45f) * (Math.PI / 180f)
-                    val x = center.x + (cos(angle) * distance).toFloat()
-                    val y = center.y + (sin(angle) * distance).toFloat()
-                    drawCircle(
-                        color = FintechAccentMint.copy(alpha = alpha),
-                        radius = (3.dp.toPx() * (1f - pProgress * 0.5f)).coerceAtLeast(1f),
-                        center = Offset(x, y)
-                    )
-                }
-            }
-        }
-
-        // Blooming Green Circle
-        Box(
-            modifier = Modifier
-                .size(size * 0.72f)
-                .scale(scaleAnim.value)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF246C4F),
-                            FintechPrimary
-                        )
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            // Draw-in Checkmark Vector
-            Canvas(modifier = Modifier.size(size * 0.38f)) {
-                val w = this.size.width
-                val h = this.size.height
-
-                val fullPath = Path().apply {
-                    moveTo(w * 0.18f, h * 0.52f)
-                    lineTo(w * 0.42f, h * 0.76f)
-                    lineTo(w * 0.84f, h * 0.26f)
-                }
-
-                val pathMeasure = PathMeasure()
-                pathMeasure.setPath(fullPath, false)
-                val totalLength = pathMeasure.length
-
-                val animatedPath = Path()
-                pathMeasure.getSegment(
-                    startDistance = 0f,
-                    stopDistance = totalLength * checkmarkAnim.value,
-                    destination = animatedPath,
-                    startWithMoveTo = true
-                )
-
-                drawPath(
-                    path = animatedPath,
-                    color = Color.White,
-                    style = Stroke(
-                        width = 4.dp.toPx(),
-                        cap = StrokeCap.Round,
-                        join = androidx.compose.ui.graphics.StrokeJoin.Round
-                    )
-                )
-            }
-        }
+        LottieAnimation(
+            composition = composition,
+            progress = { progress },
+            dynamicProperties = dynamicProps,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }

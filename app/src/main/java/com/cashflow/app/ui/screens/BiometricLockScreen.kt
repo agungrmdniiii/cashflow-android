@@ -14,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
+import com.airbnb.lottie.compose.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -62,9 +64,11 @@ fun BiometricLockScreen(
         triggerPrompt()
     }
 
+    val duit = MaterialTheme.duit
+
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = PebbleBackground
+        color = duit.background
     ) {
         Box(
             modifier = Modifier
@@ -79,8 +83,8 @@ fun BiometricLockScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp),
                 shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, DarkBorder),
-                colors = CardDefaults.cardColors(containerColor = PebbleSurface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, duit.border),
+                colors = CardDefaults.cardColors(containerColor = duit.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
@@ -95,19 +99,33 @@ fun BiometricLockScreen(
                     Spacer(modifier = Modifier.height(28.dp))
 
                     // Tactile Fingerprint Island
+                    val lottieComp by rememberLottieComposition(LottieCompositionSpec.RawRes(com.cashflow.app.R.raw.lottie_biometric_scan))
+                    val limeArgb = duit.accentLime.toArgb()
+                    val dynamicProps = rememberLottieDynamicProperties(
+                        rememberLottieDynamicProperty(
+                            property = com.airbnb.lottie.LottieProperty.STROKE_COLOR,
+                            value = limeArgb,
+                            keyPath = arrayOf("**")
+                        ),
+                        rememberLottieDynamicProperty(
+                            property = com.airbnb.lottie.LottieProperty.COLOR,
+                            value = limeArgb,
+                            keyPath = arrayOf("**")
+                        )
+                    )
                     Box(
                         modifier = Modifier
-                            .size(88.dp)
+                            .size(96.dp)
                             .clip(CircleShape)
-                            .background(JadePrimaryContainer)
-                            .border(2.dp, DarkBorder, CircleShape),
+                            .background(duit.primaryContainer)
+                            .border(1.dp, duit.borderStrong, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Fingerprint,
-                            contentDescription = "Biometrik",
-                            modifier = Modifier.size(48.dp),
-                            tint = JadePrimary
+                        LottieAnimation(
+                            composition = lottieComp,
+                            iterations = LottieConstants.IterateForever,
+                            dynamicProperties = dynamicProps,
+                            modifier = Modifier.size(76.dp)
                         )
                     }
 
@@ -120,7 +138,7 @@ fun BiometricLockScreen(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         ),
-                        color = TextPrimary
+                        color = duit.textPrimary
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -129,7 +147,7 @@ fun BiometricLockScreen(
                     Text(
                         text = "Data keuangan pribadi Anda terlindungi. Tempelkan sidik jari atau gunakan PIN/Pola untuk membuka.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        color = duit.textSecondary,
                         textAlign = TextAlign.Center,
                         lineHeight = 20.sp
                     )
@@ -139,12 +157,12 @@ fun BiometricLockScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = StatusNegativeContainer,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, StatusNegative.copy(alpha = 0.5f))
+                            color = duit.expenseContainer,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, duit.expense.copy(alpha = 0.5f))
                         ) {
                             Text(
                                 text = errorMessage ?: "",
-                                color = StatusNegative,
+                                color = duit.expense,
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 textAlign = TextAlign.Center
@@ -172,14 +190,14 @@ fun BiometricLockScreen(
                         Icon(
                             imageVector = Icons.Rounded.Security,
                             contentDescription = null,
-                            tint = TextSecondary,
+                            tint = duit.textSecondary,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Enkripsi lokal aman di perangkat",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = duit.textSecondary
                         )
                     }
                 }

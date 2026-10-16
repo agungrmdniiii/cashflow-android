@@ -55,9 +55,13 @@ fun AssetTypeIcon(
     modifier: Modifier = Modifier,
     size: Dp = 34.dp,
     iconSize: Dp = 18.dp,
-    backgroundColor: Color = JadePrimaryLight,
-    tintColor: Color = JadePrimary
+    backgroundColor: Color? = null,
+    tintColor: Color? = null
 ) {
+    val duit = MaterialTheme.duit
+    val actualBg = backgroundColor ?: duit.surfaceVariant
+    val actualTint = tintColor ?: duit.textPrimary
+
     val vector: ImageVector = when (type.lowercase()) {
         "tunai" -> Icons.Rounded.LocalAtm
         "bank" -> Icons.Rounded.AccountBalance
@@ -71,14 +75,14 @@ fun AssetTypeIcon(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(6.dp))
-            .background(backgroundColor)
-            .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp)),
+            .background(actualBg)
+            .border(1.dp, duit.border, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = vector,
             contentDescription = null,
-            tint = tintColor,
+            tint = actualTint,
             modifier = Modifier.size(iconSize)
         )
     }
@@ -88,8 +92,8 @@ fun AssetTypeIcon(
  * Global Bottom Sheet Modal Container for "Duit Aing" Selection System
  *
  * Implements:
- * - Scrim dimming backdrop with touch dismiss
- * - Neo-brutalist top card with 1.5dp DarkBorder and 16dp rounded corners
+ * - Scrim dimming backdrop with touch dismiss (50% Black)
+ * - Neo-brutalist top card with 1dp border and 16dp rounded corners
  * - Tactile drag handle
  * - Bold title + subtitle + close button
  * - Optional realtime search field
@@ -109,6 +113,7 @@ fun DuitAingSelectionSheet(
     if (!visible) return
 
     val focusManager = LocalFocusManager.current
+    val duit = MaterialTheme.duit
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -121,7 +126,7 @@ fun DuitAingSelectionSheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkSurface.copy(alpha = 0.55f))
+                .background(Color.Black.copy(alpha = 0.5f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -137,12 +142,12 @@ fun DuitAingSelectionSheet(
                         indication = null
                     ) { /* prevent click-through */ }
                     .border(
-                        BorderStroke(1.5.dp, DarkBorder),
+                        BorderStroke(1.dp, duit.border),
                         RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                     ),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = PebbleSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                colors = CardDefaults.cardColors(containerColor = duit.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -162,7 +167,7 @@ fun DuitAingSelectionSheet(
                                 .width(38.dp)
                                 .height(4.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(DarkBorder.copy(alpha = 0.20f))
+                                .background(duit.borderStrong)
                         )
                     }
 
@@ -175,7 +180,7 @@ fun DuitAingSelectionSheet(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(end = 10.dp)
+                                .padding(end = 8.dp)
                         ) {
                             Text(
                                 text = title.uppercase(),
@@ -183,7 +188,7 @@ fun DuitAingSelectionSheet(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 1.sp
                                 ),
-                                color = DarkSurface,
+                                color = duit.textPrimary,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -195,7 +200,7 @@ fun DuitAingSelectionSheet(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Normal
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                             }
                         }
@@ -213,14 +218,14 @@ fun DuitAingSelectionSheet(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(6.dp)),
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(6.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Close,
                                     contentDescription = "Tutup",
-                                    tint = DarkSurface,
+                                    tint = duit.textPrimary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -228,7 +233,7 @@ fun DuitAingSelectionSheet(
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider(thickness = 1.dp, color = PebbleBorder)
+                    HorizontalDivider(thickness = 1.dp, color = duit.border)
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // 3. Optional Search Field
@@ -243,14 +248,14 @@ fun DuitAingSelectionSheet(
                                 Text(
                                     text = searchPlaceholder,
                                     fontSize = 13.sp,
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                             },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = null,
-                                    tint = DarkSurface,
+                                    tint = duit.textSecondary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             },
@@ -260,7 +265,7 @@ fun DuitAingSelectionSheet(
                                         Icon(
                                             imageVector = Icons.Rounded.Close,
                                             contentDescription = "Hapus",
-                                            tint = DarkSurface,
+                                            tint = duit.textSecondary,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -269,10 +274,12 @@ fun DuitAingSelectionSheet(
                             singleLine = true,
                             shape = RoundedCornerShape(8.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = PebbleSurfaceVariant,
-                                unfocusedContainerColor = PebbleSurfaceVariant,
-                                focusedBorderColor = JadePrimary,
-                                unfocusedBorderColor = DarkBorder.copy(alpha = 0.20f)
+                                focusedContainerColor = duit.surface,
+                                unfocusedContainerColor = duit.surface,
+                                focusedBorderColor = duit.primary,
+                                unfocusedBorderColor = duit.border,
+                                focusedTextColor = duit.textPrimary,
+                                unfocusedTextColor = duit.textPrimary
                             )
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -312,6 +319,8 @@ fun CategoryDropdownField(
         else categories.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
+    val duit = MaterialTheme.duit
+
     Box(modifier = modifier) {
         // Trigger Field
         Box(
@@ -319,8 +328,8 @@ fun CategoryDropdownField(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PebbleSurface)
-                .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                .background(duit.surface)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button) {
                     searchQuery = ""
                     showSheet = true
@@ -335,7 +344,7 @@ fun CategoryDropdownField(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     modifier = Modifier.weight(1f)
                 ) {
                     if (currentCat != null) {
@@ -350,7 +359,7 @@ fun CategoryDropdownField(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             ),
-                            color = DarkSurface,
+                            color = duit.textPrimary,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -359,14 +368,14 @@ fun CategoryDropdownField(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp)),
+                                .background(duit.surfaceVariant)
+                                .border(1.dp, duit.border, RoundedCornerShape(6.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Category,
                                 contentDescription = null,
-                                tint = TextSecondary,
+                                tint = duit.textSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -376,7 +385,7 @@ fun CategoryDropdownField(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
                             ),
-                            color = TextSecondary,
+                            color = duit.textSecondary,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -385,30 +394,30 @@ fun CategoryDropdownField(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(PebbleSurfaceVariant)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(AppRadius.xs))
+                            .background(duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(AppRadius.xs))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "PILIH",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 letterSpacing = 0.5.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                     }
 
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                         contentDescription = null,
-                        tint = DarkSurface,
+                        tint = duit.textPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -436,9 +445,9 @@ fun CategoryDropdownField(
         ) {
             items(filteredCategories, key = { it.id }) { cat ->
                 val isSelected = cat.id == selectedCategoryId
-                val bg = if (isSelected) JadePrimaryContainer.copy(alpha = 0.5f) else PebbleSurface
-                val borderCol = if (isSelected) JadePrimary else DarkBorder.copy(alpha = 0.22f)
-                val textCol = if (isSelected) JadePrimary else DarkSurface
+                val bg = if (isSelected) duit.primaryContainer else duit.surface
+                val borderCol = if (isSelected) duit.primary else duit.border
+                val textCol = if (isSelected) duit.onPrimaryContainer else duit.textPrimary
 
                 Box(
                     modifier = Modifier
@@ -451,7 +460,7 @@ fun CategoryDropdownField(
                             onCategorySelected(cat)
                             showSheet = false
                         }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
@@ -479,7 +488,7 @@ fun CategoryDropdownField(
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = "Terpilih",
-                                tint = JadePrimary,
+                                tint = duit.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -513,6 +522,8 @@ fun AssetDropdownField(
         }
     }
 
+    val duit = MaterialTheme.duit
+
     Box(modifier = modifier) {
         // Trigger Field
         Box(
@@ -520,8 +531,8 @@ fun AssetDropdownField(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PebbleSurface)
-                .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                .background(duit.surface)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button) {
                     searchQuery = ""
                     showSheet = true
@@ -536,7 +547,7 @@ fun AssetDropdownField(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     modifier = Modifier.weight(1f)
                 ) {
                     if (currentAsset != null) {
@@ -544,7 +555,8 @@ fun AssetDropdownField(
                             type = currentAsset.type,
                             size = 32.dp,
                             iconSize = 16.dp,
-                            backgroundColor = JadePrimaryLight
+                            backgroundColor = duit.surfaceVariant,
+                            tintColor = duit.textPrimary
                         )
                         Column {
                             Text(
@@ -553,33 +565,33 @@ fun AssetDropdownField(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 ),
-                                color = DarkSurface,
+                                color = duit.textPrimary,
                                 maxLines = 1,
                                 softWrap = false
                             )
                             Text(
                                 text = currentAsset.type.uppercase(),
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 9.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.5.sp
                                 ),
-                                color = TextSecondary
+                                color = duit.textSecondary
                             )
                         }
                     } else {
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp)),
+                                .clip(RoundedCornerShape(AppRadius.xs))
+                                .background(duit.surfaceVariant)
+                                .border(1.dp, duit.border, RoundedCornerShape(AppRadius.xs)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.AccountBalanceWallet,
                                 contentDescription = null,
-                                tint = TextSecondary,
+                                tint = duit.textSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -589,7 +601,7 @@ fun AssetDropdownField(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
                             ),
-                            color = TextSecondary,
+                            color = duit.textSecondary,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -604,17 +616,17 @@ fun AssetDropdownField(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                .background(duit.surfaceVariant)
+                                .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = Formatters.formatRupiah(currentAsset.currentBalance),
+                                text = Formatters.displayRupiah(currentAsset.currentBalance),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp
                                 ),
-                                color = DarkSurface
+                                color = duit.textPrimary
                             )
                         }
                     }
@@ -622,7 +634,7 @@ fun AssetDropdownField(
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                         contentDescription = null,
-                        tint = DarkSurface,
+                        tint = duit.textPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -646,8 +658,8 @@ fun AssetDropdownField(
         ) {
             items(filteredAssets, key = { it.id }) { ast ->
                 val isSelected = ast.id == selectedAssetId
-                val bg = if (isSelected) JadePrimaryLight.copy(alpha = 0.45f) else PebbleSurface
-                val borderCol = if (isSelected) JadePrimary else DarkBorder.copy(alpha = 0.25f)
+                val bg = if (isSelected) duit.primaryContainer else duit.surface
+                val borderCol = if (isSelected) duit.primary else duit.border
 
                 Box(
                     modifier = Modifier
@@ -659,7 +671,7 @@ fun AssetDropdownField(
                             onAssetSelected(ast)
                             showSheet = false
                         }
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
@@ -676,8 +688,8 @@ fun AssetDropdownField(
                                 type = ast.type,
                                 size = 38.dp,
                                 iconSize = 20.dp,
-                                backgroundColor = if (isSelected) JadePrimaryContainer else PebbleSurfaceVariant,
-                                tintColor = if (isSelected) JadePrimary else DarkSurface
+                                backgroundColor = if (isSelected) duit.primaryContainer else duit.surfaceVariant,
+                                tintColor = if (isSelected) duit.onPrimaryContainer else duit.textPrimary
                             )
                             Column {
                                 Text(
@@ -686,38 +698,38 @@ fun AssetDropdownField(
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
                                         fontSize = 14.sp
                                     ),
-                                    color = DarkSurface
+                                    color = if (isSelected) duit.onPrimaryContainer else duit.textPrimary
                                 )
                                 Text(
                                     text = ast.type.uppercase(),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.SemiBold,
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         letterSpacing = 0.5.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                             }
                         }
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(PebbleSurfaceVariant)
-                                    .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                    .background(duit.surfaceVariant)
+                                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
-                                    text = Formatters.formatRupiah(ast.currentBalance),
+                                    text = Formatters.displayRupiah(ast.currentBalance),
                                     style = MaterialTheme.typography.labelMedium.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 12.sp
                                     ),
-                                    color = DarkSurface
+                                    color = duit.textPrimary
                                 )
                             }
 
@@ -726,13 +738,13 @@ fun AssetDropdownField(
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clip(CircleShape)
-                                        .background(JadePrimary),
+                                        .background(duit.primary),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Check,
                                         contentDescription = "Terpilih",
-                                        tint = TextOnDark,
+                                        tint = duit.onPrimary,
                                         modifier = Modifier.size(15.dp)
                                     )
                                 }
@@ -755,6 +767,7 @@ fun AssetTypeDropdownField(
     modifier: Modifier = Modifier
 ) {
     var showSheet by remember { mutableStateOf(false) }
+    val duit = MaterialTheme.duit
 
     val options = listOf(
         AssetType.BANK.displayName to "Rekening bank tabungan / giro",
@@ -772,8 +785,8 @@ fun AssetTypeDropdownField(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PebbleSurface)
-                .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                .background(duit.surface)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button) { showSheet = true }
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart
@@ -785,14 +798,15 @@ fun AssetTypeDropdownField(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     modifier = Modifier.weight(1f)
                 ) {
                     AssetTypeIcon(
                         type = selectedType,
                         size = 32.dp,
                         iconSize = 16.dp,
-                        backgroundColor = JadePrimaryLight
+                        backgroundColor = duit.surfaceVariant,
+                        tintColor = duit.textPrimary
                     )
                     Text(
                         text = selectedType,
@@ -800,36 +814,36 @@ fun AssetTypeDropdownField(
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                 }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(PebbleSurfaceVariant)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(AppRadius.xs))
+                            .background(duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(AppRadius.xs))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "GANTI",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 letterSpacing = 0.5.sp
                             ),
-                            color = DarkSurface
+                            color = duit.textPrimary
                         )
                     }
 
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                         contentDescription = null,
-                        tint = DarkSurface,
+                        tint = duit.textPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -850,8 +864,8 @@ fun AssetTypeDropdownField(
         ) {
             options.forEach { (type, description) ->
                 val isSelected = type.equals(selectedType, ignoreCase = true)
-                val bg = if (isSelected) JadePrimaryLight.copy(alpha = 0.45f) else PebbleSurface
-                val borderCol = if (isSelected) JadePrimary else DarkBorder.copy(alpha = 0.25f)
+                val bg = if (isSelected) duit.primaryContainer else duit.surface
+                val borderCol = if (isSelected) duit.primary else duit.border
 
                 Box(
                     modifier = Modifier
@@ -863,7 +877,7 @@ fun AssetTypeDropdownField(
                             onTypeSelected(type)
                             showSheet = false
                         }
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
@@ -880,8 +894,8 @@ fun AssetTypeDropdownField(
                                 type = type,
                                 size = 36.dp,
                                 iconSize = 18.dp,
-                                backgroundColor = if (isSelected) JadePrimaryContainer else PebbleSurfaceVariant,
-                                tintColor = if (isSelected) JadePrimary else DarkSurface
+                                backgroundColor = if (isSelected) duit.primaryContainer else duit.surfaceVariant,
+                                tintColor = if (isSelected) duit.onPrimaryContainer else duit.textPrimary
                             )
                             Column {
                                 Text(
@@ -890,14 +904,14 @@ fun AssetTypeDropdownField(
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
                                         fontSize = 14.sp
                                     ),
-                                    color = DarkSurface
+                                    color = if (isSelected) duit.onPrimaryContainer else duit.textPrimary
                                 )
                                 Text(
                                     text = description,
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 11.5.sp
+                                        fontSize = 14.sp
                                     ),
-                                    color = TextSecondary
+                                    color = duit.textSecondary
                                 )
                             }
                         }
@@ -907,13 +921,13 @@ fun AssetTypeDropdownField(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
-                                    .background(JadePrimary),
+                                    .background(duit.primary),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
                                     contentDescription = "Terpilih",
-                                    tint = TextOnDark,
+                                    tint = duit.onPrimary,
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
@@ -927,6 +941,9 @@ fun AssetTypeDropdownField(
 
 /**
  * Global Polished Neo-Brutalist Transaction Type Segmented Control
+ * Strictly follows Mono & Lime palette rule:
+ * Selected = primary fill + onPrimary text/icon.
+ * Unselected = surfaceVariant + textSecondary.
  */
 @Composable
 fun TransactionTypeSegmentedControl(
@@ -934,18 +951,20 @@ fun TransactionTypeSegmentedControl(
     onTypeSelected: (TransactionType) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val duit = MaterialTheme.duit
+    val isDark = LocalIsDarkTheme.current
     val types: List<Pair<TransactionType, Pair<String, ImageVector>>> = listOf(
-        TransactionType.EXPENSE to ("PENGELUARAN" to Icons.Rounded.NorthEast),
-        TransactionType.INCOME to ("PEMASUKAN" to Icons.Rounded.SouthWest),
-        TransactionType.TRANSFER to ("TRANSFER" to Icons.Rounded.SwapHoriz)
+        TransactionType.EXPENSE to ("Pengeluaran" to Icons.Rounded.NorthEast),
+        TransactionType.INCOME to ("Pemasukan" to Icons.Rounded.SouthWest),
+        TransactionType.TRANSFER to ("Transfer" to Icons.Rounded.SwapHoriz)
     )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(999.dp))
-            .background(PebbleSurfaceVariant)
-            .border(1.dp, DarkBorder.copy(alpha = 0.15f), RoundedCornerShape(999.dp))
+            .background(duit.surfaceVariant)
+            .border(1.dp, duit.border, RoundedCornerShape(999.dp))
             .padding(4.dp)
     ) {
         Row(
@@ -956,12 +975,18 @@ fun TransactionTypeSegmentedControl(
                 val (label, icon) = pair
                 val isSelected = selectedType == type
 
-                val targetBg = when {
-                    !isSelected -> Color.Transparent
-                    type == TransactionType.INCOME -> FintechPrimary
-                    type == TransactionType.TRANSFER -> StatusTransfer
-                    else -> StatusNegative
+                val activeColor = when (type) {
+                    TransactionType.EXPENSE -> duit.expense
+                    TransactionType.INCOME -> duit.income
+                    TransactionType.TRANSFER -> duit.transfer
+                    else -> duit.primary
                 }
+
+                val targetBg = if (isSelected) activeColor else Color.Transparent
+                val contentColor = if (isSelected) {
+                    if (isDark) Color(0xFF111111) else Color.White
+                } else duit.textSecondary
+
                 val bgColor by animateColorAsState(
                     targetValue = targetBg,
                     animationSpec = tween(durationMillis = 180),
@@ -975,27 +1000,26 @@ fun TransactionTypeSegmentedControl(
                         .clip(RoundedCornerShape(999.dp))
                         .background(bgColor)
                         .clickable(role = Role.Tab) { onTypeSelected(type) }
-                        .padding(vertical = 10.dp),
+                        .padding(vertical = 9.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = if (isSelected) TextOnDark else TextSecondary,
+                            tint = contentColor,
                             modifier = Modifier.size(15.dp)
                         )
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                letterSpacing = 0.5.sp,
-                                fontSize = 11.5.sp
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                fontSize = 12.sp
                             ),
-                            color = if (isSelected) TextOnDark else TextSecondary,
+                            color = contentColor,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -1018,6 +1042,7 @@ fun DuitAingDatePickerField(
     label: String = "Tanggal"
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    val duit = MaterialTheme.duit
 
     val formattedDateDisplay = remember(dateIsoString) {
         try {
@@ -1049,7 +1074,7 @@ fun DuitAingDatePickerField(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.5.sp
             ),
-            color = TextSecondary
+            color = duit.textSecondary
         )
         Spacer(modifier = Modifier.height(6.dp))
         Box(
@@ -1057,8 +1082,8 @@ fun DuitAingDatePickerField(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PebbleSurface)
-                .border(1.dp, DarkBorder.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                .background(duit.surface)
+                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button) { showDatePicker = true }
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart
@@ -1070,20 +1095,20 @@ fun DuitAingDatePickerField(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     Box(
                         modifier = Modifier
                             .size(34.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(JadePrimaryLight)
-                            .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp)),
+                            .background(duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(6.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.CalendarToday,
                             contentDescription = null,
-                            tint = JadePrimary,
+                            tint = duit.textPrimary,
                             modifier = Modifier.size(17.dp)
                         )
                     }
@@ -1094,25 +1119,25 @@ fun DuitAingDatePickerField(
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(PebbleSurfaceVariant)
-                        .border(1.dp, DarkBorder.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(AppRadius.xs))
+                        .background(duit.surfaceVariant)
+                        .border(1.dp, duit.border, RoundedCornerShape(AppRadius.xs))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "UBAH",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             letterSpacing = 0.5.sp
                         ),
-                        color = DarkSurface
+                        color = duit.textPrimary
                     )
                 }
             }
@@ -1144,29 +1169,29 @@ fun DuitAingDatePickerField(
                         showDatePicker = false
                     }
                 ) {
-                    Text("PILIH", fontWeight = FontWeight.ExtraBold, color = JadePrimary)
+                    Text("PILIH", fontWeight = FontWeight.ExtraBold, color = duit.primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("BATAL", fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Text("BATAL", fontWeight = FontWeight.Bold, color = duit.textSecondary)
                 }
             },
-            colors = DatePickerDefaults.colors(containerColor = PebbleSurface),
+            colors = DatePickerDefaults.colors(containerColor = duit.surface),
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.border(1.5.dp, DarkBorder, RoundedCornerShape(16.dp))
+            modifier = Modifier.border(1.dp, duit.border, RoundedCornerShape(16.dp))
         ) {
             DatePicker(
                 state = datePickerState,
                 colors = DatePickerDefaults.colors(
-                    containerColor = PebbleSurface,
-                    titleContentColor = DarkSurface,
-                    headlineContentColor = DarkSurface,
-                    selectedDayContainerColor = JadePrimary,
-                    selectedDayContentColor = TextOnDark,
-                    todayDateBorderColor = JadePrimary,
-                    todayContentColor = JadePrimary,
-                    dayContentColor = DarkSurface
+                    containerColor = duit.surface,
+                    titleContentColor = duit.textPrimary,
+                    headlineContentColor = duit.textPrimary,
+                    selectedDayContainerColor = duit.primary,
+                    selectedDayContentColor = duit.onPrimary,
+                    todayDateBorderColor = duit.primary,
+                    todayContentColor = duit.primary,
+                    dayContentColor = duit.textPrimary
                 )
             )
         }
@@ -1179,10 +1204,12 @@ fun DuitAingDatePickerField(
 @Composable
 fun PeriodSelectionSheet(
     visible: Boolean,
-    selectedPeriod: PeriodFilter,
+    selectedPeriod: PeriodFilter?,
     onPeriodSelected: (PeriodFilter) -> Unit,
     onDismissRequest: () -> Unit
 ) {
+    val duit = MaterialTheme.duit
+
     DuitAingSelectionSheet(
         visible = visible,
         onDismissRequest = onDismissRequest,
@@ -1192,8 +1219,8 @@ fun PeriodSelectionSheet(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PeriodFilter.entries.forEach { period ->
                 val isSelected = period == selectedPeriod
-                val bg = if (isSelected) JadePrimaryLight.copy(alpha = 0.45f) else PebbleSurface
-                val borderCol = if (isSelected) JadePrimary else DarkBorder.copy(alpha = 0.25f)
+                val bg = if (isSelected) duit.primaryContainer else duit.surface
+                val borderCol = if (isSelected) duit.primary else duit.border
 
                 Box(
                     modifier = Modifier
@@ -1205,7 +1232,7 @@ fun PeriodSelectionSheet(
                             onPeriodSelected(period)
                             onDismissRequest()
                         }
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1220,13 +1247,13 @@ fun PeriodSelectionSheet(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) JadePrimaryContainer else PebbleSurfaceVariant),
+                                    .background(if (isSelected) duit.primaryContainer else duit.surfaceVariant),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.DateRange,
                                     contentDescription = null,
-                                    tint = if (isSelected) JadePrimary else DarkSurface,
+                                    tint = if (isSelected) duit.onPrimaryContainer else duit.textPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1236,7 +1263,7 @@ fun PeriodSelectionSheet(
                                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
                                     fontSize = 14.sp
                                 ),
-                                color = if (isSelected) JadePrimary else DarkSurface
+                                color = if (isSelected) duit.onPrimaryContainer else duit.textPrimary
                             )
                         }
 
@@ -1245,13 +1272,13 @@ fun PeriodSelectionSheet(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
-                                    .background(JadePrimary),
+                                    .background(duit.primary),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
                                     contentDescription = "Terpilih",
-                                    tint = TextOnDark,
+                                    tint = duit.onPrimary,
                                     modifier = Modifier.size(15.dp)
                                 )
                             }

@@ -18,34 +18,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.cashflow.app.ui.theme.*
 
 /**
- * High-End Visual Design: "Double-Bezel" (Doppelrand) Card Architecture
- *
- * Implements concentric nested enclosures that look like machined physical hardware:
- * - Outer Shell: Subtle background tint, hairline outer border (1dp), outer radius (18dp)
- * - Inner Core: Concentric inner surface with distinct background, 1.5dp DarkBorder, calculated radius (14dp)
+ * Standardized "Double-Bezel" Card Architecture for Duit Aing
+ * All paddings and radii adhere to the strict 4-8-12-16-20-24-32dp scale.
  */
 @Composable
 fun DoubleBezelCard(
     modifier: Modifier = Modifier,
-    outerPadding: Dp = 0.dp,
-    outerRadius: Dp = 22.dp,
-    innerRadius: Dp = 22.dp,
+    outerPadding: Dp = AppSpacing.noneOrZero(),
+    outerRadius: Dp = AppRadius.cardLg,
+    innerRadius: Dp = AppRadius.card,
     shadowOffset: Dp = 0.dp,
     outerColor: Color = Color.Transparent,
     outerBorderColor: Color = Color.Transparent,
-    innerColor: Color = PebbleSurface,
-    innerBorderColor: Color = PebbleBorder,
+    innerColor: Color = MaterialTheme.duit.surface,
+    innerBorderColor: Color = MaterialTheme.duit.border,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -53,7 +48,6 @@ fun DoubleBezelCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // Tactile press mechanical physics with spring damping
     val pressShift by animateDpAsState(
         targetValue = if (isPressed && onClick != null && shadowOffset > 0.dp) shadowOffset else 0.dp,
         animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
@@ -104,13 +98,12 @@ fun DoubleBezelCard(
             modifier = modifier
                 .padding(end = shadowOffset, bottom = shadowOffset)
         ) {
-            // Tactile soft offset shadow layer
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .offset(x = shadowOffset, y = shadowOffset)
                     .clip(shape)
-                    .background(DarkBorder.copy(alpha = 0.18f))
+                    .background(MaterialTheme.duit.borderStrong.copy(alpha = 0.25f))
             )
             cardContent()
         }
@@ -121,6 +114,8 @@ fun DoubleBezelCard(
     }
 }
 
+private fun AppSpacing.noneOrZero(): Dp = 0.dp
+
 /**
  * High-Contrast Dark Double-Bezel Card for Hero Focal Points
  */
@@ -128,13 +123,12 @@ fun DoubleBezelCard(
 fun DarkDoubleBezelCard(
     modifier: Modifier = Modifier,
     outerPadding: Dp = 0.dp,
-    outerRadius: Dp = 24.dp,
-    innerRadius: Dp = 22.dp,
+    outerRadius: Dp = AppRadius.cardLg,
+    innerRadius: Dp = AppRadius.card,
     shadowOffset: Dp = 0.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark = LocalIsDarkTheme.current
     DoubleBezelCard(
         modifier = modifier,
         outerPadding = outerPadding,
@@ -143,22 +137,22 @@ fun DarkDoubleBezelCard(
         shadowOffset = shadowOffset,
         outerColor = Color.Transparent,
         outerBorderColor = Color.Transparent,
-        innerColor = if (isDark) PebbleSurfaceDark else FintechPrimary,
-        innerBorderColor = if (isDark) PebbleBorderDark else FintechSecondary.copy(alpha = 0.5f),
+        innerColor = MaterialTheme.duit.hero,
+        innerBorderColor = MaterialTheme.duit.borderStrong,
         onClick = onClick,
         content = content
     )
 }
 
 /**
- * Signature Jade Double-Bezel Card for Highlights
+ * Signature Accent Double-Bezel Card for Highlights
  */
 @Composable
-fun JadeDoubleBezelCard(
+fun AccentDoubleBezelCard(
     modifier: Modifier = Modifier,
-    outerPadding: Dp = 4.dp,
-    outerRadius: Dp = 18.dp,
-    innerRadius: Dp = 14.dp,
+    outerPadding: Dp = AppSpacing.xxs,
+    outerRadius: Dp = AppRadius.card,
+    innerRadius: Dp = AppRadius.input,
     shadowOffset: Dp = 0.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
@@ -169,10 +163,10 @@ fun JadeDoubleBezelCard(
         outerRadius = outerRadius,
         innerRadius = innerRadius,
         shadowOffset = shadowOffset,
-        outerColor = JadePrimaryLight,
-        outerBorderColor = JadePrimary.copy(alpha = 0.30f),
-        innerColor = PebbleSurface,
-        innerBorderColor = DarkBorder.copy(alpha = 0.18f),
+        outerColor = MaterialTheme.duit.primaryContainer,
+        outerBorderColor = MaterialTheme.duit.border,
+        innerColor = MaterialTheme.duit.surface,
+        innerBorderColor = MaterialTheme.duit.border,
         onClick = onClick,
         content = content
     )
@@ -180,14 +174,15 @@ fun JadeDoubleBezelCard(
 
 enum class EyebrowVariant {
     DEFAULT,
-    JADE,
+    PRIMARY,
     POSITIVE,
     NEGATIVE,
     DARK
 }
 
 /**
- * Microscopic Eyebrow Tag for High-End Spatial Hierarchy
+ * Standardized Eyebrow Tag for High-End Spatial Hierarchy
+ * Minimum font size 12sp, standard 4-8-12-16 padding.
  */
 @Composable
 fun EyebrowTag(
@@ -196,43 +191,42 @@ fun EyebrowTag(
     variant: EyebrowVariant = EyebrowVariant.DEFAULT
 ) {
     val bg = when (variant) {
-        EyebrowVariant.DEFAULT -> PebbleSurfaceVariant
-        EyebrowVariant.JADE -> JadePrimaryLight
-        EyebrowVariant.POSITIVE -> StatusPositiveContainer
-        EyebrowVariant.NEGATIVE -> StatusNegativeContainer
-        EyebrowVariant.DARK -> Color.White.copy(alpha = 0.12f)
+        EyebrowVariant.DEFAULT -> MaterialTheme.duit.surfaceVariant
+        EyebrowVariant.PRIMARY -> MaterialTheme.duit.primaryContainer
+        EyebrowVariant.POSITIVE -> MaterialTheme.duit.incomeContainer
+        EyebrowVariant.NEGATIVE -> MaterialTheme.duit.expenseContainer
+        EyebrowVariant.DARK -> MaterialTheme.duit.hero
     }
 
     val textCol = when (variant) {
-        EyebrowVariant.DEFAULT -> TextPrimary
-        EyebrowVariant.JADE -> JadePrimaryDark
-        EyebrowVariant.POSITIVE -> StatusPositive
-        EyebrowVariant.NEGATIVE -> StatusNegative
-        EyebrowVariant.DARK -> TextOnDark
+        EyebrowVariant.DEFAULT -> MaterialTheme.duit.textPrimary
+        EyebrowVariant.PRIMARY -> MaterialTheme.duit.onPrimaryContainer
+        EyebrowVariant.POSITIVE -> MaterialTheme.duit.income
+        EyebrowVariant.NEGATIVE -> MaterialTheme.duit.expense
+        EyebrowVariant.DARK -> MaterialTheme.duit.onHero
     }
 
     val borderCol = when (variant) {
-        EyebrowVariant.DEFAULT -> DarkBorder.copy(alpha = 0.20f)
-        EyebrowVariant.JADE -> JadePrimary.copy(alpha = 0.35f)
-        EyebrowVariant.POSITIVE -> StatusPositive.copy(alpha = 0.35f)
-        EyebrowVariant.NEGATIVE -> StatusNegative.copy(alpha = 0.35f)
-        EyebrowVariant.DARK -> Color.White.copy(alpha = 0.22f)
+        EyebrowVariant.DEFAULT -> MaterialTheme.duit.border
+        EyebrowVariant.PRIMARY -> MaterialTheme.duit.borderStrong
+        EyebrowVariant.POSITIVE -> MaterialTheme.duit.income.copy(alpha = 0.35f)
+        EyebrowVariant.NEGATIVE -> MaterialTheme.duit.expense.copy(alpha = 0.35f)
+        EyebrowVariant.DARK -> MaterialTheme.duit.borderStrong
     }
 
+    val pillShape = RoundedCornerShape(AppRadius.pill)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(100.dp))
+            .clip(pillShape)
             .background(bg)
-            .border(1.dp, borderCol, RoundedCornerShape(100.dp))
-            .padding(horizontal = 9.dp, vertical = 3.dp),
+            .border(1.dp, borderCol, pillShape)
+            .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.xxs),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text.uppercase(),
+            text = text,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 9.5.sp,
-                letterSpacing = 1.2.sp
+                fontWeight = FontWeight.SemiBold
             ),
             color = textCol,
             maxLines = 1,

@@ -23,6 +23,7 @@ object Formatters {
         val absVal = kotlin.math.abs(amount)
         val sign = if (amount < 0) "-" else ""
         return when {
+            absVal >= 1_000_000_000_000L -> "$sign${String.format(Locale.US, "%.1f", absVal / 1_000_000_000_000.0).replace(".0", "")} T"
             absVal >= 1_000_000_000L -> "$sign${String.format(Locale.US, "%.1f", absVal / 1_000_000_000.0).replace(".0", "")} M"
             absVal >= 1_000_000L -> "$sign${String.format(Locale.US, "%.1f", absVal / 1_000_000.0).replace(".0", "")} jt"
             absVal >= 1_000L -> "$sign${String.format(Locale.US, "%.0f", absVal / 1_000.0)} rb"

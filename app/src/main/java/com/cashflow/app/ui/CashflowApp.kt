@@ -16,6 +16,10 @@ import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +32,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,7 +47,12 @@ import com.cashflow.app.ui.theme.*
 @Composable
 fun CashflowApp(viewModel: CashflowViewModel) {
     var showSplash by remember { mutableStateOf(true) }
-    var showOnboarding by remember { mutableStateOf(false) }
+    var showOnboarding by rememberSaveable { mutableStateOf(false) }
+    var tourStep by rememberSaveable { mutableIntStateOf(0) }
+    var showAppGuide by rememberSaveable { mutableStateOf(false) }
+    val tourPage = AppTourStep.entries[tourStep.coerceIn(0, AppTourStep.entries.lastIndex)]
+    val tourTargets = remember { mutableStateMapOf<Int, Rect>() }
+    val tourPending by viewModel.isAppTourPending.collectAsState()
 
     val currentTab by viewModel.currentTab.collectAsState()
     val snackbarMessage by viewModel.snackbarMessage.collectAsState()
@@ -60,6 +70,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsState()
     val isBudgetsScreenOpen by viewModel.isBudgetsScreenOpen.collectAsState()
     val isRecurringScreenOpen by viewModel.isRecurringScreenOpen.collectAsState()
+    val isChatOpen by viewModel.isChatOpen.collectAsState()
 
     // Biometric Security Lock State
     val isAppLocked by viewModel.isAppLocked.collectAsState()
@@ -102,6 +113,18 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         return
     }
 
+    LaunchedEffect(tourPending) {
+        if (tourPending) showOnboarding = true
+    }
+    LaunchedEffect(showOnboarding, tourStep) {
+        if (showOnboarding) viewModel.selectTab(tourPage.tab)
+    }
+    val dismissTour = {
+        showOnboarding = false
+        tourStep = 0
+        viewModel.dismissAppTour()
+    }
+
     // Android Back Handler for dedicated Budgets screen
     BackHandler(enabled = isBudgetsScreenOpen) {
         viewModel.closeBudgetsScreen()
@@ -112,11 +135,17 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         viewModel.isRecurringScreenOpen.value = false
     }
 
+    // Android Back Handler for Financial AI Chat Assistant
+    BackHandler(enabled = isChatOpen) {
+        viewModel.closeChat()
+    }
+
     // Android Back Handler: If not on Home tab (tab 0) and no sheet is open, back takes to Home
     BackHandler(
         enabled = currentTab != 0 &&
                 !isBudgetsScreenOpen &&
                 !isRecurringScreenOpen &&
+                !isChatOpen &&
                 !isRecordVoiceOpen &&
                 !isAddTxOpen &&
                 selectedTxForDetail == null &&
@@ -124,12 +153,14 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                 editingTx == null &&
                 !isAddAssetOpen &&
                 !isSettingsOpen &&
-                !showOnboarding
+                !showOnboarding && !showAppGuide
     ) {
         viewModel.selectTab(0)
     }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
+        modifier = if (showOnboarding) Modifier.clearAndSetSemantics {} else Modifier,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Box(
@@ -138,41 +169,47 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                    val isDark = LocalIsDarkTheme.current
+                    val snackbarBg = if (isDark) Color(0xFFF2F2EE) else Color(0xFF111111)
+                    val snackbarBorder = if (isDark) Color(0xFFE6E6E1) else Color(0xFF2B2B2B)
+                    val snackbarText = if (isDark) Color(0xFF111111) else Color(0xFFF2F2EE)
+                    val snackbarActionColor = if (isDark) Color(0xFF111111) else MaterialTheme.duit.accentLime
+
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(PebbleSurface)
-                            .border(1.5.dp, DarkBorder, RoundedCornerShape(12.dp))
+                            .background(snackbarBg)
+                            .border(1.dp, snackbarBorder, RoundedCornerShape(12.dp))
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = null,
-                                tint = JadePrimary,
+                                tint = snackbarActionColor,
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
                                 text = data.visuals.message,
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp
                                 ),
-                                color = TextPrimary
+                                color = snackbarText
                             )
                             data.visuals.actionLabel?.let { actionLabel ->
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = actionLabel,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.ExtraBold,
+                                        fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
                                         letterSpacing = 0.5.sp
                                     ),
-                                    color = JadePrimary,
+                                    color = snackbarActionColor,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
                                         .clickable(role = Role.Button) {
@@ -187,10 +224,11 @@ fun CashflowApp(viewModel: CashflowViewModel) {
             }
         },
         bottomBar = {
-            DuitAingBottomNavBar(
+            if (!isBudgetsScreenOpen && !isRecurringScreenOpen) DuitAingBottomNavBar(
                 currentTab = currentTab,
                 onTabSelected = { viewModel.selectTab(it) },
-                onAddTransactionClick = { viewModel.openAddTransaction() }
+                onAddTransactionClick = { viewModel.openAddTransaction() },
+                onTargetPositioned = { key, rect -> tourTargets[key] = rect }
             )
         }
     ) { paddingValues ->
@@ -200,18 +238,25 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                 .padding(paddingValues)
         ) {
             AnimatedContent(
+                modifier = if (isBudgetsScreenOpen || isRecurringScreenOpen) Modifier.clearAndSetSemantics {} else Modifier,
                 targetState = currentTab,
                 transitionSpec = {
-                    (fadeIn(
-                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
-                    ) + scaleIn(
-                        initialScale = 0.97f,
-                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
-                    )).togetherWith(
-                        fadeOut(
-                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                    val slideDistance = 48
+                    if (targetState > initialState) {
+                        (fadeIn(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)) +
+                         slideInHorizontally(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)) { slideDistance }
+                        ).togetherWith(
+                         fadeOut(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)) +
+                         slideOutHorizontally(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)) { -slideDistance }
                         )
-                    )
+                    } else {
+                        (fadeIn(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)) +
+                         slideInHorizontally(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)) { -slideDistance }
+                        ).togetherWith(
+                         fadeOut(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)) +
+                         slideOutHorizontally(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)) { slideDistance }
+                        )
+                    }
                 },
                 label = "ScreenTransition"
             ) { targetTab ->
@@ -219,10 +264,12 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                     0 -> HomeScreen(
                         viewModel = viewModel,
                         onNavigateToTransactions = { viewModel.selectTab(1) },
-                        onNavigateToAssets = { viewModel.selectTab(3) }
+                        onNavigateToAssets = { viewModel.selectTab(3) },
+                        onTourBalancePositioned = { tourTargets[5] = it },
+                        onTourAiPositioned = { tourTargets[18] = it }
                     )
-                    1 -> TransactionsScreen(viewModel = viewModel)
-                    2 -> ReportsScreen(viewModel = viewModel)
+                    1 -> TransactionsScreen(viewModel = viewModel, onTourSearchPositioned = { tourTargets[16] = it })
+                    2 -> ReportsScreen(viewModel = viewModel, onTourCalendarPositioned = { tourTargets[17] = it })
                     3 -> AssetsScreen(viewModel = viewModel)
                 }
             }
@@ -265,6 +312,60 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                 )
             }
         }
+    }
+
+    if (showOnboarding && !tourPage.isTransactionForm && !tourPage.isChatPreview) {
+        OnboardingSheet(
+            step = tourStep,
+            target = tourTargets[tourPage.targetId],
+            onNext = {
+                if (tourStep < AppTourStep.entries.lastIndex) tourStep++ else {
+                    dismissTour()
+                    viewModel.openAddTransaction()
+                }
+            },
+            onBack = { if (tourStep > 0) tourStep-- },
+            onDismiss = dismissTour,
+            onOpenGuide = { dismissTour(); showAppGuide = true }
+        )
+    }
+    }
+
+    if (showOnboarding && (tourPage.isTransactionForm || tourPage.isChatPreview)) {
+        Dialog(onDismissRequest = dismissTour, properties = DialogProperties(
+            usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+            val formTargets = remember { mutableStateMapOf<Int, Rect>() }
+            Box(Modifier.fillMaxSize().background(MaterialTheme.duit.background)) {
+                if (tourPage.isTransactionForm) AddEditTransactionContent(
+                    viewModel = viewModel,
+                    onDismiss = dismissTour,
+                    tourTarget = tourPage.targetId,
+                    onTourTargetPositioned = { key, rect -> formTargets[key] = rect },
+                    modifier = Modifier.fillMaxSize().statusBarsPadding().clearAndSetSemantics {}
+                )
+                else FinancialChatContent(
+                    viewModel = viewModel,
+                    onDismiss = dismissTour,
+                    isTourPreview = true,
+                    onTourTargetPositioned = { key, rect -> formTargets[key] = rect },
+                    modifier = Modifier.fillMaxSize().statusBarsPadding().clearAndSetSemantics {}
+                )
+                OnboardingSheet(
+                    step = tourStep,
+                    target = formTargets[tourPage.targetId],
+                    onNext = { tourStep++ },
+                    onBack = { tourStep-- },
+                    onDismiss = dismissTour
+                )
+            }
+        }
+    }
+
+    if (showAppGuide) {
+        AppGuideSheet(
+            onStartTour = { showAppGuide = false; tourStep = 0; showOnboarding = true },
+            onDismiss = { showAppGuide = false }
+        )
     }
 
     // Modal Overlays
@@ -479,14 +580,15 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     if (isSettingsOpen) {
         SettingsSheet(
             viewModel = viewModel,
-            onOpenOnboarding = { showOnboarding = true },
+            onOpenOnboarding = { showAppGuide = true },
             onDismiss = { viewModel.isSettingsOpen.value = false }
         )
     }
 
-    if (showOnboarding) {
-        OnboardingSheet(
-            onDismiss = { showOnboarding = false }
+    if (isChatOpen) {
+        FinancialChatSheet(
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeChat() }
         )
     }
 }
@@ -502,10 +604,12 @@ fun CashflowApp(viewModel: CashflowViewModel) {
 private fun DuitAingBottomNavBar(
     currentTab: Int,
     onTabSelected: (Int) -> Unit,
-    onAddTransactionClick: () -> Unit
+    onAddTransactionClick: () -> Unit,
+    onTargetPositioned: (Int, Rect) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val isDark = LocalIsDarkTheme.current
+    val duit = MaterialTheme.duit
     val navBarShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
 
     val leftTabs = listOf(
@@ -521,16 +625,16 @@ private fun DuitAingBottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 14.dp,
+                elevation = AppElevation.floating,
                 shape = navBarShape,
-                ambientColor = Color(0x150F3D2E),
-                spotColor = Color(0x250F3D2E)
+                ambientColor = Color.Black.copy(alpha = 0.08f),
+                spotColor = Color.Black.copy(alpha = 0.16f)
             )
             .clip(navBarShape)
-            .background(PebbleSurface)
+            .background(duit.surface)
             .border(
                 width = 1.dp,
-                color = PebbleBorder,
+                color = duit.border,
                 shape = navBarShape
             )
             .navigationBarsPadding()
@@ -539,7 +643,7 @@ private fun DuitAingBottomNavBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(72.dp)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left 2 tabs
@@ -553,7 +657,7 @@ private fun DuitAingBottomNavBar(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTabSelected(index)
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).onGloballyPositioned { onTargetPositioned(index, it.boundsInRoot()) }
                 )
             }
 
@@ -566,22 +670,28 @@ private fun DuitAingBottomNavBar(
                 label = "CenterFabScale"
             )
 
+            val isDark = LocalIsDarkTheme.current
+            val duit = MaterialTheme.duit
+            val fabBg = if (isDark) duit.primary else Color(0xFF111111)
+            val fabIconColor = if (isDark) Color(0xFF111111) else duit.accentLime
+
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .size(54.dp)
+                    .padding(horizontal = AppSpacing.xs)
+                    .size(52.dp)
+                    .onGloballyPositioned { onTargetPositioned(4, it.boundsInRoot()) }
                     .graphicsLayer {
                         scaleX = centerScale
                         scaleY = centerScale
                     }
                     .shadow(
-                        elevation = 8.dp,
+                        elevation = AppElevation.floating,
                         shape = CircleShape,
-                        ambientColor = Color(0x250F3D2E),
-                        spotColor = Color(0x450F3D2E)
+                        ambientColor = Color.Black.copy(alpha = 0.12f),
+                        spotColor = Color.Black.copy(alpha = 0.24f)
                     )
                     .clip(CircleShape)
-                    .background(FintechPrimary)
+                    .background(fabBg)
                     .clickable(
                         interactionSource = centerInteractionSource,
                         indication = null,
@@ -595,7 +705,7 @@ private fun DuitAingBottomNavBar(
                 Icon(
                     imageVector = Icons.Rounded.Add,
                     contentDescription = "Tambah Transaksi",
-                    tint = Color.White,
+                    tint = fabIconColor,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -611,7 +721,7 @@ private fun DuitAingBottomNavBar(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTabSelected(index)
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).onGloballyPositioned { onTargetPositioned(index, it.boundsInRoot()) }
                 )
             }
         }
@@ -627,29 +737,24 @@ private fun BottomNavTabItem(
     modifier: Modifier = Modifier
 ) {
     val isDark = LocalIsDarkTheme.current
-    val activeColor = if (isDark) FintechAccentMint else FintechPrimary
-    val inactiveColor = if (isDark) TextSecondaryDark else TextSecondary
+    val duit = MaterialTheme.duit
+
+    // Active Tab Pill: Terang = lime (#C8F25A) dengan ikon hitam (#111111); Gelap = primaryContainer (#232B10) dengan ikon lime (#C8F25A)
+    val pillBg = if (isSelected) {
+        if (isDark) duit.primaryContainer else duit.accentLime
+    } else {
+        Color.Transparent
+    }
+    val contentColor = if (isSelected) {
+        if (isDark) duit.accentLime else Color(0xFF111111)
+    } else {
+        duit.textSecondary
+    }
 
     val iconScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.08f else 1.0f,
+        targetValue = if (isSelected) 1.05f else 1.0f,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
         label = "NavTabIconScale"
-    )
-    val textColor by animateColorAsState(
-        targetValue = if (isSelected) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = 180),
-        label = "NavTabTextColor"
-    )
-    val iconColor by animateColorAsState(
-        targetValue = if (isSelected) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = 180),
-        label = "NavTabIconColor"
-    )
-
-    val indicatorWidth by animateDpAsState(
-        targetValue = if (isSelected) 18.dp else 0.dp,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 450f),
-        label = "NavIndicatorWidth"
     )
 
     Box(
@@ -663,45 +768,45 @@ private fun BottomNavTabItem(
                 role = Role.Tab,
                 onClick = onSelect
             )
-            .padding(vertical = 2.dp),
+            .padding(vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (isSelected) activeColor.copy(alpha = if (isDark) 0.12f else 0.08f) else Color.Transparent)
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = iconColor,
+            Box(
                 modifier = Modifier
-                    .size(23.dp)
-                    .graphicsLayer {
-                        scaleX = iconScale
-                        scaleY = iconScale
-                    }
-            )
+                    .height(28.dp)
+                    .width(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(pillBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = contentColor,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer {
+                            scaleX = iconScale
+                            scaleY = iconScale
+                        }
+                )
+            }
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 11.5.sp
+                    fontSize = 11.sp,
+                    letterSpacing = (-0.3).sp
                 ),
-                color = textColor,
-                maxLines = 1
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-            Box(
-                modifier = Modifier
-                    .width(indicatorWidth)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
-                    .background(if (isSelected) activeColor else Color.Transparent)
+                color = if (isSelected) duit.textPrimary else duit.textSecondary,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }

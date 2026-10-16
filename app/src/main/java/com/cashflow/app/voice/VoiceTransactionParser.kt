@@ -267,8 +267,10 @@ object VoiceTransactionParser {
         val decimalJutaRegex = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:juta|jt)\\b", Pattern.CASE_INSENSITIVE).matcher(clean)
         if (decimalJutaRegex.find()) {
             val normalizedNumStr = decimalJutaRegex.group(1)!!.replace(",", ".")
-            val num = normalizedNumStr.toDoubleOrNull()
-            if (num != null) return (num * 1000000.0).toLong()
+            try {
+                val bd = java.math.BigDecimal(normalizedNumStr)
+                return bd.multiply(java.math.BigDecimal(1_000_000)).toLong()
+            } catch (_: Exception) {}
         }
 
         // --- STEP 8: Thousands with Suffix (e.g. "500 ribu", "50rb", "50k", "50 k", "25ribu") ---
@@ -651,12 +653,14 @@ object VoiceTransactionParser {
         val matched = availableAssets.firstOrNull { asset ->
             val name = asset.name.lowercase(Locale.ROOT)
             val typeName = asset.type.lowercase(Locale.ROOT)
-            normalizedText.contains(name) ||
-                    (name == "bca" && (normalizedText.contains("bca") || normalizedText.contains("klikbca") || normalizedText.contains("mbca"))) ||
+            val wordPattern = Pattern.compile("\\b${Regex.escape(name)}\\b", Pattern.CASE_INSENSITIVE)
+            wordPattern.matcher(normalizedText).find() ||
+                    (name == "bca" && Pattern.compile("\\b(?:bca|klikbca|mbca)\\b", Pattern.CASE_INSENSITIVE).matcher(normalizedText).find()) ||
                     (name == "mandiri" && (normalizedText.contains("mandiri") || normalizedText.contains("livin"))) ||
-                    (name == "bri" && (normalizedText.contains("bri") || normalizedText.contains("brimo"))) ||
-                    (name == "gopay" && (normalizedText.contains("gopay") || normalizedText.contains("gojek"))) ||
-                    (name == "shopeepay" && (normalizedText.contains("shopeepay") || normalizedText.contains("spay"))) ||
+                    (name == "bri" && Pattern.compile("\\b(?:bri|brimo)\\b", Pattern.CASE_INSENSITIVE).matcher(normalizedText).find()) ||
+                    (name == "bni" && Pattern.compile("\\b(?:bni)\\b", Pattern.CASE_INSENSITIVE).matcher(normalizedText).find()) ||
+                    (name == "gopay" && (normalizedText.contains("gopay") || Pattern.compile("\\bgojek\\b", Pattern.CASE_INSENSITIVE).matcher(normalizedText).find())) ||
+                    (name == "shopeepay" && (normalizedText.contains("shopeepay") || Pattern.compile("\\bspay\\b", Pattern.CASE_INSENSITIVE).matcher(normalizedText).find())) ||
                     ((name == "cash" || typeName == "tunai") && (normalizedText.contains("cash") || normalizedText.contains("tunai") || normalizedText.contains("dompet") || normalizedText.contains("kontan"))) ||
                     (name == "tabungan" && (normalizedText.contains("tabungan") || normalizedText.contains("simpanan") || normalizedText.contains("celengan")))
         }
@@ -671,7 +675,9 @@ object VoiceTransactionParser {
         }
 
         // Check if an unowned asset was mentioned (e.g. CIMB, OVO, ShopeePay)
-        val mentionedUnknown = knownAssetKeywords.firstOrNull { normalizedText.contains(it) }
+        val mentionedUnknown = knownAssetKeywords.firstOrNull {
+            Pattern.compile("\\b${Regex.escape(it)}\\b", Pattern.CASE_INSENSITIVE).matcher(normalizedText).find()
+        }
         if (mentionedUnknown != null) {
             return AssetResolution(
                 sourceAsset = null,
@@ -789,7 +795,7 @@ object VoiceTransactionParser {
 
                 // Tagihan & Utilitas
                 text.contains("listrik") || text.contains("token listrik") || text.contains("pln") ||
-                        text.contains("air") || text.contains("pdam") || text.contains("wifi") ||
+                        text.contains("pdam") || text.contains("tagihan air") || text.contains("air pdam") || text.contains("wifi") ||
                         text.contains("indihome") || text.contains("biznet") || text.contains("first media") ||
                         text.contains("internet") || text.contains("pulsa") || text.contains("paket data") ||
                         text.contains("kuota") || text.contains("bpjs") || text.contains("asuransi") ||
@@ -851,6 +857,7 @@ object VoiceTransactionParser {
                 text.contains("perabot") || text.contains("alat dapur") || text.contains("sapu") ||
                         text.contains("pel") || text.contains("deterjen") || text.contains("gas") ||
                         text.contains("elpiji") || text.contains("galon") || text.contains("aqua galon") ||
+                        text.contains("laundry") || text.contains("cuci baju") ||
                         text.contains("renovasi") || text.contains("cat rumah") || text.contains("lampu") ||
                         text.contains("rumah") || text.contains("kebersihan") || text.contains("kasur") ||
                         text.contains("sprei") ->

@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +59,8 @@ fun ExportDataDialog(
     if (!isOpen) return
 
     val context = LocalContext.current
+    val duit = MaterialTheme.duit
+    val isDark = LocalIsDarkTheme.current
     var selectedFormat by remember { mutableStateOf(ExportFormat.PDF) }
     var exportFilteredOnly by remember(hasActiveFilter) { mutableStateOf(hasActiveFilter) }
     var isExporting by remember { mutableStateOf(false) }
@@ -68,7 +71,7 @@ fun ExportDataDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 10.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .navigationBarsPadding()
         ) {
                 // Header
@@ -83,7 +86,7 @@ fun ExportDataDialog(
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.5.sp
                         ),
-                        color = TextPrimary
+                        color = duit.textPrimary
                     )
 
                     IconButton(
@@ -93,7 +96,7 @@ fun ExportDataDialog(
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Tutup",
-                            tint = TextSecondary,
+                            tint = duit.textSecondary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -107,14 +110,14 @@ fun ExportDataDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (isPdf) JadePrimaryContainer.copy(alpha = 0.45f) else PebbleSurfaceVariant.copy(alpha = 0.35f))
+                        .background(if (isPdf) duit.primaryContainer.copy(alpha = 0.45f) else duit.surfaceVariant.copy(alpha = 0.35f))
                         .border(
                             width = if (isPdf) 1.5.dp else 1.dp,
-                            color = if (isPdf) JadePrimary else DarkBorder.copy(alpha = 0.20f),
+                            color = if (isPdf) duit.primary else duit.border,
                             shape = RoundedCornerShape(12.dp)
                         )
                         .clickable(role = Role.RadioButton) { selectedFormat = ExportFormat.PDF }
-                        .padding(14.dp)
+                        .padding(16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -125,14 +128,14 @@ fun ExportDataDialog(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(if (isPdf) JadePrimary else PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), CircleShape),
+                                .background(if (isPdf) (if (isDark) duit.accentLime else Color(0xFF111111)) else duit.surfaceVariant)
+                                .border(1.dp, duit.border, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.PictureAsPdf,
                                 contentDescription = null,
-                                tint = if (isPdf) PebbleSurface else TextSecondary,
+                                tint = if (isPdf) (if (isDark) Color(0xFF111111) else Color.White) else duit.textSecondary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -144,30 +147,30 @@ fun ExportDataDialog(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp
                                 ),
-                                color = TextPrimary
+                                color = duit.textPrimary
                             )
                             Spacer(modifier = Modifier.height(3.dp))
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(JadePrimary)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .background(if (isDark) duit.accentLime else Color(0xFF111111))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = "RAPI & SIAP BUKA",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 8.5.sp,
+                                        fontSize = 12.sp,
                                         letterSpacing = 0.5.sp
                                     ),
-                                    color = PebbleSurface
+                                    color = if (isDark) Color(0xFF111111) else Color.White
                                 )
                             }
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = "Laporan tabel & ringkasan resmi siap cetak.",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                                color = TextSecondary
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = duit.textSecondary
                             )
                         }
 
@@ -175,8 +178,8 @@ fun ExportDataDialog(
                             selected = isPdf,
                             onClick = { selectedFormat = ExportFormat.PDF },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = JadePrimary,
-                                unselectedColor = TextSecondary
+                                selectedColor = duit.primary,
+                                unselectedColor = duit.textSecondary
                             )
                         )
                     }
@@ -190,14 +193,14 @@ fun ExportDataDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (isCsv) JadePrimaryContainer.copy(alpha = 0.45f) else PebbleSurfaceVariant.copy(alpha = 0.35f))
+                        .background(if (isCsv) duit.primaryContainer.copy(alpha = 0.45f) else duit.surfaceVariant.copy(alpha = 0.35f))
                         .border(
                             width = if (isCsv) 1.5.dp else 1.dp,
-                            color = if (isCsv) JadePrimary else DarkBorder.copy(alpha = 0.20f),
+                            color = if (isCsv) duit.primary else duit.border,
                             shape = RoundedCornerShape(12.dp)
                         )
                         .clickable(role = Role.RadioButton) { selectedFormat = ExportFormat.CSV }
-                        .padding(14.dp)
+                        .padding(16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -208,14 +211,14 @@ fun ExportDataDialog(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(if (isCsv) JadePrimary else PebbleSurfaceVariant)
-                                .border(1.dp, DarkBorder.copy(alpha = 0.20f), CircleShape),
+                                .background(if (isCsv) (if (isDark) duit.accentLime else Color(0xFF111111)) else duit.surfaceVariant)
+                                .border(1.dp, duit.border, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.TableChart,
                                 contentDescription = null,
-                                tint = if (isCsv) PebbleSurface else TextSecondary,
+                                tint = if (isCsv) (if (isDark) Color(0xFF111111) else Color.White) else duit.textSecondary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -227,13 +230,13 @@ fun ExportDataDialog(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp
                                 ),
-                                color = TextPrimary
+                                color = duit.textPrimary
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Format data mentah untuk Excel & Google Sheets.",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                                color = TextSecondary
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = duit.textSecondary
                             )
                         }
 
@@ -241,8 +244,8 @@ fun ExportDataDialog(
                             selected = isCsv,
                             onClick = { selectedFormat = ExportFormat.CSV },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = JadePrimary,
-                                unselectedColor = TextSecondary
+                                selectedColor = duit.primary,
+                                unselectedColor = duit.textSecondary
                             )
                         )
                     }
@@ -256,9 +259,9 @@ fun ExportDataDialog(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.8.sp,
-                        fontSize = 10.5.sp
+                        fontSize = 12.sp
                     ),
-                    color = TextSecondary
+                    color = duit.textSecondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -273,19 +276,19 @@ fun ExportDataDialog(
                             .weight(1f)
                             .defaultMinSize(minHeight = 38.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isAllSelected) JadePrimary else PebbleSurfaceVariant)
-                            .border(1.dp, if (isAllSelected) DarkBorder else DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .background(if (isAllSelected) (if (isDark) duit.accentLime else Color(0xFF111111)) else duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                             .clickable(role = Role.RadioButton) { exportFilteredOnly = false }
-                            .padding(vertical = 8.dp, horizontal = 10.dp),
+                            .padding(vertical = 8.dp, horizontal = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "SEMUA RIWAYAT",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             ),
-                            color = if (isAllSelected) PebbleSurface else TextPrimary
+                            color = if (isAllSelected) (if (isDark) Color(0xFF111111) else Color.White) else duit.textPrimary
                         )
                     }
 
@@ -296,19 +299,19 @@ fun ExportDataDialog(
                             .weight(1f)
                             .defaultMinSize(minHeight = 38.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isFilteredSelected) JadePrimary else PebbleSurfaceVariant)
-                            .border(1.dp, if (isFilteredSelected) DarkBorder else DarkBorder.copy(alpha = 0.20f), RoundedCornerShape(8.dp))
+                            .background(if (isFilteredSelected) (if (isDark) duit.accentLime else Color(0xFF111111)) else duit.surfaceVariant)
+                            .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                             .clickable(role = Role.RadioButton) { exportFilteredOnly = true }
-                            .padding(vertical = 8.dp, horizontal = 10.dp),
+                            .padding(vertical = 8.dp, horizontal = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = filterName.uppercase(),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             ),
-                            color = if (isFilteredSelected) PebbleSurface else TextPrimary,
+                            color = if (isFilteredSelected) (if (isDark) Color(0xFF111111) else Color.White) else duit.textPrimary,
                             maxLines = 1
                         )
                     }
@@ -319,7 +322,7 @@ fun ExportDataDialog(
                 // Actions: BATAL + EKSPOR
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     DuitAingButton(
                         text = "BATAL",
@@ -327,7 +330,7 @@ fun ExportDataDialog(
                         variant = DuitAingButtonVariant.OUTLINE,
                         modifier = Modifier.weight(1f),
                         height = 44.dp,
-                        shadowOffset = 2.dp
+                        shadowOffset = 0.dp
                     )
 
                     DuitAingButton(
@@ -378,7 +381,7 @@ fun ExportDataDialog(
                         isLoading = isExporting,
                         modifier = Modifier.weight(1.4f),
                         height = 44.dp,
-                        shadowOffset = 2.dp
+                        shadowOffset = 0.dp
                     )
                 }
             }
