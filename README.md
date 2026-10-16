@@ -9,7 +9,19 @@ Kelola transaksi, rekening, anggaran, hutang, dan target tabungan dalam satu apl
 ![UI](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4)
 ![Storage](https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white)
 
-[Mulai menggunakan](#mulai-menggunakan) · [Fitur](#fitur) · [Vina](#asisten-keuangan-vina) · [Build](#menjalankan-proyek) · [Pengujian](#pengujian) · [Privasi](#data-privasi-dan-koneksi)
+[Tampilan](#tampilan-aplikasi) · [Mulai menggunakan](#mulai-menggunakan) · [Fitur](#fitur) · [Vina](#asisten-keuangan-vina) · [Build](#menjalankan-proyek) · [Pengujian](#pengujian) · [Privasi](#data-privasi-dan-koneksi)
+
+## Tampilan aplikasi
+
+Tangkapan layar dari aplikasi yang berjalan di emulator. Seluruh nama, saldo, dan transaksi pada galeri ini menggunakan **data fiktif untuk demonstrasi**. Klik gambar untuk melihat ukuran penuh.
+
+| Beranda | Transaksi | Laporan |
+| :---: | :---: | :---: |
+| <a href="docs/screenshots/current/home.png"><img src="docs/screenshots/current/home.png" width="260" alt="Beranda Duit Aing dengan saldo rekening dan ringkasan transaksi dari data demo" /></a> | <a href="docs/screenshots/current/transactions.png"><img src="docs/screenshots/current/transactions.png" width="260" alt="Riwayat transaksi dengan pencarian, filter, dan pilihan jenis transaksi" /></a> | <a href="docs/screenshots/current/reports.png"><img src="docs/screenshots/current/reports.png" width="260" alt="Laporan pengeluaran dengan periode dan diagram komposisi kategori" /></a> |
+
+| Rekening & aset | Asisten Vina | Pengaturan |
+| :---: | :---: | :---: |
+| <a href="docs/screenshots/current/assets.png"><img src="docs/screenshots/current/assets.png" width="260" alt="Daftar rekening dan aset dengan saldo fiktif" /></a> | <a href="docs/screenshots/current/vina.png"><img src="docs/screenshots/current/vina.png" width="260" alt="Asisten Vina dalam mode lokal menjawab pertanyaan keuangan dari data demo" /></a> | <a href="docs/screenshots/current/settings.png"><img src="docs/screenshots/current/settings.png" width="260" alt="Pengaturan aplikasi yang dikelompokkan berdasarkan fungsi" /></a> |
 
 ## Sekilas
 
