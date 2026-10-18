@@ -24,10 +24,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 data class SnackbarEvent(
@@ -47,7 +45,8 @@ enum class DateFilterPreset(val label: String) {
 
 class CashflowViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CashflowRepository(application.applicationContext)
+    private val repository = (application as com.cashflow.app.CashflowApplication).repository
+    val initialLoadComplete = repository.initialLoadComplete
     private val prefs = PreferenceManager(application.applicationContext)
     val budgetStartDay = MutableStateFlow(prefs.getBudgetStartDay())
     val lastBackupFormat = MutableStateFlow(prefs.getLastBackupFormat())
@@ -140,7 +139,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         if (!enabled) false
         else if (lastTime == 0L) true
         else (System.currentTimeMillis() - lastTime) > (7 * 24 * 60 * 60 * 1000L)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val isAppLocked = MutableStateFlow(prefs.isBiometricEnabled())
     private var lastBackgroundTimestamp: Long = 0L
@@ -265,15 +264,15 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch {
             try {
-                repository.reloadForBackgroundCheck()
-                RecurringSchedulerService.processDueRecurringTransactions(repository)
+                repository.awaitInitialLoad()
+                withContext(Dispatchers.IO) { RecurringSchedulerService.processDueRecurringTransactions(repository) }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             repository.recurringTransactions.collect { recList ->
-                upcomingRecurringBills.value = RecurringSchedulerService.getUpcomingBills(
-                    repository, recList, daysAhead = 7
-                )
+                upcomingRecurringBills.value = withContext(Dispatchers.IO) {
+                    RecurringSchedulerService.getUpcomingBills(repository, recList, daysAhead = 7)
+                }
             }
         }
         viewModelScope.launch {
@@ -332,27 +331,13 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             .onFailure { showSnackbar("Kunci gagal disimpan dengan aman: ${it.message}") }
     }
 
-    val monthComparisonStats: StateFlow<MonthComparisonStats?> = transactions.map { txList ->
-        val now = LocalDate.now()
-        val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        val prevPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        FinancialInsightService.calculateMonthComparison(txList, currentPrefix, prevPrefix)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val monthComparisonStats: StateFlow<MonthComparisonStats?> = combine(transactions, categories) { txList, catList ->
+        FinancialInsightService.computeMonthComparison(txList, catList, LocalDate.now())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val ruleBasedInsights: StateFlow<List<FinancialInsight>> = combine(
-        transactions,
-        budgets,
-        assets
-    ) { txList, budgetList, assetList ->
-        val now = LocalDate.now()
-        val currentPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        FinancialInsightService.generateLocalInsights(
-            transactions = txList,
-            budgets = budgetList,
-            assets = assetList,
-            currentMonthPrefix = currentPrefix
-        )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val ruleBasedInsights: StateFlow<List<FinancialInsight>> = combine(monthComparisonStats, budgets, debts, goals) { stats, budgetList, debtList, goalList ->
+        stats?.let { FinancialInsightService.generateLocalRuleInsights(it, budgetList, debtList, goalList) } ?: emptyList()
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val isInitialSetupCompleted = MutableStateFlow(prefs.isInitialSetupCompleted())
     val isAppTourPending = MutableStateFlow(prefs.isAppTourPending())
@@ -364,7 +349,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
     val hasSampleData: StateFlow<Boolean> = combine(assets, transactions) { aList, txList ->
         aList.any { it.isSample } || txList.any { it.isSample }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // UI Navigation State (0: Beranda, 1: Transaksi, 2: Anggaran, 3: Laporan, 4: Aset)
     private val _currentTab = MutableStateFlow(0)
@@ -379,8 +364,17 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val selectedPeriod: StateFlow<PeriodFilter> = _selectedPeriod.asStateFlow()
     val reportDateRange = MutableStateFlow<ReportDateRange?>(null)
     val reportTransactions = combine(transactions, selectedPeriod, reportDateRange) { list, period, range ->
-        list.filter { tx -> range?.contains(tx.transactionDate) ?: isDateInPeriod(tx.transactionDate, period) }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        filterTransactionsByPeriod(list, period, range = range)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val reportSummary = reportTransactions.map(::summarizeTransactions)
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionSummary())
+
+    val reportChart = combine(reportTransactions, selectedPeriod, reportDateRange) { list, period, range ->
+        buildCashflowChart(list, period, customRange = range)
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setReportPeriod(period: PeriodFilter) {
         reportDateRange.value = null
@@ -393,6 +387,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
     // Transaction Search & Filter State
     val searchQuery = MutableStateFlow("")
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private val settledSearchQuery = searchQuery.debounce { if (it.isBlank()) 0L else 150L }
     val filterType = MutableStateFlow<String?>("all") // "all", "expense", "income", "transfer"
     val filterCategoryId = MutableStateFlow<String?>(null)
     val filterAssetId = MutableStateFlow<String?>(null)
@@ -427,10 +423,10 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         if (minAmt != null) count++
         if (maxAmt != null) count++
         count
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val hasActiveFilters: StateFlow<Boolean> = activeFilterCount.map { it > 0 }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun resetFilters() {
         searchQuery.value = ""
@@ -553,97 +549,75 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     // Computed: Active Assets
     val activeAssets: StateFlow<List<Asset>> = assets.map { list ->
         list.filter { it.isActive }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // Computed: Default Asset
     val defaultAsset: StateFlow<Asset?> = activeAssets.map { list ->
         list.firstOrNull { it.isDefault } ?: list.firstOrNull()
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // Computed: Total Wealth = Sum of active assets
     val totalWealth: StateFlow<Long> = activeAssets.map { list ->
         list.sumOf { it.currentBalance }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Total Remaining Debt (sisa kewajiban hutang yang belum terbayar)
     val totalRemainingDebt: StateFlow<Long> = debts.map { list ->
         list.filter { it.direction == "debt" }.sumOf { it.remainingAmount }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Total Paid Debt (total cicilan hutang yang telah dibayarkan)
     val totalPaidDebt: StateFlow<Long> = debts.map { list ->
         list.filter { it.direction == "debt" }.sumOf { it.paidAmount }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Active Debts Count
     val activeDebtsCount: StateFlow<Int> = debts.map { list ->
         list.count { it.status != DebtStatus.PAID.key }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     // Computed: Overdue Debts Count
     val overdueDebtsCount: StateFlow<Int> = debts.map { list ->
         list.count { it.isOverdue }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     // Computed: Real Net Worth = Total Wealth - Total Remaining Debt
     val netWorth: StateFlow<Long> = combine(totalWealth, debts) { wealth, list ->
         wealth + list.filter { it.direction == "receivable" }.sumOf { it.remainingAmount } - list.filter { it.direction == "debt" }.sumOf { it.remainingAmount }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
-
-    // Helper: Checks if a date string matches the current period filter
-    fun isDateInPeriod(dateStr: String, filter: PeriodFilter): Boolean {
-        if (filter == PeriodFilter.SEMUA) return true
-        val date = try {
-            LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE)
-        } catch (e: Exception) {
-            return false
-        }
-        val today = LocalDate.now()
-
-        return when (filter) {
-            PeriodFilter.HARI_INI -> date == today
-            PeriodFilter.MINGGU_INI -> {
-                val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
-                !date.isBefore(startOfWeek) && !date.isAfter(endOfWeek)
-            }
-            PeriodFilter.BULAN_INI -> {
-                date.year == today.year && date.monthValue == today.monthValue
-            }
-            PeriodFilter.TAHUN_INI -> {
-                date.year == today.year
-            }
-            PeriodFilter.SEMUA -> true
-        }
-    }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Period-filtered transactions
     val periodTransactions: StateFlow<List<Transaction>> = combine(
         transactions,
         selectedPeriod
     ) { txList, period ->
-        txList.filter { isDateInPeriod(it.transactionDate, period) }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        filterTransactionsByPeriod(txList, period)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val homeChart = combine(periodTransactions, selectedPeriod) { list, period ->
+        buildCashflowChart(list, period)
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // Computed: Period Income
     val periodIncome: StateFlow<Long> = periodTransactions.map { list ->
         list.filter { it.type == TransactionType.INCOME.value }.sumOf { it.amount }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Period Expense
     val periodExpense: StateFlow<Long> = periodTransactions.map { list ->
         list.filter { it.type == TransactionType.EXPENSE.value }.sumOf { it.amount }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Net Cashflow = Total Income - Total Expense (Transfer excluded!)
     val netCashflow: StateFlow<Long> = combine(periodIncome, periodExpense) { inc, exp ->
         inc - exp
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     // Computed: Largest Expense Transaction
     val largestExpense: StateFlow<Transaction?> = periodTransactions.map { list ->
         list.filter { it.type == TransactionType.EXPENSE.value }.maxByOrNull { it.amount }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // Computed: Largest Expense Category
     val largestCategory: StateFlow<Pair<Category?, Long>?> = combine(
@@ -658,7 +632,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         val cat = catList.firstOrNull { it.id == maxEntry.key }
         val sum = maxEntry.value.sumOf { it.amount }
         Pair(cat, sum)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // Computed: Recently Used Categories (Section 15) from actual user transactions
     val recentCategories: StateFlow<List<Category>> = combine(
@@ -666,11 +640,12 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         categories
     ) { txList, catList ->
         val catMap = catList.associateBy { it.id }
-        txList.mapNotNull { it.categoryId }
+        txList.asSequence().mapNotNull { it.categoryId }
             .distinct()
             .mapNotNull { catMap[it] }
             .take(5)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .toList()
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // Computed: Recently Used Assets (Section 15) from actual user transactions
     val recentAssets: StateFlow<List<Asset>> = combine(
@@ -678,11 +653,12 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         activeAssets
     ) { txList, assetList ->
         val assetMap = assetList.associateBy { it.id }
-        txList.mapNotNull { it.assetId }
+        txList.asSequence().mapNotNull { it.assetId }
             .distinct()
             .mapNotNull { assetMap[it] }
             .take(4)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .toList()
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // Computed: Filtered Transactions for Transactions Tab (Search + Advanced Filters)
     val filteredTransactionsTab: StateFlow<List<Transaction>> = combine(
@@ -690,7 +666,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             transactions,
             categories,
             assets,
-            searchQuery,
+            settledSearchQuery,
             filterType,
             filterCategoryId,
             filterAssetId,
@@ -723,6 +699,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         val assetMap = assetList.associateBy { it.id }
         val today = LocalDate.now()
 
+        val dateMatches = mutableMapOf<String, Boolean>()
+
         txList.filter { tx ->
             val catName = catMap[tx.categoryId]?.name ?: ""
             val assetName = assetMap[tx.assetId]?.name ?: ""
@@ -754,7 +732,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
             val matchesMaxAmt = maxAmt == null || tx.amount <= maxAmt
 
             // Date preset / custom range match
-            val matchesDate = when (datePreset) {
+            val matchesDate = dateMatches.getOrPut(tx.transactionDate) { when (datePreset) {
                 DateFilterPreset.ALL -> true
                 DateFilterPreset.TODAY -> tx.transactionDate == today.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 DateFilterPreset.LAST_7_DAYS -> {
@@ -779,11 +757,15 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                         afterStart && beforeEnd
                     }
                 }
-            }
+            } }
 
             matchesQuery && matchesType && matchesCat && matchesAsset && matchesInput && matchesMinAmt && matchesMaxAmt && matchesDate
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val transactionDays = filteredTransactionsTab.map(::groupTransactionDays)
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // --- ACTIONS ---
 
@@ -1144,7 +1126,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     fun exportCsv(filteredOnly: Boolean = false, onReady: (String) -> Unit) {
         viewModelScope.launch {
             val list = if (filteredOnly) periodTransactions.value else null
-            val content = repository.generateCsvContent(list)
+            val content = withContext(Dispatchers.IO) { repository.generateCsvContent(list) }
             onReady(content)
         }
     }
@@ -1158,7 +1140,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 val list = if (filteredOnly) periodTransactions.value else null
-                val content = repository.generateCsvContent(list)
+                val content = withContext(Dispatchers.IO) { repository.generateCsvContent(list) }
                 val exportsDir = File(context.cacheDir, "exports")
                 if (!exportsDir.exists()) {
                     exportsDir.mkdirs()
@@ -1171,7 +1153,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                     "DuitAing_Transaksi_$todayStr.csv"
                 }
                 val file = File(exportsDir, fileName)
-                file.writeText(content, Charsets.UTF_8)
+                withContext(Dispatchers.IO) { file.writeText(content, Charsets.UTF_8) }
 
                 val uri = FileProvider.getUriForFile(
                     context,
@@ -1579,30 +1561,34 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             try {
-                val now = LocalDate.now()
-                val curMonthPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                val prevMonthPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                val stats = FinancialInsightService.computeMonthComparison(
-                    transactions = transactions.value,
-                    categories = categories.value,
-                    currentMonthDate = now
-                )
+                val txSnapshot = transactions.value
+                val catSnapshot = categories.value
+                val chatContext = withContext(Dispatchers.Default) {
+                    val now = LocalDate.now()
+                    val curMonthPrefix = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                    val prevMonthPrefix = now.minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                    val stats = FinancialInsightService.computeMonthComparison(
+                        transactions = txSnapshot,
+                        categories = catSnapshot,
+                        currentMonthDate = now
+                    )
 
-                val chatContext = FinancialChatContext(
-                    userName = userName.value,
-                    currentDate = now.toString(),
-                    totalLiquidBalance = activeAssets.value.sumOf { it.currentBalance },
-                    assets = activeAssets.value,
-                    currentMonthStats = stats,
-                    prevMonthPrefix = prevMonthPrefix,
-                    currentMonthPrefix = curMonthPrefix,
-                    topCategories = stats.categoryDeltas,
-                    budgets = budgets.value,
-                    debts = debts.value,
-                    goals = goals.value,
-                    transactions = transactions.value,
-                    categories = categories.value
-                )
+                    FinancialChatContext(
+                        userName = userName.value,
+                        currentDate = now.toString(),
+                        totalLiquidBalance = activeAssets.value.sumOf { it.currentBalance },
+                        assets = activeAssets.value,
+                        currentMonthStats = stats,
+                        prevMonthPrefix = prevMonthPrefix,
+                        currentMonthPrefix = curMonthPrefix,
+                        topCategories = stats.categoryDeltas,
+                        budgets = budgets.value,
+                        debts = debts.value,
+                        goals = goals.value,
+                        transactions = txSnapshot,
+                        categories = catSnapshot
+                    )
+                }
 
                 val responseRes = FinancialInsightService.sendChatMessage(
                     apiKey = geminiApiKey.value.takeIf { isAiInsightsEnabled.value },
@@ -1612,6 +1598,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
                 val replyText = responseRes.getOrDefault("Maaf, terjadi kendala saat memproses jawaban. Silakan coba sesaat lagi.")
                 _chatMessages.value = _chatMessages.value + ChatMessage(sender = ChatSender.ASSISTANT, text = replyText)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _chatMessages.value = _chatMessages.value + ChatMessage(
                     sender = ChatSender.ASSISTANT,

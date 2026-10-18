@@ -2,6 +2,10 @@ package com.cashflow.app.data.network
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import java.net.HttpURLConnection
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -9,6 +13,21 @@ import java.net.UnknownHostException
 import kotlin.random.Random
 
 object ResilientNetworkClient {
+
+    /** Disconnect before waiting for the IO child: socket reads do not honor coroutine cancellation. */
+    suspend fun <T> withConnectionTimeout(
+        connection: HttpURLConnection,
+        timeoutMs: Long,
+        block: () -> T
+    ): T = coroutineScope {
+        val request = async(Dispatchers.IO) { block() }
+        try {
+            withTimeout(timeoutMs) { request.await() }
+        } finally {
+            connection.disconnect()
+            request.cancel()
+        }
+    }
 
     /**
      * Menjalankan operasi jaringan dengan:

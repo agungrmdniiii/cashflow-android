@@ -25,18 +25,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cashflow.app.data.model.Transaction
-import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.model.CashflowBucket
 import com.cashflow.app.data.model.PeriodFilter
-import com.cashflow.app.data.model.buildCashflowChart
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import com.cashflow.app.ui.components.AnimatedNumberText
 import com.cashflow.app.ui.components.DoubleBezelCard
 import com.cashflow.app.ui.components.Formatters
 import com.cashflow.app.ui.theme.duit
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * Kartu Ringkasan Arus Kas untuk Beranda (Tahap 2):
@@ -51,7 +47,7 @@ fun CashflowCard(
     periodExpense: Long,
     selectedPeriod: PeriodFilter,
     onSelectPeriodClick: () -> Unit,
-    transactions: List<Transaction>,
+    buckets: List<CashflowBucket>,
     isBalanceHidden: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -182,7 +178,7 @@ fun CashflowCard(
 
                 // Chart follows the selected calendar period.
                 PeriodCashflowChart(
-                    transactions = transactions,
+                    buckets = buckets,
                     period = selectedPeriod,
                     hidden = isBalanceHidden,
                     modifier = Modifier.fillMaxWidth()
@@ -280,14 +276,12 @@ fun CashflowCard(
 
 @Composable
 private fun PeriodCashflowChart(
-    transactions: List<Transaction>,
+    buckets: List<CashflowBucket>,
     period: PeriodFilter,
     hidden: Boolean,
     modifier: Modifier = Modifier
 ) {
     val duit = MaterialTheme.duit
-    val today = LocalDate.now()
-    val buckets = remember(transactions, period, today) { buildCashflowChart(transactions, period, today) }
     val peak = buckets.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0L
     if (hidden) {
         Text("Grafik disembunyikan saat nominal disamarkan", style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)

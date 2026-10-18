@@ -1,6 +1,7 @@
 package com.cashflow.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -46,7 +47,8 @@ import com.cashflow.app.ui.theme.*
 
 @Composable
 fun CashflowApp(viewModel: CashflowViewModel) {
-    var showSplash by remember { mutableStateOf(true) }
+    val initialLoadComplete by viewModel.initialLoadComplete.collectAsState()
+    ReportDrawnWhen { initialLoadComplete }
     var showOnboarding by rememberSaveable { mutableStateOf(false) }
     var tourStep by rememberSaveable { mutableIntStateOf(0) }
     var showAppGuide by rememberSaveable { mutableStateOf(false) }
@@ -77,7 +79,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
     val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
 
     // Fresh install / empty assets setup state
-    val activeAssets by viewModel.activeAssets.collectAsState()
+    val assets by viewModel.assets.collectAsState()
     val isInitialSetupCompleted by viewModel.isInitialSetupCompleted.collectAsState()
 
     // Handle Snackbar messages & actions (with BATALKAN undo action support)
@@ -94,10 +96,8 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         }
     }
 
-    if (showSplash) {
-        SplashScreen(
-            onDismiss = { showSplash = false }
-        )
+    if (!initialLoadComplete) {
+        SplashScreen()
         return
     }
 
@@ -108,7 +108,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         return
     }
 
-    if (activeAssets.isEmpty() && !isInitialSetupCompleted) {
+    if (assets.none { it.isActive } && !isInitialSetupCompleted) {
         InitialSetupScreen(viewModel = viewModel)
         return
     }

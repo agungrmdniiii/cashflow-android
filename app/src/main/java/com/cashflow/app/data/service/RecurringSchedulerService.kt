@@ -163,7 +163,7 @@ object RecurringSchedulerService {
         recurringList: List<RecurringTransaction>,
         daysAhead: Int = 7
     ): List<UpcomingRecurringItem> {
-        val repo = CashflowRepository(context)
+        val repo = (context.applicationContext as com.cashflow.app.CashflowApplication).repository
         return getUpcomingBills(repo, recurringList, daysAhead)
     }
 
@@ -178,7 +178,8 @@ object RecurringSchedulerService {
         context: Context,
         recurringList: List<RecurringTransaction>
     ): Int {
-        val repo = CashflowRepository(context)
+        val repo = (context.applicationContext as com.cashflow.app.CashflowApplication).repository
+        repo.awaitInitialLoad()
         return processDueRecurringSchedules(repo)
     }
 
@@ -202,7 +203,7 @@ object RecurringSchedulerService {
         recurringId: String,
         occurrenceDate: String
     ) {
-        val repo = CashflowRepository(context)
+        val repo = (context.applicationContext as com.cashflow.app.CashflowApplication).repository
         skipRecurringOccurrence(repo, recurringId, occurrenceDate)
     }
 }

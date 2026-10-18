@@ -36,19 +36,23 @@ fun calculateBudgetProgress(
         "monthly" to monthlyBudgetStart(today, periodStartDay),
         "weekly" to today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     )
+    val windows = starts.mapValues { (period, start) ->
+        val end = if (period == "weekly") start.plusWeeks(1) else nextMonthlyBudgetStart(start, periodStartDay)
+        val previousStart = if (period == "weekly") start.minusWeeks(1) else java.time.YearMonth.from(start).minusMonths(1).let { it.atDay(periodStartDay.coerceIn(1, it.lengthOfMonth())) }
+        Triple(start.toString(), end.toString(), previousStart.toString())
+    }
     val current = mutableMapOf<Pair<String, String>, Long>()
     val previous = mutableMapOf<Pair<String, String>, Long>()
     // Two calendar periods, one traversal of transactions; work does not grow with the budget count.
     for (tx in transactions) {
         if (tx.type != TransactionType.EXPENSE.value || tx.categoryId == null) continue
-        for ((period, start) in starts) {
-            val end = if (period == "weekly") start.plusWeeks(1) else nextMonthlyBudgetStart(start, periodStartDay)
-            val previousStart = if (period == "weekly") start.minusWeeks(1) else java.time.YearMonth.from(start).minusMonths(1).let { it.atDay(periodStartDay.coerceIn(1, it.lengthOfMonth())) }
+        for ((period, window) in windows) {
+            val (start, end, previousStart) = window
             val key = period to tx.categoryId
             when {
-                tx.transactionDate >= start.toString() && tx.transactionDate < end.toString() ->
+                tx.transactionDate >= start && tx.transactionDate < end ->
                     current[key] = (current[key] ?: 0L) + tx.amount
-                tx.transactionDate >= previousStart.toString() && tx.transactionDate < start.toString() ->
+                tx.transactionDate >= previousStart && tx.transactionDate < start ->
                     previous[key] = (previous[key] ?: 0L) + tx.amount
             }
         }

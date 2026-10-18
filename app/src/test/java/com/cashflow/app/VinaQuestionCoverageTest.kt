@@ -206,4 +206,52 @@ class VinaQuestionCoverageTest {
             text = "penegeluaran dari Transaksii kemarin")), ctx).getOrThrow()
         assertTrue(answer, answer.contains("Transaksii") && answer.contains("10.000") && answer.contains("2026-10-16"))
     }
+
+    @Test fun conversationKeepsTopicAcrossThanksAndResolvesDetails() = runBlocking {
+        val history = listOf("pengeluaran dari BCA bulan lalu", "terima kasih", "rincikan")
+            .map { ChatMessage(text = it, sender = ChatSender.USER) }
+        val answer = FinancialInsightService.sendChatMessage("", history, context()).getOrThrow()
+        assertTrue(answer, answer.contains("60.000") && answer.contains("Taksi September") && answer.contains("BCA"))
+    }
+
+    @Test fun conversationCorrectsPeriodAndSwitchesIncomeWithoutOldExpenseCategory() = runBlocking {
+        val history = listOf("pengeluaran makan dari BCA bulan ini", "maksud saya bulan lalu")
+            .map { ChatMessage(text = it, sender = ChatSender.USER) }
+        val corrected = FinancialInsightService.sendChatMessage("", history, context()).getOrThrow()
+        assertTrue(corrected, corrected.contains("2026-09-01") && corrected.contains("Makan · BCA"))
+        val switched = FinancialInsightService.sendChatMessage("", listOf("pengeluaran bulan lalu", "kalau pemasukannya?")
+            .map { ChatMessage(text = it, sender = ChatSender.USER) }, context()).getOrThrow()
+        assertTrue(switched, switched.contains("Pemasukan") && switched.contains("2026-09-01"))
+        assertFalse(switched, switched.contains("Pengeluaran ·"))
+    }
+
+    @Test fun greetingAndThanksAreConciseAndDoNotInventFinancialStatus() {
+        val greeting = FinancialInsightService.evaluateOfflineQuery("halo vina", context())
+        val thanks = FinancialInsightService.evaluateOfflineQuery("terima kasih", context())
+        assertTrue(greeting, greeting.length < 350 && greeting.contains("Vina"))
+        assertTrue(thanks, thanks.length < 180 && thanks.contains("Sama-sama"))
+    }
+
+    @Test fun whyQuestionExplainsRecordedCategoryChangesWithoutInventingCauses() = runBlocking {
+        val history = listOf("pengeluaran bulan ini", "kenapa naik?")
+            .map { ChatMessage(text = it, sender = ChatSender.USER) }
+        val answer = FinancialInsightService.sendChatMessage("", history, context()).getOrThrow()
+        assertTrue(answer, answer.contains("Makan") && answer.contains("20.000") && answer.contains("penyebab"))
+    }
+
+    @Test fun everydayInsightQuestionsAndSpendingQuestionsHaveUsefulAnswers() {
+        check(listOf("beri saya insight keuangan", "apa yang perlu diperhatikan", "ringkasan kondisi keuangan", "cek keuangan saya", "kasih insight dong"), "Doni", "40.000")
+        check(listOf("uang saya habis buat apa bulan ini", "uang habis untuk apa bulan ini"), "100.000", "Makan")
+    }
+    @Test fun adviceIsConciseAndDoesNotClaimSurplusIsSavingsOrGuaranteedHealth() {
+        listOf("kondisi keuangan saya", "tips hemat bulan ini").forEach { query ->
+            val answer = FinancialInsightService.evaluateOfflineQuery(query, context())
+            assertTrue(answer, answer.length < 950)
+            assertFalse(answer, answer.contains("/100") || answer.contains("50/30/20") || answer.contains("SANGAT PRIMA"))
+        }
+    }
+
+    @Test fun religiousGreetingDoesNotHideTheActualFinancialQuestion() {
+        check(listOf("assalamualaikum vina, pengeluaran bulan lalu berapa?"), "110.000")
+    }
 }

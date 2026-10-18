@@ -58,6 +58,14 @@ fun TransactionItemCard(
     val haptic = LocalHapticFeedback.current
     val duit = MaterialTheme.duit
     var showMenu by remember { mutableStateOf(false) }
+    val formattedAmount = remember(transaction.amount, transaction.type) {
+        val prefix = when (transaction.type) {
+            TransactionType.INCOME.value -> "+"
+            TransactionType.EXPENSE.value -> "−"
+            else -> ""
+        }
+        prefix + Formatters.formatRupiah(transaction.amount)
+    }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -258,11 +266,6 @@ fun TransactionItemCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 // Right column: Amount & Time
-                val prefix = when (transaction.type) {
-                    TransactionType.INCOME.value -> "+"
-                    TransactionType.EXPENSE.value -> "−"
-                    else -> ""
-                }
                 val amountColor = when (transaction.type) {
                     TransactionType.INCOME.value -> duit.income
                     TransactionType.EXPENSE.value -> duit.expense
@@ -274,7 +277,7 @@ fun TransactionItemCard(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = if (isBalanceHidden) "Rp ••••••" else prefix + Formatters.formatRupiah(transaction.amount),
+                    text = if (isBalanceHidden) "Rp ••••••" else formattedAmount,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,

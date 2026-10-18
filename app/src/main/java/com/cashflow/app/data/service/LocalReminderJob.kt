@@ -21,8 +21,8 @@ class LocalReminderJob : JobService() {
             var retry = false
             try {
                 val prefs = PreferenceManager(this@LocalReminderJob)
-                val repo = CashflowRepository(this@LocalReminderJob)
-                repo.reloadForBackgroundCheck()
+                val repo = (application as com.cashflow.app.CashflowApplication).repository
+                repo.awaitInitialLoad()
                 RecurringSchedulerService.processDueRecurringTransactions(repo)
                 NotificationHelper.checkAndNotifyBudgets(this@LocalReminderJob, repo.budgets.value, prefs)
                 val today = LocalDate.now()

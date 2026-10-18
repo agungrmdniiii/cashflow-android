@@ -246,7 +246,7 @@ class FinancialChatAssistantTest {
 
         assertTrue("Harus memperkenalkan diri sebagai Vina", response.contains("Vina"))
         assertTrue("Harus menyapa nama pengguna Budi", response.contains("Budi"))
-        assertTrue("Harus memuat ringkasan saldo likuid", response.contains("15.500.000"))
+        assertTrue("Sapaan harus singkat tanpa mengulang data saldo", response.length < 350 && !response.contains("15.500.000"))
     }
 
     @Test
@@ -255,8 +255,8 @@ class FinancialChatAssistantTest {
         val response = FinancialInsightService.evaluateOfflineQuery("Bagaimana audit kesehatan keuangan saya?", context)
 
         assertTrue("Harus memuat judul Evaluasi Kesehatan Finansial", response.contains("Evaluasi Kesehatan Finansial"))
-        assertTrue("Harus memuat skor kesehatan /100", response.contains("/100"))
-        assertTrue("Harus memuat rasio tabungan", response.contains("Rasio Tabungan"))
+        assertFalse("Tidak memberi skor kesehatan buatan", response.contains("/100"))
+        assertTrue("Harus menyajikan arus kas tercatat", response.contains("Arus kas"))
         assertTrue("Harus memuat beban cicilan", response.contains("Beban Cicilan"))
     }
 
@@ -278,7 +278,7 @@ class FinancialChatAssistantTest {
 
         assertTrue("Harus memuat judul Tips & Solusi Penghematan", response.contains("Tips & Solusi Penghematan"))
         assertTrue("Harus menyoroti kategori pengeluaran terbesar", response.contains("Makanan & Minuman"))
-        assertTrue("Harus mereferensikan aturan 50-30-20", response.contains("50/30/20"))
+        assertFalse("Saran mengikuti data, bukan persentase wajib", response.contains("50/30/20"))
     }
 
     @Test

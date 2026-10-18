@@ -6,7 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,8 +43,6 @@ import com.cashflow.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalTime
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 /**
@@ -80,13 +79,10 @@ fun HomeScreen(
     val transactions by viewModel.transactions.collectAsState()
     val budgets by viewModel.budgets.collectAsState()
     val ruleBasedInsights by viewModel.ruleBasedInsights.collectAsState()
+    val monthStats by viewModel.monthComparisonStats.collectAsState()
+    val chartBuckets by viewModel.homeChart.collectAsState()
     val isBalanceHidden by viewModel.isBalanceHidden.collectAsState()
     val integrityDiscrepancies by viewModel.integrityDiscrepancies.collectAsState()
-
-    LaunchedEffect(Unit) {
-        viewModel.refreshUpcomingBills()
-        viewModel.processRecurringBills()
-    }
 
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -102,24 +98,11 @@ fun HomeScreen(
     var editingBudget by remember { mutableStateOf<Budget?>(null) }
     var budgetToDelete by remember { mutableStateOf<BudgetWithProgress?>(null) }
     var isInsightDismissed by rememberSaveable { mutableStateOf(false) }
+    var insightIndex by remember(ruleBasedInsights) { mutableIntStateOf(0) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     val userName by viewModel.userName.collectAsState()
 
-    val monthDeltaPct = remember(transactions) {
-        val now = YearMonth.now()
-        val lastMonth = now.minusMonths(1)
-        val curMonthStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        val lastMonthStr = lastMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-
-        val curExp = transactions.filter { it.type == "expense" && it.transactionDate.startsWith(curMonthStr) }.sumOf { it.amount }
-        val lastExp = transactions.filter { it.type == "expense" && it.transactionDate.startsWith(lastMonthStr) }.sumOf { it.amount }
-
-        if (lastExp > 0L) {
-            ((curExp - lastExp).toDouble() / lastExp * 100).toInt()
-        } else {
-            null
-        }
-    }
+    val monthDeltaPct = monthStats?.takeIf { it.prevMonthTotalExpense > 0 }?.expensePercentChange?.toInt()
 
     val currentHour = LocalTime.now().hour
     val timeGreeting = when (currentHour) {
@@ -143,75 +126,94 @@ fun HomeScreen(
             .fillMaxSize()
             .background(duit.background)
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp)
+        // ponytail: Home shows at most 5 transactions and 3 budgets; use a lazy list if these previews become unbounded.
+        Column(
+            modifier = Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 100.dp)
         ) {
             // 1. Header: Sapaan Personal + Ikon Tanya AI, Cari, dan Pengaturan (ringkas & tidak terpotong)
-            item {
-                Row(
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .padding(end = 12.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(role = Role.Button) { showEditNameDialog = true }
                 ) {
-                    Column(
+                    Text(
+                        text = timeGreeting,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = duit.textSecondary,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (userName.isNotBlank()) userName.trim() else "Kelola Keuangan",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 19.sp,
+                            letterSpacing = (-0.3).sp
+                        ),
+                        color = duit.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Tombol Tanya AI Finansial (Target sentuh >= 48dp)
+                    IconButton(
+                        onClick = { viewModel.openChat() },
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(role = Role.Button) { showEditNameDialog = true }
+                            .onGloballyPositioned { onTourAiPositioned(it.boundsInRoot()) }
+                            .minimumInteractiveComponentSize()
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(duit.primary.copy(alpha = 0.15f))
+                            .border(1.dp, duit.primary, CircleShape)
                     ) {
-                        Text(
-                            text = timeGreeting,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = duit.textSecondary,
-                            maxLines = 1
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (userName.isNotBlank()) userName.trim() else "Kelola Keuangan",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 19.sp,
-                                letterSpacing = (-0.3).sp
-                            ),
-                            color = duit.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = "Tanya Vina (AI)",
+                            tint = duit.primary,
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // Tombol Cari (Target sentuh >= 48dp)
+                    IconButton(
+                        onClick = onNavigateToTransactions,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(duit.surfaceVariant)
                     ) {
-                        // Tombol Tanya AI Finansial (Target sentuh >= 48dp)
-                        IconButton(
-                            onClick = { viewModel.openChat() },
-                            modifier = Modifier
-                                .onGloballyPositioned { onTourAiPositioned(it.boundsInRoot()) }
-                                .minimumInteractiveComponentSize()
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(duit.primary.copy(alpha = 0.15f))
-                                .border(1.dp, duit.primary, CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AutoAwesome,
-                                contentDescription = "Tanya Vina (AI)",
-                                tint = duit.primary,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = "Cari transaksi",
+                            tint = duit.textPrimary,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
 
-                        // Tombol Cari (Target sentuh >= 48dp)
+                    // Tombol Pengaturan (Target sentuh >= 48dp)
+                    Box(contentAlignment = Alignment.TopEnd) {
                         IconButton(
-                            onClick = onNavigateToTransactions,
+                            onClick = { viewModel.isSettingsOpen.value = true },
                             modifier = Modifier
                                 .minimumInteractiveComponentSize()
                                 .size(40.dp)
@@ -219,151 +221,123 @@ fun HomeScreen(
                                 .background(duit.surfaceVariant)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Search,
-                                contentDescription = "Cari transaksi",
+                                imageVector = Icons.Rounded.Settings,
+                                contentDescription = "Pengaturan",
                                 tint = duit.textPrimary,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
-
-                        // Tombol Pengaturan (Target sentuh >= 48dp)
-                        Box(contentAlignment = Alignment.TopEnd) {
-                            IconButton(
-                                onClick = { viewModel.isSettingsOpen.value = true },
+                        if (integrityDiscrepancies.isNotEmpty()) {
+                            Box(
                                 modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .size(40.dp)
+                                    .padding(top = 2.dp, end = 2.dp)
+                                    .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(duit.surfaceVariant)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Settings,
-                                    contentDescription = "Pengaturan",
-                                    tint = duit.textPrimary,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                            }
-                            if (integrityDiscrepancies.isNotEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 2.dp, end = 2.dp)
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(duit.expense)
-                                        .border(1.5.dp, duit.surface, CircleShape)
-                                )
-                            }
+                                    .background(duit.expense)
+                                    .border(1.5.dp, duit.surface, CircleShape)
+                            )
                         }
                     }
                 }
             }
 
             // 2. Hero Card Total Kekayaan (Angka pas, dimThousands, mata, delta badge, ringkas, padding rapi)
-            item {
-                HeroBalanceCard(
-                    totalWealth = totalWealth,
-                    isBalanceHidden = isBalanceHidden,
-                    onToggleBalanceVisibility = { viewModel.toggleBalanceVisibility() },
-                    monthDeltaPct = monthDeltaPct,
-                    onNavigateToAssets = onNavigateToAssets,
-                    assetCount = activeAssets.size,
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                        .onGloballyPositioned { onTourBalancePositioned(it.boundsInRoot()) }
-                )
-            }
+            HeroBalanceCard(
+                totalWealth = totalWealth,
+                isBalanceHidden = isBalanceHidden,
+                onToggleBalanceVisibility = { viewModel.toggleBalanceVisibility() },
+                monthDeltaPct = monthDeltaPct,
+                onNavigateToAssets = onNavigateToAssets,
+                assetCount = activeAssets.size,
+                modifier = Modifier.padding(horizontal = 20.dp)
+                    .onGloballyPositioned { onTourBalancePositioned(it.boundsInRoot()) }
+            )
 
             // 3. Quick Actions (4 Tombol sama besar: Pengeluaran, Pemasukan, Transfer, Suara)
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                QuickActions(
-                    onExpenseClick = { viewModel.openAddTransaction(TransactionType.EXPENSE) },
-                    onIncomeClick = { viewModel.openAddTransaction(TransactionType.INCOME) },
-                    onTransferClick = { viewModel.openAddTransaction(TransactionType.TRANSFER) },
-                    onVoiceClick = { viewModel.isRecordVoiceOpen.value = true }
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            QuickActions(
+                onExpenseClick = { viewModel.openAddTransaction(TransactionType.EXPENSE) },
+                onIncomeClick = { viewModel.openAddTransaction(TransactionType.INCOME) },
+                onTransferClick = { viewModel.openAddTransaction(TransactionType.TRANSFER) },
+                onVoiceClick = { viewModel.isRecordVoiceOpen.value = true }
+            )
 
-            // 4. Maksimal 1 Banner Insight (yang paling relevan), bisa ditutup
+            // 4. One insight at a time; manual navigation avoids automatic motion while scrolling.
             if (ruleBasedInsights.isNotEmpty() && !isInsightDismissed) {
-                item {
-                    Spacer(modifier = Modifier.height(22.dp))
-                    HomeInsightBanner(
-                        insight = ruleBasedInsights.first(),
-                        onDismiss = { isInsightDismissed = true }
-                    )
-                }
+                Spacer(modifier = Modifier.height(22.dp))
+                HomeInsightBanner(
+                    insight = ruleBasedInsights[insightIndex],
+                    onDismiss = { isInsightDismissed = true },
+                    position = insightIndex + 1,
+                    total = ruleBasedInsights.size,
+                    onNext = { insightIndex = (insightIndex + 1) % ruleBasedInsights.size }
+                )
             }
 
             // 5. Transaksi Terbaru (5 item, ikon bulat, nominal berwarna rata kanan, "Lihat semua")
-            item {
-                Spacer(modifier = Modifier.height(22.dp))
-                RecentTransactions(
-                    transactions = transactions,
-                    categoryMap = catMap,
-                    assetMap = assetMap,
-                    isBalanceHidden = isBalanceHidden,
-                    onViewAllClick = onNavigateToTransactions,
-                    onTransactionClick = { tx ->
-                        viewModel.selectedTransactionForDetail.value = tx
-                    },
-                    onEditTransaction = { tx ->
-                        viewModel.editingTransaction.value = tx
-                        viewModel.isAddTransactionOpen.value = true
-                    },
-                    onDeleteTransaction = { tx ->
-                        viewModel.deleteTransactionWithUndo(tx)
-                    },
-                    onSaveAsFavorite = { tx ->
-                        val template = FavoriteTemplate(
-                            id = UUID.randomUUID().toString(),
-                            name = tx.description,
-                            type = tx.type,
-                            amount = tx.amount,
-                            categoryId = tx.categoryId,
-                            assetId = tx.assetId,
-                            destinationAssetId = tx.destinationAssetId,
-                            note = tx.note
-                        )
-                        viewModel.saveFavoriteTemplate(template)
-                    },
-                    onAddTransactionClick = { viewModel.openAddTransaction() }
-                )
-            }
+            Spacer(modifier = Modifier.height(22.dp))
+            RecentTransactions(
+                transactions = transactions,
+                categoryMap = catMap,
+                assetMap = assetMap,
+                isBalanceHidden = isBalanceHidden,
+                onViewAllClick = onNavigateToTransactions,
+                onTransactionClick = { tx ->
+                    viewModel.selectedTransactionForDetail.value = tx
+                },
+                onEditTransaction = { tx ->
+                    viewModel.editingTransaction.value = tx
+                    viewModel.isAddTransactionOpen.value = true
+                },
+                onDeleteTransaction = { tx ->
+                    viewModel.deleteTransactionWithUndo(tx)
+                },
+                onSaveAsFavorite = { tx ->
+                    val template = FavoriteTemplate(
+                        id = UUID.randomUUID().toString(),
+                        name = tx.description,
+                        type = tx.type,
+                        amount = tx.amount,
+                        categoryId = tx.categoryId,
+                        assetId = tx.assetId,
+                        destinationAssetId = tx.destinationAssetId,
+                        note = tx.note
+                    )
+                    viewModel.saveFavoriteTemplate(template)
+                },
+                onAddTransactionClick = { viewModel.openAddTransaction() }
+            )
 
             // 6. Arus Kas Bulan Ini (Satu kartu: pemasukan, pengeluaran, selisih, mini bar)
-            item {
-                Spacer(modifier = Modifier.height(22.dp))
-                CashflowCard(
-                    netCashflow = netCashflow,
-                    periodIncome = periodIncome,
-                    periodExpense = periodExpense,
-                    selectedPeriod = selectedPeriod,
-                    onSelectPeriodClick = { showPeriodSheet = true },
-                    transactions = transactions,
-                    isBalanceHidden = isBalanceHidden
-                )
-            }
+            Spacer(modifier = Modifier.height(22.dp))
+            CashflowCard(
+                netCashflow = netCashflow,
+                periodIncome = periodIncome,
+                periodExpense = periodExpense,
+                selectedPeriod = selectedPeriod,
+                onSelectPeriodClick = { showPeriodSheet = true },
+                buckets = chartBuckets,
+                isBalanceHidden = isBalanceHidden
+            )
 
             // 7. Anggaran (Maksimal 3 teratas dengan progress bar tebal berwarna hijau/amber/merah + "Lihat semua")
-            item {
-                Spacer(modifier = Modifier.height(22.dp))
-                BudgetPreview(
-                    budgets = budgets,
-                    isBalanceHidden = isBalanceHidden,
-                    onViewAllClick = { viewModel.openBudgetsScreen() },
-                    onAddBudgetClick = {
-                        editingBudget = null
-                        showBudgetDialog = true
-                    },
-                    onEditBudget = { b ->
-                        editingBudget = b
-                        showBudgetDialog = true
-                    },
-                    onDeleteBudget = { bwp ->
-                        budgetToDelete = bwp
-                    }
-                )
-            }
+            Spacer(modifier = Modifier.height(22.dp))
+            BudgetPreview(
+                budgets = budgets,
+                isBalanceHidden = isBalanceHidden,
+                onViewAllClick = { viewModel.openBudgetsScreen() },
+                onAddBudgetClick = {
+                    editingBudget = null
+                    showBudgetDialog = true
+                },
+                onEditBudget = { b ->
+                    editingBudget = b
+                    showBudgetDialog = true
+                },
+                onDeleteBudget = { bwp ->
+                    budgetToDelete = bwp
+                }
+            )
         }
     }
 

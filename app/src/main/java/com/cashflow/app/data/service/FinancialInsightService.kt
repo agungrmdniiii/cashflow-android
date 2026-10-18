@@ -13,6 +13,10 @@ import com.cashflow.app.ui.components.Formatters
 import com.cashflow.app.data.network.ResilientNetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -74,6 +78,13 @@ data class CategoryDelta(
 )
 
 object FinancialInsightService {
+
+    internal suspend fun withGeminiModelFallback(call: suspend (String) -> Result<String>): Result<String> {
+        val primary = call("gemini-3.8-flash")
+        currentCoroutineContext().ensureActive()
+        if (primary.isSuccess || primary.exceptionOrNull()?.message?.startsWith("HTTP 404:") != true) return primary
+        return call("gemini-3-flash")
+    }
 
     /**
      * Menghitung statistik mendalam dan perbandingan antara bulan berjalan dan bulan sebelumnya.
@@ -162,73 +173,66 @@ object FinancialInsightService {
         )
     }
 
-    /**
-     * Menghasilkan 1-3 insight berbasis aturan lokal tanpa koneksi jaringan.
-     * Hanya dimunculkan jika data mencukupi.
-     */
+    /** Local facts only: partial-month totals are explicitly compared with the full previous month. */
     fun generateLocalRuleInsights(
-        stats: MonthComparisonResult
+        stats: MonthComparisonResult,
+        budgets: List<BudgetWithProgress> = emptyList(),
+        debts: List<Debt> = emptyList(),
+        goals: List<FinancialGoal> = emptyList(),
+        today: LocalDate = LocalDate.now()
     ): List<RuleBasedInsight> {
         val insights = mutableListOf<RuleBasedInsight>()
-
-        // 1. Kenaikan pengeluaran signifikan vs bulan lalu
-        if (stats.prevMonthTotalExpense > 0 && stats.currentMonthTotalExpense > 0) {
-            if (stats.expensePercentChange >= 15.0) {
-                insights.add(
-                    RuleBasedInsight(
-                        title = "Pengeluaran Meningkat",
-                        message = "Total pengeluaran naik ${stats.expensePercentChange.toInt()}% dibanding bulan lalu (${Formatters.formatCompact(stats.expenseDifference)} lebih banyak).",
-                        type = "warning"
-                    )
-                )
-            } else if (stats.expensePercentChange <= -10.0) {
-                insights.add(
-                    RuleBasedInsight(
-                        title = "Pengeluaran Terkendali",
-                        message = "Bagus! Pengeluaran Anda hemat ${Math.abs(stats.expensePercentChange).toInt()}% dibanding periode bulan lalu.",
-                        type = "positive"
-                    )
-                )
+        fun add(title: String, message: String, type: String = "info") {
+            insights.add(RuleBasedInsight(title, message, type))
+        }
+        fun money(amount: Long) = Formatters.formatRupiah(amount)
+        val expense = stats.currentMonthTotalExpense
+        val income = stats.currentMonthTotalIncome
+        when {
+            expense > income && income > 0 -> add("Pengeluaran melebihi pemasukan",
+                "Bulan ini tercatat defisit ${money(expense - income)}. Tinjau pengeluaran sebelum menambah belanja.", "warning")
+            expense > 0 && income == 0L -> add("Pemasukan belum tercatat",
+                "Pengeluaran bulan ini ${money(expense)} tanpa pemasukan tercatat. Pastikan catatan pemasukan sudah lengkap.", "warning")
+            income > expense -> add("Arus kas positif",
+                "Selisih pemasukan dan pengeluaran bulan ini ${money(income - expense)}. Selisih ini belum tentu menjadi tabungan.", "positive")
+        }
+        if (stats.prevMonthTotalExpense > 0 && expense > 0 && kotlin.math.abs(stats.expensePercentChange) >= 10) {
+            val direction = if (stats.expenseDifference > 0) "lebih tinggi" else "lebih rendah"
+            add("Perbandingan pengeluaran", "Pengeluaran bulan berjalan $direction ${money(kotlin.math.abs(stats.expenseDifference))} " +
+                "(${kotlin.math.abs(stats.expensePercentChange).toInt()}%) dibanding total sebulan penuh sebelumnya. Bulan berjalan belum tentu selesai.",
+                if (stats.expenseDifference > 0) "warning" else "info")
+        }
+        if (stats.prevMonthTotalIncome > 0 && income != stats.prevMonthTotalIncome) {
+            add("Perbandingan pemasukan", "Pemasukan bulan berjalan ${money(income)}; total sebulan penuh sebelumnya ${money(stats.prevMonthTotalIncome)}. Periksa apakah seluruh pemasukan sudah dicatat.")
+        }
+        stats.categoryDeltas.maxByOrNull { it.currentAmount }?.takeIf { it.currentAmount > 0 && expense > 0 }?.let {
+            add("Pos pengeluaran terbesar", "${it.categoryName} sebesar ${money(it.currentAmount)}, sekitar ${(it.currentAmount.toDouble() / expense * 100).toInt()}% dari pengeluaran bulan ini.")
+        }
+        stats.categoryDeltas.filter { it.diff > 0 && it.prevAmount > 0 }.maxByOrNull { it.diff }?.let {
+            add("Kenaikan kategori terbesar", "${it.categoryName} bertambah ${money(it.diff)} dibanding total bulan sebelumnya. Periksa rinciannya untuk mengetahui transaksi yang berkontribusi.")
+        }
+        if (expense > 0 && stats.highestExpenseDay != null && stats.highestExpenseDayAmount.toDouble() / expense >= .35) {
+            add("Pengeluaran terkonsentrasi", "Tanggal ${stats.highestExpenseDay} mencatat ${money(stats.highestExpenseDayAmount)} dari total ${money(expense)} bulan ini. Periksa apakah termasuk kebutuhan sekali bayar.")
+        }
+        if (stats.averageDailyExpense > 0) add("Rata-rata pengeluaran", "Bulan berjalan mencatat rata-rata ${money(stats.averageDailyExpense)} per hari kalender. Ini ringkasan catatan, bukan perkiraan tagihan berikutnya.")
+        budgets.filter { it.effectiveTargetAmount > 0 && it.spentAmount.toDouble() / it.effectiveTargetAmount >= .85 }
+            .sortedBy { it.remainingAmount }.firstOrNull()?.let {
+                val category = it.category?.name ?: "Kategori tanpa nama"
+                if (it.remainingAmount < 0) add("Anggaran terlampaui", "$category melewati batas sebesar ${money(-it.remainingAmount)} pada periode anggaran aktif.", "warning")
+                else add("Anggaran mendekati batas", "$category menyisakan ${money(it.remainingAmount)} dari batas ${money(it.effectiveTargetAmount)} pada periode aktif.", "warning")
             }
-        }
-
-        // 2. Kategori dengan lonjakan tertinggi
-        val surgeCategory = stats.categoryDeltas.filter { it.prevAmount > 0 && it.diff > 100_000L }
-            .maxByOrNull { it.percentChange }
-
-        if (surgeCategory != null && surgeCategory.percentChange >= 20.0) {
-            insights.add(
-                RuleBasedInsight(
-                    title = "Lonjakan ${surgeCategory.categoryName}",
-                    message = "Kategori ${surgeCategory.categoryName} naik ${surgeCategory.percentChange.toInt()}% (bertambah ${Formatters.formatCompact(surgeCategory.diff)}).",
-                    type = "warning"
-                )
-            )
-        }
-
-        // 3. Savings Rate
-        if (stats.currentMonthTotalIncome > 0) {
-            val ratePercent = (stats.savingsRate * 100).toInt()
-            if (ratePercent >= 30) {
-                insights.add(
-                    RuleBasedInsight(
-                        title = "Tingkat Tabungan Prima",
-                        message = "Savings rate Anda berada di $ratePercent%, melampaui target rekomendasi 20%.",
-                        type = "positive"
-                    )
-                )
-            } else if (ratePercent < 10 && stats.currentMonthTotalExpense > 0) {
-                insights.add(
-                    RuleBasedInsight(
-                        title = "Arus Kas Ketat",
-                        message = "Savings rate bulan ini $ratePercent%. Pertimbangkan menahan pos pengeluaran sekunder.",
-                        type = "info"
-                    )
-                )
+        debts.filter { it.direction != "receivable" && it.status != "paid" && it.remainingAmount > 0 }
+            .mapNotNull { debt -> runCatching { LocalDate.parse(debt.dueDate) }.getOrNull()?.let { debt to it } }
+            .filter { (_, date) -> !date.isAfter(today.plusDays(7)) }.minByOrNull { it.second }?.let { (debt, date) ->
+                add(if (date.isBefore(today)) "Utang lewat jatuh tempo" else "Jatuh tempo terdekat",
+                    "${debt.lenderName}: sisa ${money(debt.remainingAmount)}, jatuh tempo $date. Periksa status pembayaran.", "warning")
             }
-        }
-
-        return insights
+        goals.filter { it.targetAmount > 0 && it.currentAmount > 0 }
+            .maxByOrNull { it.progressPercentage }?.let {
+                if (it.remainingAmount == 0L) add("Target tercapai", "Catatan target ${it.name} telah mencapai ${money(it.targetAmount)}. Pastikan nominalnya masih sesuai.", "positive")
+                else add("Progres target", "${it.name} terkumpul ${money(it.currentAmount)} dari ${money(it.targetAmount)}. Sisa target ${money(it.remainingAmount)}.", "info")
+            }
+        return insights.sortedBy { when (it.type) { "warning" -> 0; "info" -> 1; else -> 2 } }
     }
 
     /**
@@ -256,42 +260,12 @@ object FinancialInsightService {
     }
 
     fun generateLocalNarrativeInsight(stats: MonthComparisonResult): String {
-        val sb = StringBuilder()
-        val srPct = (stats.savingsRate * 100).toInt()
-        val expDiff = stats.expenseDifference
-        val expPct = stats.expensePercentChange.toInt()
-
-        sb.append("📊 Evaluasi Arus Kas Bulan Ini\n")
-        if (srPct >= 20) {
-            sb.append("Kondisi keuangan Anda bulan ini sangat sehat dengan tingkat tabungan (savings rate) mencapai $srPct%, berada di atas batas rekomendasi 20%.\n\n")
-        } else if (srPct > 0) {
-            sb.append("Arus kas Anda masih positif dengan tingkat tabungan $srPct%, namun berada di bawah rekomendasi ideal 20%. Pertahankan disiplin anggaran.\n\n")
-        } else {
-            sb.append("Perhatian: Arus kas bulan ini mengalami defisit (pengeluaran melampaui pemasukan). Disarankan untuk meninjau kembali pos belanja non-primer.\n\n")
-        }
-
-        if (stats.prevMonthTotalExpense > 0) {
-            if (expPct > 0) {
-                sb.append("Total pengeluaran meningkat $expPct% (+${Formatters.formatCompact(expDiff)}) dibanding bulan lalu.\n\n")
-            } else {
-                sb.append("Total pengeluaran berhasil ditekan hemat ${Math.abs(expPct)}% dibanding periode bulan lalu.\n\n")
-            }
-        }
-
-        sb.append("💡 Rekomendasi Penghematan\n")
-        val topCat = stats.categoryDeltas.firstOrNull()
-        if (topCat != null) {
-            sb.append("Pos pengeluaran terbesar saat ini adalah ${topCat.categoryName} sebesar ${Formatters.formatRupiah(topCat.currentAmount)}.")
-            if (topCat.percentChange > 15) {
-                sb.append(" Kategori ini melonjak ${topCat.percentChange.toInt()}% dibanding bulan lalu. Fokuskan pengendalian pada pos ini untuk hasil penghematan paling cepat.")
-            } else {
-                sb.append(" Jaga stabilitas pos pengeluaran ini agar rasio arus kas tetap optimal.")
-            }
-        } else {
-            sb.append("Terus catat transaksi harian Anda secara konsisten agar AI dapat memetakan pola keuangan secara lebih akurat.")
-        }
-
-        return sb.toString()
+        if (stats.currentMonthTotalIncome == 0L && stats.currentMonthTotalExpense == 0L)
+            return "Belum ada pemasukan atau pengeluaran tercatat bulan ini. Catat transaksi untuk memperoleh insight yang sesuai."
+        val facts = generateLocalRuleInsights(stats).take(3)
+        return "**Ringkasan bulan berjalan**\nPemasukan: ${Formatters.formatRupiah(stats.currentMonthTotalIncome)}\n" +
+            "Pengeluaran: ${Formatters.formatRupiah(stats.currentMonthTotalExpense)}\n\n" +
+            facts.joinToString("\n\n") { "**${it.title}**\n${it.message}" }
     }
 
     /**
@@ -311,7 +285,7 @@ object FinancialInsightService {
             Anda adalah penasihat keuangan pribadi cerdas dan santun berbahasa Indonesia.
             Berikut adalah data AGREGAT keuangan bulanan pengguna (hanya total angka, tanpa data pribadi):
             ${buildAggregatedAiPayload(stats)}
-            
+
             Tugas:
             Berikan analisis naratif singkat 2-3 paragraf:
             1. Evaluasi arus kas dan savings rate saat ini secara realistis.
@@ -319,25 +293,10 @@ object FinancialInsightService {
             Gunakan gaya bahasa santai, jelas, dan memotivasi. Jangan sebutkan prompt ini.
         """.trimIndent()
 
-        val primaryRes = executeGeminiCall(
-            model = "gemini-3.8-flash",
-            apiKey = cleanKey,
-            systemInstruction = prompt,
-            userQuery = "Berikan analisis naratif evaluasi keuangan bulanan saya."
-        )
-        if (primaryRes.isSuccess) {
-            return@withContext primaryRes
+        val online = withGeminiModelFallback { model ->
+            executeGeminiCall(model, cleanKey, prompt, "Berikan analisis naratif evaluasi keuangan bulanan saya.")
         }
-
-        val fallbackRes = executeGeminiCall(
-            model = "gemini-3-flash",
-            apiKey = cleanKey,
-            systemInstruction = prompt,
-            userQuery = "Berikan analisis naratif evaluasi keuangan bulanan saya."
-        )
-        if (fallbackRes.isSuccess) {
-            return@withContext fallbackRes
-        }
+        if (online.isSuccess) return@withContext online
 
         // Fallback ke analisis lokal jika koneksi/kuota luar terkendala
         Result.success(generateLocalNarrativeInsight(stats))
@@ -349,7 +308,9 @@ object FinancialInsightService {
         prevMonthPrefix: String
     ): MonthComparisonResult {
         val curDate = try {
-            LocalDate.parse("$currentMonthPrefix-01")
+            java.time.YearMonth.parse(currentMonthPrefix).let { month ->
+                if (month == java.time.YearMonth.now()) LocalDate.now() else month.atEndOfMonth()
+            }
         } catch (_: Exception) {
             LocalDate.now()
         }
@@ -363,7 +324,7 @@ object FinancialInsightService {
         currentMonthPrefix: String
     ): List<RuleBasedInsight> {
         val stats = calculateMonthComparison(transactions, currentMonthPrefix, "")
-        return generateLocalRuleInsights(stats)
+        return generateLocalRuleInsights(stats, budgets = budgets)
     }
 
     fun buildGeminiAggregatePayload(
@@ -373,7 +334,9 @@ object FinancialInsightService {
         previousMonthPrefix: String
     ): JSONObject {
         val curDate = try {
-            LocalDate.parse("$currentMonthPrefix-01")
+            java.time.YearMonth.parse(currentMonthPrefix).let { month ->
+                if (month == java.time.YearMonth.now()) LocalDate.now() else month.atEndOfMonth()
+            }
         } catch (_: Exception) {
             LocalDate.now()
         }
@@ -389,11 +352,13 @@ object FinancialInsightService {
         previousMonthPrefix: String
     ): Result<String> {
         val curDate = try {
-            LocalDate.parse("$currentMonthPrefix-01")
+            java.time.YearMonth.parse(currentMonthPrefix).let { month ->
+                if (month == java.time.YearMonth.now()) LocalDate.now() else month.atEndOfMonth()
+            }
         } catch (_: Exception) {
             LocalDate.now()
         }
-        val stats = computeMonthComparison(transactions, categories, curDate)
+        val stats = withContext(Dispatchers.Default) { computeMonthComparison(transactions, categories, curDate) }
         return fetchGeminiInsight(apiKey, stats)
     }
 
@@ -407,11 +372,11 @@ object FinancialInsightService {
         val sb = StringBuilder()
         val userLabel = if (context.userName.isNotBlank()) context.userName.trim() else "Pengguna"
         sb.append("Anda adalah 'Vina', asisten dan penasihat keuangan pribadi cerdas dari aplikasi Duit Aing. ")
-        sb.append("Anda bertindak layaknya seorang penasihat keuangan pribadi yang cerdas, jujur, solutif, empati, dan bersahabat. ")
-        sb.append("Anda berbicara langsung kepada $userLabel dan selalu menyebut diri Anda sebagai 'Vina'.\n\n")
+        sb.append("Gunakan bahasa Indonesia yang ringkas dan profesional: jawab inti dalam 2–4 kalimat atau maksimal 3 poin. Jangan mengulang perkenalan, memakai emoji berlebihan, atau menggurui. Bedakan fakta tercatat dari dugaan; jangan menyebut surplus sebagai tabungan atau saldo likuid sebagai kekayaan bersih. ")
+        sb.append("Anda berbicara langsung kepada $userLabel dengan nada profesional dan ramah.\n\n")
 
         sb.append("=== DATA KEUANGAN NYATA PENGGUNA (SNAPSHOT HARI INI: ${context.currentDate}) ===\n")
-        sb.append("1. Total Saldo Likuid / Kekayaan Bersih: ${Formatters.formatRupiah(context.totalLiquidBalance)}\n")
+        sb.append("1. Total Saldo Likuid: ${Formatters.formatRupiah(context.totalLiquidBalance)}\n")
         sb.append("   Rincian Aset:\n")
         if (context.assets.isEmpty()) {
             sb.append("   - Tidak ada aset terdaftar\n")
@@ -554,6 +519,13 @@ object FinancialInsightService {
      */
     fun evaluateOfflineQuery(userQuery: String, context: FinancialChatContext): String {
         val q = normalizeLocalQuestion(userQuery, context.assets.map { it.name } + context.categories.map { it.name })
+        localConversationReply(q, context)?.let { return it }
+        if (q in listOf("insight", "insight keuangan", "ringkasan keuangan", "evaluasi keuangan", "beri insight", "analisis keuangan saya", "beri saya insight keuangan", "apa yang perlu diperhatikan", "ringkasan kondisi keuangan", "cek keuangan saya", "kasih insight dong")) {
+            val today = runCatching { LocalDate.parse(context.currentDate) }.getOrElse { LocalDate.now() }
+            val insights = generateLocalRuleInsights(context.currentMonthStats, context.budgets, context.debts, context.goals, today)
+            return insights.take(3).joinToString("\n\n") { "**${it.title}**\n${it.message}" }
+                .ifBlank { "Belum ada data yang cukup untuk insight. Mulai dengan mencatat pemasukan dan pengeluaran." }
+        }
         answerLocalDataQuestion(q, context)?.let { return it }
         val cur = context.currentMonthStats
         val netCashflow = cur.currentMonthTotalIncome - cur.currentMonthTotalExpense
@@ -567,23 +539,7 @@ object FinancialInsightService {
             q.contains("siapa kamu") || q.contains("siapa anda") || q.contains("kamu siapa") ||
             q.contains("namamu") || q.contains("kenalan") ||
             q.contains("bisa apa") || q.contains("bantu apa") || q.contains("fungsi") -> {
-                val sb = StringBuilder()
-                val greeting = if (context.userName.isNotBlank()) "Halo ${context.userName.trim()}!" else "Halo!"
-                sb.append("👋 **$greeting Saya Vina, Asisten Finansial Pribadi Anda.**\n\n")
-                sb.append("Vina hadir untuk membantu Anda membaca data keuangan secara cerdas, jujur, dan mudah dipahami. Kondisi ringkas Anda saat ini:\n")
-                sb.append("• **Total Saldo Likuid:** **${Formatters.formatRupiah(context.totalLiquidBalance)}**\n")
-                val statusCash = if (netCashflow >= 0) "Surplus **${Formatters.formatRupiah(netCashflow)}**" else "Defisit **${Formatters.formatRupiah(Math.abs(netCashflow))}**"
-                sb.append("• **Arus Kas Bulan Ini:** $statusCash (Savings Rate: **$srPct%**)\n\n")
-                sb.append("💬 **Anda bisa menanyakan berbagai hal kepada Vina, contohnya:**\n")
-                sb.append("1. *\"Bagaimana tren arus kas saya bulan lalu?\"*\n")
-                sb.append("2. *\"Kategori apa pengeluaran terbesar saya?\"*\n")
-                sb.append("3. *\"Berapa rata-rata belanja harian saya?\"*\n")
-                sb.append("4. *\"Apakah kondisi keuangan saya sehat?\"*\n")
-                sb.append("5. *\"Apakah anggaran belanja masih aman?\"*\n")
-                sb.append("6. *\"Bisa beli barang seharga Rp 2.000.000?\"*\n")
-                sb.append("7. *\"Berapa sisa utang dan cicilan saya?\"*\n")
-                sb.append("8. *\"Berikan tips hemat untuk bulan ini.\"*")
-                sb.toString()
+                "Saya Vina, asisten keuangan Duit Aing. Tanyakan pengeluaran, pemasukan, anggaran, utang, atau target. Contoh: ‘Pengeluaran bulan lalu’, lalu ‘rincikan’."
             }
 
             // A named month must use that month's amounts, not the current ranking.
@@ -614,82 +570,14 @@ object FinancialInsightService {
             q.contains("sehat") || q.contains("kesehatan") || q.contains("kondisi keuangan") ||
             q.contains("gimana keuangan") || q.contains("bagus gak") || q.contains("skor") ||
             q.contains("review") || q.contains("audit") -> {
-                var healthScore = 0
-                val notes = mutableListOf<String>()
-
-                // Pilar 1: Arus Kas Bersih (30 poin)
-                if (netCashflow > 0) {
-                    healthScore += 30
-                    notes.add("✅ Arus kas positif (+${Formatters.formatRupiah(netCashflow)})")
-                } else if (netCashflow == 0L) {
-                    healthScore += 15
-                    notes.add("⚡ Arus kas impas (Pemasukan = Pengeluaran)")
-                } else {
-                    notes.add("⚠️ Arus kas defisit (${Formatters.formatRupiah(netCashflow)})")
+                val exceeded = context.budgets.count { it.remainingAmount < 0 }
+                buildString {
+                    append("**Evaluasi Kesehatan Finansial**\n")
+                    append("Arus kas bulan berjalan: **${Formatters.formatRupiah(netCashflow)}**.\n")
+                    append("Beban Cicilan: sisa utang tercatat **${Formatters.formatRupiah(totalDebt)}**.\n")
+                    append(if (context.budgets.isEmpty()) "Belum ada anggaran tercatat.\n" else "$exceeded dari ${context.budgets.size} anggaran melewati batas.\n")
+                    append("Ringkasan ini mengikuti kelengkapan catatan dan belum mencakup kebutuhan atau kewajiban yang belum dicatat.")
                 }
-
-                // Pilar 2: Savings Rate (30 poin)
-                if (srPct >= 20) {
-                    healthScore += 30
-                    notes.add("✅ Rasio Tabungan prima ($srPct% >= target 20%)")
-                } else if (srPct >= 10) {
-                    healthScore += 18
-                    notes.add("⚡ Rasio Tabungan cukup ($srPct%), targetkan naik ke 20%")
-                } else if (srPct > 0) {
-                    healthScore += 8
-                    notes.add("⚠️ Rasio Tabungan tipis ($srPct%)")
-                } else {
-                    notes.add("⚠️ Belum ada tabungan yang berhasil disisihkan")
-                }
-
-                // Pilar 3: Beban Utang (20 poin)
-                if (activeDebts.isEmpty()) {
-                    healthScore += 20
-                    notes.add("✅ Bebas Beban Cicilan konsumtif / cicilan aktif")
-                } else {
-                    val debtRatio = if (context.totalLiquidBalance > 0) (totalDebt.toDouble() / context.totalLiquidBalance) else 1.0
-                    if (debtRatio <= 0.3) {
-                        healthScore += 15
-                        notes.add("✅ Beban Cicilan aman (<30% dari saldo likuid)")
-                    } else if (debtRatio <= 0.7) {
-                        healthScore += 10
-                        notes.add("⚡ Beban Cicilan aktif ${Formatters.formatRupiah(totalDebt)} perlu dicicil teratur")
-                    } else {
-                        notes.add("⚠️ Beban Cicilan (${Formatters.formatRupiah(totalDebt)}) mendekati/melebihi aset likuid")
-                    }
-                }
-
-                // Pilar 4: Disiplin Anggaran (20 poin)
-                val exceededBudgets = context.budgets.filter { it.status == com.cashflow.app.data.model.BudgetStatus.EXCEEDED }
-                if (context.budgets.isEmpty()) {
-                    healthScore += 12
-                    notes.add("ℹ️ Belum mengatur limit anggaran bulanan")
-                } else if (exceededBudgets.isEmpty()) {
-                    healthScore += 20
-                    notes.add("✅ Seluruh pos anggaran masih dalam batas aman")
-                } else {
-                    notes.add("⚠️ Terdapat ${exceededBudgets.size} pos anggaran yang overbudget")
-                }
-
-                val verdictTitle = when {
-                    healthScore >= 80 -> "⭐ **Kondisi Finansial: SANGAT PRIMA ($healthScore/100)**"
-                    healthScore >= 60 -> "🟢 **Kondisi Finansial: SEHAT & TERKENDALI ($healthScore/100)**"
-                    healthScore >= 40 -> "⚡ **Kondisi Finansial: CUKUP BAIK - PERLU WASPADA ($healthScore/100)**"
-                    else -> "⚠️ **Kondisi Finansial: PERLU PENGETATAN SEGERA ($healthScore/100)**"
-                }
-
-                val sb = StringBuilder()
-                sb.append("🩺 **Evaluasi Kesehatan Finansial (Diagnosis Vina)**\n\n")
-                sb.append("$verdictTitle\n\n")
-                sb.append("**Catatan Evaluasi 4 Pilar:**\n")
-                notes.forEach { n -> sb.append("• $n\n") }
-                sb.append("\n💡 **Rekomendasi Vina:** ")
-                if (healthScore >= 70) {
-                    sb.append("Pertahankan kebiasaan mencatat dan sisihkan surplus ke target tabungan/dana darurat.")
-                } else {
-                    sb.append("Fokuskan pengetatan pada pos belanja fleksibel agar arus kas kembali menghasilkan surplus.")
-                }
-                sb.toString()
             }
 
             // 3. Simulasi & Kelayakan Pembelian ("Bisa beli HP?", "Mampu gak beli X?", "Boleh belanja?")
@@ -739,27 +627,15 @@ object FinancialInsightService {
                 val sb = StringBuilder()
                 sb.append("💡 **Tips & Solusi Penghematan dari Vina**\n\n")
 
-                val topCat = context.topCategories.firstOrNull()
-                val surgeCat = context.topCategories.filter { it.prevAmount > 0 && it.diff > 50_000L }.maxByOrNull { it.percentChange }
-
-                sb.append("1. **Kendalikan Pos Belanja Terbesar:**\n")
-                if (topCat != null) {
-                    val pct = if (cur.currentMonthTotalExpense > 0) ((topCat.currentAmount.toDouble() / cur.currentMonthTotalExpense) * 100).toInt() else 0
-                    sb.append("   Pengeluaran terbesar Anda tertuju pada **${topCat.categoryName}** (${Formatters.formatRupiah(topCat.currentAmount)} atau $pct% dari total belanja). Kurangi frekuensi atau cari substitusi lebih hemat di pos ini.\n\n")
-                } else {
-                    sb.append("   Catat transaksi harian secara konsisten agar pos pengeluaran terbesar teridentifikasi.\n\n")
+                val topCat = context.topCategories.maxByOrNull { it.currentAmount }?.takeIf { it.currentAmount > 0 }
+                buildString {
+                    append("**Tips & Solusi Penghematan**\n")
+                    if (topCat != null) append("Tinjau ${topCat.categoryName}: tercatat **${Formatters.formatRupiah(topCat.currentAmount)}** bulan ini. Pilih transaksi yang bisa dikurangi tanpa mengganggu kebutuhan utama.\n")
+                    else append("Catat pengeluaran terlebih dahulu agar pos yang bisa ditinjau terlihat.\n")
+                    val tight = context.budgets.filter { it.remainingAmount >= 0 && it.effectiveTargetAmount > 0 }.minByOrNull { it.remainingAmount }
+                    if (tight != null) append("Sisa anggaran ${tight.category?.name ?: "aktif"}: **${Formatters.formatRupiah(tight.remainingAmount)}**.\n")
+                    append("Tetapkan batas sesuai kebutuhan Anda. Saya bisa merinci pengeluaran jika Anda menyebutkan kategori dan periode.")
                 }
-
-                sb.append("2. **Waspadai Kenaikan Cepat:**\n")
-                if (surgeCat != null) {
-                    sb.append("   Kategori **${surgeCat.categoryName}** melonjak **${surgeCat.percentChange.toInt()}%** (+${Formatters.formatRupiah(surgeCat.diff)}) dibanding bulan lalu. Tahan belanja tambahan di pos ini hingga awal bulan depan.\n\n")
-                } else {
-                    sb.append("   Laju pengeluaran antar kategori relatif stabil tanpa lonjakan tajam.\n\n")
-                }
-
-                sb.append("3. **Terapkan Aturan 50-30-20 (50/30/20):**\n")
-                sb.append("   Alokasikan 50% untuk kebutuhan pokok, 30% untuk gaya hidup, dan minimal 20% langsung disisihkan ke tabungan di awal bulan, bukan dari sisa akhir bulan.")
-                sb.toString()
             }
 
             // 5. Analisis Pemasukan & Penghasilan (Income)
@@ -946,7 +822,7 @@ object FinancialInsightService {
      * Menjalankan pemanggilan REST API ke model Gemini (mendukung Gemini 3.8 Flash).
      * Memfilter bagian internal thinking dan mengekstrak pesan final secara aman.
      */
-    fun executeGeminiCall(
+    suspend fun executeGeminiCall(
         model: String,
         apiKey: String,
         systemInstruction: String,
@@ -963,8 +839,8 @@ object FinancialInsightService {
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                connectTimeout = 15000
-                readTimeout = 20000
+                connectTimeout = 5000
+                readTimeout = 8000
                 doOutput = true
             }
 
@@ -994,54 +870,61 @@ object FinancialInsightService {
                 put("generationConfig", genConfig)
             }
 
-            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
-                writer.write(requestBody.toString())
-                writer.flush()
-            }
+            ResilientNetworkClient.withConnectionTimeout(conn, timeoutMs = 12_000L) {
+                OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
+                    writer.write(requestBody.toString())
+                    writer.flush()
+                }
 
-            val responseCode = conn.responseCode
-            if (responseCode == 200) {
-                val responseText = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
-                val json = JSONObject(responseText)
-                val candidates = json.optJSONArray("candidates")
-                if (candidates != null && candidates.length() > 0) {
-                    val candidate = candidates.getJSONObject(0)
-                    val content = candidate.optJSONObject("content")
-                    val parts = content?.optJSONArray("parts")
-                    if (parts != null && parts.length() > 0) {
-                        val textBuilder = StringBuilder()
-                        for (i in 0 until parts.length()) {
-                            val part = parts.getJSONObject(i)
-                            // Abaikan bagian internal thinking Gemini 3
-                            if (!part.optBoolean("thought", false)) {
-                                val t = part.optString("text", "")
-                                if (t.isNotBlank()) textBuilder.append(t)
+                val responseCode = conn.responseCode
+                if (responseCode == 200) {
+                    val responseText = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
+                    val json = JSONObject(responseText)
+                    val candidates = json.optJSONArray("candidates")
+                    if (candidates != null && candidates.length() > 0) {
+                        val candidate = candidates.getJSONObject(0)
+                        val content = candidate.optJSONObject("content")
+                        val parts = content?.optJSONArray("parts")
+                        if (parts != null && parts.length() > 0) {
+                            val textBuilder = StringBuilder()
+                            for (i in 0 until parts.length()) {
+                                val part = parts.getJSONObject(i)
+                                // Abaikan bagian internal thinking Gemini 3
+                                if (!part.optBoolean("thought", false)) {
+                                    val t = part.optString("text", "")
+                                    if (t.isNotBlank()) textBuilder.append(t)
+                                }
                             }
-                        }
-                        val textResult = textBuilder.toString().trim()
-                        if (textResult.isNotEmpty()) {
-                            Result.success(textResult)
+                            val textResult = textBuilder.toString().trim()
+                            if (textResult.isNotEmpty()) {
+                                Result.success(textResult)
+                            } else {
+                                val fallbackText = parts.getJSONObject(parts.length() - 1).optString("text", "").trim()
+                                if (fallbackText.isNotEmpty()) Result.success(fallbackText)
+                                else Result.failure(java.io.IOException("Respons kosong dari Gemini"))
+                            }
                         } else {
-                            val fallbackText = parts.getJSONObject(parts.length() - 1).optString("text", "").trim()
-                            if (fallbackText.isNotEmpty()) Result.success(fallbackText)
-                            else Result.failure(java.io.IOException("Respons kosong dari Gemini"))
+                            Result.failure(java.io.IOException("Kandidat respons tidak memiliki bagian teks"))
                         }
                     } else {
-                        Result.failure(java.io.IOException("Kandidat respons tidak memiliki bagian teks"))
+                        Result.failure(java.io.IOException("Tidak ada kandidat jawaban dari Gemini"))
                     }
                 } else {
-                    Result.failure(java.io.IOException("Tidak ada kandidat jawaban dari Gemini"))
+                    val errorStream = conn.errorStream?.let { BufferedReader(InputStreamReader(it, Charsets.UTF_8)).use { r -> r.readText() } } ?: ""
+                    val errorMsg = try {
+                        val errJson = JSONObject(errorStream)
+                        errJson.optJSONObject("error")?.optString("message") ?: errorStream
+                    } catch (_: Exception) {
+                        errorStream
+                    }
+                    Result.failure(java.io.IOException("HTTP $responseCode: $errorMsg"))
                 }
-            } else {
-                val errorStream = conn.errorStream?.let { BufferedReader(InputStreamReader(it, Charsets.UTF_8)).use { r -> r.readText() } } ?: ""
-                val errorMsg = try {
-                    val errJson = JSONObject(errorStream)
-                    errJson.optJSONObject("error")?.optString("message") ?: errorStream
-                } catch (_: Exception) {
-                    errorStream
-                }
-                Result.failure(java.io.IOException("HTTP $responseCode: $errorMsg"))
             }
+        } catch (e: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            Result.failure(java.net.SocketTimeoutException("AI online melewati batas waktu 12 detik"))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -1067,19 +950,11 @@ object FinancialInsightService {
         return withContext(Dispatchers.IO) {
             val systemInstruction = buildFinancialSystemInstruction(context, conversationHistory)
 
-            // 1. Coba Gemini 3.8 Flash (Model utama terkini)
-            val primaryResult = executeGeminiCall("gemini-3.8-flash", cleanKey, systemInstruction, lastUserMessage)
-            if (primaryResult.isSuccess) {
-                return@withContext primaryResult
+            val online = withGeminiModelFallback { model ->
+                executeGeminiCall(model, cleanKey, systemInstruction, lastUserMessage)
             }
-
-            val primaryError = primaryResult.exceptionOrNull()
-
-            // 2. Coba Gemini 3 Flash / Fallback model
-            val fallbackResult = executeGeminiCall("gemini-3-flash", cleanKey, systemInstruction, lastUserMessage)
-            if (fallbackResult.isSuccess) {
-                return@withContext fallbackResult
-            }
+            if (online.isSuccess) return@withContext online
+            val primaryError = online.exceptionOrNull()
 
             // 3. Fallback cerdas ke Mesin Analisis Finansial Lokal jika terjadi kendala pada API key / kuota
             val localAnswer = evaluateOfflineQuery(localQuestionWithHistory(conversationHistory, context.assets.map { it.name } + context.categories.map { it.name }), context)

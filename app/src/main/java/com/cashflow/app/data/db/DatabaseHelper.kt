@@ -360,23 +360,40 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun seedMissingDefaultCategories(db: SQLiteDatabase) {
         val defaultCategories = getDefaultCategoriesList()
-        for (cat in defaultCategories) {
-            val cv = ContentValues().apply {
-                put("id", cat.id)
-                put("name", cat.name)
-                put("type", cat.type)
-                put("icon", cat.icon)
-                put("color", cat.color)
-                put("is_default", if (cat.isDefault) 1 else 0)
-                put("is_active", if (cat.isActive) 1 else 0)
-            }
-            db.insertWithOnConflict(TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE)
-            for ((oldName, shortName) in com.cashflow.app.data.model.shortDefaultCategoryLabels) {
-                if (shortName == cat.name) {
-                    db.execSQL("UPDATE $TABLE_CATEGORIES SET name = ? WHERE id = ? AND is_default = 1 AND name = ?",
-                        arrayOf(shortName, cat.id, oldName))
+        val existing = mutableMapOf<String, Pair<String, Boolean>>()
+        db.query(TABLE_CATEGORIES, arrayOf("id", "name", "is_default"), null, null, null, null, null).use { cursor ->
+            while (cursor.moveToNext()) existing[cursor.getString(0)] = cursor.getString(1) to (cursor.getInt(2) == 1)
+        }
+        val missing = defaultCategories.filter { it.id !in existing }
+        val legacy = defaultCategories.filter { cat ->
+            val stored = existing[cat.id]
+            stored?.second == true && stored.first != cat.name &&
+                com.cashflow.app.data.model.shortDefaultCategoryLabels[stored.first] == cat.name
+        }
+        if (missing.isEmpty() && legacy.isEmpty()) return
+
+        val ownsTransaction = !db.inTransaction()
+        if (ownsTransaction) db.beginTransaction()
+        try {
+            for (cat in missing) {
+                val cv = ContentValues().apply {
+                    put("id", cat.id)
+                    put("name", cat.name)
+                    put("type", cat.type)
+                    put("icon", cat.icon)
+                    put("color", cat.color)
+                    put("is_default", if (cat.isDefault) 1 else 0)
+                    put("is_active", if (cat.isActive) 1 else 0)
                 }
+                db.insertWithOnConflict(TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE)
             }
+            for (cat in legacy) {
+                db.execSQL("UPDATE $TABLE_CATEGORIES SET name = ? WHERE id = ? AND is_default = 1 AND name = ?",
+                    arrayOf(cat.name, cat.id, existing.getValue(cat.id).first))
+            }
+            if (ownsTransaction) db.setTransactionSuccessful()
+        } finally {
+            if (ownsTransaction) db.endTransaction()
         }
     }
 

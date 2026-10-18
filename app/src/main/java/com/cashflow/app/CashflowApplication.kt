@@ -12,6 +12,9 @@ import java.util.Locale
 
 class CashflowApplication : Application() {
 
+    // UI and background reminders share one snapshot and one ledger write lock per process.
+    val repository by lazy { com.cashflow.app.data.repository.CashflowRepository(this) }
+
     override fun onCreate() {
         super.onCreate()
 

@@ -58,7 +58,7 @@ fun TransactionsScreen(
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     val isFilterSheetOpen by viewModel.isFilterSheetOpen.collectAsState()
 
-    val transactions by viewModel.filteredTransactionsTab.collectAsState()
+    val groupedTransactions by viewModel.transactionDays.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filterType by viewModel.filterType.collectAsState()
     val filterInputMethod by viewModel.filterInputMethod.collectAsState()
@@ -79,10 +79,7 @@ fun TransactionsScreen(
 
     val duit = MaterialTheme.duit
 
-    // Group transactions by date
-    val groupedTransactions = remember(transactions) {
-        transactions.groupBy { it.transactionDate }
-    }
+    val transactionCount = remember(groupedTransactions) { groupedTransactions.sumOf { it.transactions.size } }
 
     Column(
         modifier = modifier
@@ -115,7 +112,7 @@ fun TransactionsScreen(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${transactions.size} transaksi tercatat",
+                    text = "$transactionCount transaksi tercatat",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = duit.textSecondary
                 )
@@ -397,13 +394,14 @@ fun TransactionsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp, top = 4.dp)
             ) {
-                groupedTransactions.forEach { (dateStr, txGroup) ->
-                    // Daily subtotal calculation
-                    val dayExpense = txGroup.filter { it.type == "expense" }.sumOf { it.amount }
-                    val dayIncome = txGroup.filter { it.type == "income" }.sumOf { it.amount }
+                groupedTransactions.forEach { day ->
+                    val dateStr = day.date
+                    val txGroup = day.transactions
+                    val dayExpense = day.expense
+                    val dayIncome = day.income
 
                     // Date Header Row with count and daily subtotal
-                    item(key = "header_$dateStr") {
+                    item(key = "header_$dateStr", contentType = "date_header") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -453,7 +451,7 @@ fun TransactionsScreen(
                     }
 
                     // Transactions for that date (Swipe left=delete, Swipe right=edit, 3-dots accessibility menu)
-                    items(txGroup, key = { it.id }) { tx ->
+                    items(txGroup, key = { it.id }, contentType = { "transaction" }) { tx ->
                         TransactionItemCard(
                             transaction = tx,
                             category = catMap[tx.categoryId],

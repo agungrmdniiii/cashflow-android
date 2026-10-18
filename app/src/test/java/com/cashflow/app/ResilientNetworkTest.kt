@@ -9,8 +9,48 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.TimeoutCancellationException
 
 class ResilientNetworkTest {
+
+    private class WaitingConnection : HttpURLConnection(URL("http://localhost")) {
+        val released = CountDownLatch(1)
+        var disconnected = false
+        override fun disconnect() { disconnected = true; released.countDown() }
+        override fun connect() {}
+        override fun usingProxy() = false
+    }
+
+    @Test fun timeoutDisconnectsABlockedRequestBeforeReturning() = runBlocking {
+        val connection = WaitingConnection()
+        val started = System.nanoTime()
+        try {
+            ResilientNetworkClient.withConnectionTimeout(connection, 50) {
+                connection.released.await(3, TimeUnit.SECONDS)
+                "late response"
+            }
+            fail("Expected timeout")
+        } catch (_: TimeoutCancellationException) { }
+        assertTrue(connection.disconnected)
+        assertTrue("A blocked request must not outlive the deadline", (System.nanoTime() - started) / 1_000_000 < 1500)
+    }
+
+    @Test fun callerCancellationDisconnectsRequestAndDoesNotReturnAnAnswer() = runBlocking {
+        val connection = WaitingConnection()
+        val result = withTimeoutOrNull(50) {
+            ResilientNetworkClient.withConnectionTimeout(connection, 5000) {
+                connection.released.await(3, TimeUnit.SECONDS)
+                "late response"
+            }
+        }
+        assertNull(result)
+        assertTrue(connection.disconnected)
+    }
 
     @Test
     fun testClassifyError_AccurateMapping() {

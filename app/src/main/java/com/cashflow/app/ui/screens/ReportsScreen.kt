@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.TransactionType
 import com.cashflow.app.data.model.PeriodFilter
-import com.cashflow.app.data.model.buildCashflowChart
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
@@ -52,10 +51,11 @@ fun ReportsScreen(
     modifier: Modifier = Modifier,
     onTourCalendarPositioned: (Rect) -> Unit = {}
 ) {
-    val periodTransactions by viewModel.reportTransactions.collectAsState()
+    val summary by viewModel.reportSummary.collectAsState()
+    val chartBuckets by viewModel.reportChart.collectAsState()
     val reportRange by viewModel.reportDateRange.collectAsState()
-    val periodIncome = remember(periodTransactions) { periodTransactions.filter { it.type == "income" }.sumOf { it.amount } }
-    val periodExpense = remember(periodTransactions) { periodTransactions.filter { it.type == "expense" }.sumOf { it.amount } }
+    val periodIncome = summary.income
+    val periodExpense = summary.expense
     val netCashflow = periodIncome - periodExpense
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -81,55 +81,23 @@ fun ReportsScreen(
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(geminiApiKey ?: "") }
 
-    // Expense Category breakdown
-    val categoryBreakdown = remember(periodTransactions, categories) {
-        val expenseTx = periodTransactions.filter { it.type == TransactionType.EXPENSE.value && it.categoryId != null }
-        val totalExp = expenseTx.sumOf { it.amount }
-        if (totalExp == 0L) emptyList()
-        else {
-            expenseTx.groupBy { it.categoryId!! }
-                .map { (catId, txs) ->
-                    val sum = txs.sumOf { it.amount }
-                    val cat = catMap[catId]
-                    val percent = (sum.toFloat() / totalExp.toFloat()) * 100f
-                    Triple(cat, sum, percent)
-                }
-                .sortedByDescending { it.second }
-        }
+    val categoryBreakdown = remember(summary.expenseByCategory, catMap) {
+        val total = summary.expenseByCategory.values.sum()
+        if (total == 0L) emptyList() else summary.expenseByCategory.map { (id, amount) ->
+            Triple(catMap[id], amount, amount.toFloat() / total * 100f)
+        }.sortedByDescending { it.second }
     }
-
-    // Income Category breakdown
-    val incomeCategoryBreakdown = remember(periodTransactions, categories) {
-        val incomeTx = periodTransactions.filter { it.type == TransactionType.INCOME.value && it.categoryId != null }
-        val totalInc = incomeTx.sumOf { it.amount }
-        if (totalInc == 0L) emptyList()
-        else {
-            incomeTx.groupBy { it.categoryId!! }
-                .map { (catId, txs) ->
-                    val sum = txs.sumOf { it.amount }
-                    val cat = catMap[catId]
-                    val percent = (sum.toFloat() / totalInc.toFloat()) * 100f
-                    Triple(cat, sum, percent)
-                }
-                .sortedByDescending { it.second }
-        }
+    val incomeCategoryBreakdown = remember(summary.incomeByCategory, catMap) {
+        val total = summary.incomeByCategory.values.sum()
+        if (total == 0L) emptyList() else summary.incomeByCategory.map { (id, amount) ->
+            Triple(catMap[id], amount, amount.toFloat() / total * 100f)
+        }.sortedByDescending { it.second }
     }
-
-    // Asset spending breakdown
-    val assetBreakdown = remember(periodTransactions, allAssets) {
-        val expenseTx = periodTransactions.filter { it.type == TransactionType.EXPENSE.value }
-        val totalExp = expenseTx.sumOf { it.amount }
-        if (totalExp == 0L) emptyList()
-        else {
-            expenseTx.groupBy { it.assetId }
-                .map { (assetId, txs) ->
-                    val sum = txs.sumOf { it.amount }
-                    val ast = assetMap[assetId]
-                    val percent = (sum.toFloat() / totalExp.toFloat()) * 100f
-                    Triple(ast, sum, percent)
-                }
-                .sortedByDescending { it.second }
-        }
+    val assetBreakdown = remember(summary.expenseByAsset, assetMap) {
+        val total = summary.expenseByAsset.values.sum()
+        if (total == 0L) emptyList() else summary.expenseByAsset.map { (id, amount) ->
+            Triple(assetMap[id], amount, amount.toFloat() / total * 100f)
+        }.sortedByDescending { it.second }
     }
 
     PullToRefreshBox(
@@ -342,15 +310,11 @@ fun ReportsScreen(
 
         // Trend and breakdowns use exactly the same report transaction set.
         item {
-            val today = java.time.LocalDate.now()
-            val buckets = remember(periodTransactions, selectedPeriod, reportRange, today) {
-                buildCashflowChart(periodTransactions, selectedPeriod, today, reportRange)
-            }
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                 Text(if (isExpense) "Tren Pengeluaran" else "Tren Pemasukan", style = MaterialTheme.typography.titleLarge, color = duit.textPrimary)
                 Text(periodLabel, style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
                 Spacer(Modifier.height(16.dp))
-                ReportTrendChart(buckets, isExpense, isBalanceHidden, Modifier.fillMaxWidth())
+                ReportTrendChart(chartBuckets, isExpense, isBalanceHidden, Modifier.fillMaxWidth())
                 Spacer(Modifier.height(20.dp))
             }
         }

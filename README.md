@@ -50,7 +50,8 @@ Pencatatan utama menggunakan database lokal dan tidak memerlukan pembuatan akun.
 | **Anggaran** | Batas belanja per kategori dengan periode mingguan atau bulanan dan pemantauan pemakaian. |
 | **Hutang & piutang** | Catatan pihak terkait, jatuh tempo, sisa pinjaman, dan pembayaran bertahap. |
 | **Target keuangan** | Tujuan tabungan, progres, setoran, dan pencairan dana target. |
-| **Vina** | Tanya jawab keuangan dari catatan lokal; integrasi Gemini tersedia sebagai pilihan online. |
+| **Vina** | Tanya jawab dari catatan lokal, pertanyaan lanjutan, dan evaluasi ringkas; integrasi Gemini tersedia sebagai pilihan online. |
+| **Insight keuangan** | Sorotan pengeluaran, pemasukan, anggaran, jatuh tempo utang, dan progres target; lihat hasil lain melalui **Insight berikutnya** di Beranda. |
 | **Backup & ekspor** | Cadangan JSON, opsi cadangan terenkripsi, ZIP dengan struk, pemulihan data, impor CSV, serta ekspor PDF/CSV. |
 | **Kenyamanan** | Tema terang/gelap, penyembunyian nominal, kunci biometrik, pengaturan privasi, dan pengingat. |
 | **Panduan pengguna** | Tur 14 langkah pada layar aplikasi serta panduan tambahan yang bisa dibaca per fitur. |
@@ -79,6 +80,11 @@ Contoh pertanyaan:
 - `Berapa pemasukan saya minggu ini?`
 - `Kategori apa yang paling banyak saya belanjakan bulan ini?`
 - `Tampilkan 5 pengeluaran terbesar bulan ini.`
+- `Insight keuangan` atau `Apa yang perlu diperhatikan?`
+- Setelah bertanya tentang pengeluaran: `Rincikan`, `Kenapa naik?`, atau `Kalau bulan lalu?`
+- Untuk mengoreksi periode: `Maksud saya bulan lalu`.
+
+Vina menggunakan gaya ringkas dan profesional. Pertanyaan lanjutan dapat menggunakan topik sebelumnya; pertanyaan baru yang eksplisit memulai filter baru. Penjelasan perubahan mengacu pada kontribusi transaksi atau kategori yang tercatat, bukan dugaan tentang kebiasaan pribadi.
 
 Sebutkan periode, kategori, atau rekening bila diperlukan. Dukungan pertanyaan mengikuti kemampuan parser lokal; pertanyaan di luar cakupannya dapat memerlukan penjelasan ulang. Jika hasil kosong, periksa data dan tanggal transaksi terlebih dahulu.
 
@@ -161,9 +167,11 @@ Tes instrumentasi memerlukan perangkat atau emulator. Untuk menjalankan tes tur 
 .\gradlew.bat :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.cashflow.app.AppTourTest"
 ```
 
-Cakupan pengujian meliputi integritas saldo, operasi ledger, periode anggaran, grafik, rentang laporan, impor CSV, parser suara, Vina lokal, penanganan jaringan, dan tur aplikasi.
+Cakupan pengujian meliputi integritas saldo, operasi ledger, periode anggaran, grafik, rentang laporan, impor CSV, parser suara, insight, konteks percakapan Vina lokal, penanganan jaringan, dan tur aplikasi.
 
-Pada verifikasi **17 Oktober 2026**, **194 tes unit** dan **6 tes tur** lulus; build debug dan lint selesai tanpa error. Masih ada peringatan lint. Pengujian UI tur dilakukan pada emulator, termasuk lebar 360 dp; hasil tersebut tidak mewakili pengujian seluruh perangkat fisik.
+Pengujian riwayat besar (`LargeHistoryPerformanceTest`) memerlukan data sintetis yang sudah disiapkan pada emulator pengujian. Pengukuran gulir Beranda (`HomeSlowScrollTest`) diaktifkan secara khusus dengan argumen instrumentasi `auditScroll=true`. Hasil pengukuran bergantung pada perangkat dan kondisi saat pengujian.
+
+Verifikasi terbaru mencakup **212 tes unit** dan **9 tes UI di emulator** untuk tur, ketepatan nominal, navigasi insight, serta Vina lokal membaca ledger yang terpasang. Build debug dan lint selesai tanpa error; masih ada peringatan lint. Pengujian ini tidak mewakili seluruh perangkat fisik atau layanan AI online.
 
 > Tes database audit tertentu mengubah data pengujian. Gunakan emulator khusus pengujian, bukan instalasi yang berisi catatan keuangan pribadi. Tes tur memakai berkas preferences terisolasi dan tidak menyimpan transaksi contoh. Sebagian tes UI berbasis Espresso dibatasi hingga API 36 karena kompatibilitas injector versi yang digunakan proyek.
 

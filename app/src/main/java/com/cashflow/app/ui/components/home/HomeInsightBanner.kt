@@ -32,7 +32,10 @@ import com.cashflow.app.ui.theme.duit
 fun HomeInsightBanner(
     insight: FinancialInsight,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    position: Int = 1,
+    total: Int = 1,
+    onNext: () -> Unit = {}
 ) {
     val duit = MaterialTheme.duit
     val badgeBg = when (insight.type.lowercase()) {
@@ -108,6 +111,13 @@ fun HomeInsightBanner(
                     ),
                     color = duit.textSecondary
                 )
+                if (total > 1) {
+                    Text("$position dari $total", style = MaterialTheme.typography.labelSmall, color = duit.textSecondary)
+                    TextButton(onClick = onNext, contentPadding = PaddingValues(horizontal = 0.dp),
+                        modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text("Insight berikutnya", color = badgeTint)
+                    }
+                }
             }
 
             // Tombol Tutup (Target Sentuh >= 48dp)

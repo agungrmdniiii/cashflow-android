@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,6 +67,11 @@ class CashflowRepository(private val context: Context) {
     private val _initError = MutableStateFlow<String?>(null)
     val initError: StateFlow<String?> = _initError.asStateFlow()
 
+    private val _initialLoadComplete = MutableStateFlow(false)
+    val initialLoadComplete: StateFlow<Boolean> = _initialLoadComplete.asStateFlow()
+
+    suspend fun awaitInitialLoad() { initialLoadComplete.first { it } }
+
     fun clearInitError() {
         _initError.value = null
     }
@@ -86,7 +92,14 @@ class CashflowRepository(private val context: Context) {
                     _initError.value = "Gagal memverifikasi integritas saldo awal: ${e.message ?: "Kesalahan database"}"
                 }
             }
-            loadFromDb()
+            try {
+                balanceWriteMutex.withLock { loadFromDb() }
+            } catch (e: Exception) {
+                DiagnosticLogManager.logError(context, "INIT_LOAD", e)
+                _initError.value = "Gagal memuat data: ${e.message ?: "Kesalahan database"}"
+            } finally {
+                _initialLoadComplete.value = true
+            }
         }
     }
 
@@ -137,8 +150,9 @@ class CashflowRepository(private val context: Context) {
             "transaction_date DESC, transaction_time DESC, created_at DESC"
         )
         txCursor.use { cursor ->
+            val columns = cursor.columnNames.withIndex().associate { it.value to it.index }
             while (cursor.moveToNext()) {
-                txList.add(cursorToTransaction(cursor))
+                txList.add(cursorToTransaction(cursor, columns))
             }
         }
         _transactions.value = txList
@@ -1257,44 +1271,44 @@ class CashflowRepository(private val context: Context) {
         )
     }
 
-    private fun cursorToTransaction(cursor: Cursor): Transaction {
-        val debtIdx = cursor.getColumnIndex("debt_id")
-        val goalIdx = cursor.getColumnIndex("goal_id")
-        val sampleIdx = cursor.getColumnIndex("is_sample")
-        val tagsIdx = cursor.getColumnIndex("tags")
-        val adjIdx = cursor.getColumnIndex("is_adjustment")
-        val dirIdx = cursor.getColumnIndex("adjustment_direction")
+    private fun cursorToTransaction(cursor: Cursor, columns: Map<String, Int> = cursor.columnNames.withIndex().associate { it.value to it.index }): Transaction {
+        val debtIdx = (columns["debt_id"] ?: -1)
+        val goalIdx = (columns["goal_id"] ?: -1)
+        val sampleIdx = (columns["is_sample"] ?: -1)
+        val tagsIdx = (columns["tags"] ?: -1)
+        val adjIdx = (columns["is_adjustment"] ?: -1)
+        val dirIdx = (columns["adjustment_direction"] ?: -1)
         val isAdj = if (adjIdx >= 0) cursor.getInt(adjIdx) == 1 else false
         val rawDir = if (dirIdx >= 0) cursor.getInt(dirIdx) else 0
         val resolvedDir = if (rawDir != 0) {
             rawDir
-        } else if (cursor.getString(cursor.getColumnIndexOrThrow("type")) == TransactionType.ADJUSTMENT.value || isAdj) {
-            val noteVal = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: ""
+        } else if (cursor.getString(columns.getValue("type")) == TransactionType.ADJUSTMENT.value || isAdj) {
+            val noteVal = cursor.getString(columns.getValue("note")) ?: ""
             if (noteVal.contains("(-)")) -1 else 1
         } else {
             0
         }
         return Transaction(
-            id = cursor.getString(cursor.getColumnIndexOrThrow("id")),
-            type = cursor.getString(cursor.getColumnIndexOrThrow("type")),
-            amount = cursor.getLong(cursor.getColumnIndexOrThrow("amount")),
-            description = cursor.getString(cursor.getColumnIndexOrThrow("description")),
-            categoryId = cursor.getString(cursor.getColumnIndexOrThrow("category_id")),
-            assetId = cursor.getString(cursor.getColumnIndexOrThrow("asset_id")),
-            destinationAssetId = cursor.getString(cursor.getColumnIndexOrThrow("destination_asset_id")),
-            transactionDate = cursor.getString(cursor.getColumnIndexOrThrow("transaction_date")),
-            transactionTime = cursor.getString(cursor.getColumnIndexOrThrow("transaction_time")),
-            note = cursor.getString(cursor.getColumnIndexOrThrow("note")) ?: "",
-            attachment = cursor.getString(cursor.getColumnIndexOrThrow("attachment")),
-            inputMethod = cursor.getString(cursor.getColumnIndexOrThrow("input_method")),
+            id = cursor.getString(columns.getValue("id")),
+            type = cursor.getString(columns.getValue("type")),
+            amount = cursor.getLong(columns.getValue("amount")),
+            description = cursor.getString(columns.getValue("description")),
+            categoryId = cursor.getString(columns.getValue("category_id")),
+            assetId = cursor.getString(columns.getValue("asset_id")),
+            destinationAssetId = cursor.getString(columns.getValue("destination_asset_id")),
+            transactionDate = cursor.getString(columns.getValue("transaction_date")),
+            transactionTime = cursor.getString(columns.getValue("transaction_time")),
+            note = cursor.getString(columns.getValue("note")) ?: "",
+            attachment = cursor.getString(columns.getValue("attachment")),
+            inputMethod = cursor.getString(columns.getValue("input_method")),
             debtId = if (debtIdx >= 0) cursor.getString(debtIdx) else null,
             goalId = if (goalIdx >= 0) cursor.getString(goalIdx) else null,
             isSample = if (sampleIdx >= 0) cursor.getInt(sampleIdx) == 1 else false,
             tags = if (tagsIdx >= 0) cursor.getString(tagsIdx) ?: "" else "",
             isAdjustment = isAdj,
             adjustmentDirection = resolvedDir,
-            createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
-            updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
+            createdAt = cursor.getLong(columns.getValue("created_at")),
+            updatedAt = cursor.getLong(columns.getValue("updated_at"))
         )
     }
 

@@ -1,36 +1,24 @@
 package com.cashflow.app.ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.em
 
-/**
- * Section 36: Tactile Mechanical Rolling Odometer Engine (Impeccable Polish)
- * Provides authentic, buttery-smooth rolling digit transitions.
- * - Zero horizontal jitter: Tabular figures ('tnum') ensure identical digit widths.
- * - Complete coverage: Every single digit (including '0') animates reliably.
- * - Unified vertical momentum: All digits slide in the same direction.
- * - Cascading stagger: Place values settle sequentially with mechanical precision.
- */
-private val OdometerEasing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
-
+/** One text layout per amount; animate value changes without a layout and layer per digit. */
 @Composable
 fun AnimatedNumberText(
     value: Long,
@@ -43,136 +31,29 @@ fun AnimatedNumberText(
     maxLines: Int = 1,
     softWrap: Boolean = false
 ) {
-    val tabularStyle = remember(style) {
-        style.copy(fontFeatureSettings = "tnum")
-    }
-
-    val dimmedTabularStyle = remember(tabularStyle) {
-        tabularStyle.copy(
-            fontSize = (tabularStyle.fontSize.value * 0.72f).sp
-        )
-    }
-
+    val tabularStyle = remember(style) { style.copy(fontFeatureSettings = "tnum") }
     val formatted = remember(value, prefix, withPrefix) {
         prefix + Formatters.formatRupiah(value, withPrefix)
     }
-
-    Row(
+    AnimatedContent(
+        targetState = formatted,
         modifier = modifier.clearAndSetSemantics { contentDescription = formatted },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        var currentDigitFromLeft = 0
-        val len = formatted.length
-        formatted.forEachIndexed { index, char ->
-            if (char.isDigit()) {
-                var digitPlaceFromRight = 0
-                for (i in index + 1 until len) {
-                    if (formatted[i].isDigit()) digitPlaceFromRight++
-                }
-                val indexFromLeft = currentDigitFromLeft
-                currentDigitFromLeft++
-
-                val isDimmed = dimThousands && digitPlaceFromRight < 3
-                val effectiveStyle = if (isDimmed) dimmedTabularStyle else tabularStyle
-                val effectiveColor = if (isDimmed) color.copy(alpha = 0.65f) else color
-
-                key("odometer_digit_$digitPlaceFromRight") {
-                    OdometerDigitSlot(
-                        digit = char,
-                        style = effectiveStyle,
-                        color = effectiveColor,
-                        indexFromLeft = indexFromLeft
-                    )
-                }
-            } else if (char == '.') {
-                var digitsToRight = 0
-                for (i in index + 1 until len) {
-                    if (formatted[i].isDigit()) digitsToRight++
-                }
-                val isDimmed = dimThousands && digitsToRight < 3
-                val effectiveStyle = if (isDimmed) dimmedTabularStyle else tabularStyle
-                val effectiveColor = if (isDimmed) color.copy(alpha = 0.65f) else color
-
-                key("odometer_dot_$digitsToRight") {
-                    Text(
-                        text = ".",
-                        style = effectiveStyle,
-                        color = effectiveColor,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            } else {
-                key("odometer_char_${index}_$char") {
-                    Text(
-                        text = char.toString(),
-                        style = tabularStyle,
-                        color = color,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
+        transitionSpec = {
+            (fadeIn(tween(180)) togetherWith fadeOut(tween(120))).using(null)
+        },
+        label = "AmountChange"
+    ) { target ->
+        val text = remember(target, dimThousands, color) {
+            buildAnnotatedString {
+                if (dimThousands) {
+                    val suffixStart = target.indexOfLast { !it.isDigit() } + 1
+                    append(target.substring(0, suffixStart))
+                    withStyle(SpanStyle(fontSize = 0.72.em, color = color.copy(alpha = 0.65f))) {
+                        append(target.substring(suffixStart))
+                    }
+                } else append(target)
             }
         }
-    }
-}
-
-/**
- * Single aperture slot for an individual digit.
- * Slides vertically with mechanical easing and place-based cascading delay.
- */
-@Composable
-private fun OdometerDigitSlot(
-    digit: Char,
-    style: TextStyle,
-    color: Color,
-    indexFromLeft: Int,
-    modifier: Modifier = Modifier
-) {
-    var displayedDigit by remember { mutableStateOf<Char?>(digit) }
-
-    LaunchedEffect(digit) {
-        displayedDigit = digit
-    }
-
-    val staggerDelay = (indexFromLeft.coerceAtMost(8) * 32)
-
-    Box(
-        modifier = modifier.clipToBounds(),
-        contentAlignment = Alignment.Center
-    ) {
-        AnimatedContent(
-            targetState = displayedDigit,
-            transitionSpec = {
-                (slideInVertically(
-                    animationSpec = tween(
-                        durationMillis = 460,
-                        delayMillis = staggerDelay,
-                        easing = OdometerEasing
-                    )
-                ) { height -> height } + fadeIn(
-                    animationSpec = tween(180, delayMillis = staggerDelay)
-                )).togetherWith(
-                    slideOutVertically(
-                        animationSpec = tween(
-                            durationMillis = 460,
-                            delayMillis = staggerDelay,
-                            easing = OdometerEasing
-                        )
-                    ) { height -> -height } + fadeOut(
-                        animationSpec = tween(180, delayMillis = staggerDelay)
-                    )
-                )
-            },
-            label = "OdometerDigit"
-        ) { targetChar ->
-            Text(
-                text = (targetChar ?: ' ').toString(),
-                style = style,
-                color = if (targetChar != null) color else Color.Transparent,
-                maxLines = 1,
-                softWrap = false
-            )
-        }
+        Text(text = text, style = tabularStyle, color = color, maxLines = maxLines, softWrap = softWrap)
     }
 }

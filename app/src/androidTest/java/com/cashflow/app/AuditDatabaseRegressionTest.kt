@@ -34,6 +34,18 @@ import org.json.JSONObject
 class AuditDatabaseRegressionTest {
     private lateinit var repository: CashflowRepository
 
+    @Test fun fullySeededCategoriesCanBeCheckedWithoutWriting() {
+        val helper = DatabaseHelper(InstrumentationRegistry.getInstrumentation().targetContext)
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA query_only = ON")
+        try {
+            helper.seedMissingDefaultCategories(db)
+        } finally {
+            db.execSQL("PRAGMA query_only = OFF")
+            helper.close()
+        }
+    }
+
     @Test fun defaultLabelsBecomeShortWithoutRenamingCustomCategories() {
         val helper = DatabaseHelper(InstrumentationRegistry.getInstrumentation().targetContext)
         val db = helper.writableDatabase
@@ -205,6 +217,7 @@ class AuditDatabaseRegressionTest {
         }
         repository = CashflowRepository(context)
         runBlocking {
+            repository.awaitInitialLoad()
             repository.addAsset(Asset(id = "audit_cash", name = "Audit Cash", type = "Tunai",
                 openingBalance = 1_000_000L, currentBalance = 1_000_000L)).getOrThrow()
         }
