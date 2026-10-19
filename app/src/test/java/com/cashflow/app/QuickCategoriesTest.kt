@@ -12,4 +12,28 @@ class QuickCategoriesTest {
     @Test fun categoryChosenFromFullListReplacesOnlyLastQuickSlot() {
         assertEquals(categories.take(6) + categories[10], quickCategories(categories, "c11"))
     }
+
+    private fun tx(id: String, category: String, date: String = "2026-10-19", type: String = "expense") =
+        Transaction(id, type, 10_000, id, category, "cash", transactionDate = date)
+
+    @Test fun frequentCategoriesRiseAboveAlphabeticalOrderAndLargeAmountsDoNotMatter() {
+        val rows = listOf(tx("1", "c11"), tx("2", "c11"), tx("3", "c3").copy(amount = 9_000_000))
+        val ranked = rankCategoriesByUsage(categories, rows)
+        assertEquals(listOf("c11", "c3"), ranked.take(2).map { it.id })
+        assertEquals("c11", quickCategories(ranked, "c1").first().id)
+    }
+    @Test fun equalCountsUseMostRecentDateThenKeepOriginalOrder() {
+        val rows = listOf(tx("a", "c2", "2026-10-17"), tx("b", "c9", "2026-10-19"))
+        assertEquals(listOf("c9", "c2", "c1", "c3"), rankCategoriesByUsage(categories, rows).take(4).map { it.id })
+        assertEquals(categories, rankCategoriesByUsage(categories, emptyList()))
+    }
+    @Test fun rankingIgnoresCorrectionsTransfersMismatchedTypesAndInactiveCategories() {
+        val cats = categories + Category("salary", "Gaji", "income") + Category("hidden", "Arsip", "expense", isActive = false)
+        val rows = listOf(tx("a", "c10"), tx("b", "c1").copy(isAdjustment = true), tx("c", "c1", type = "transfer"),
+            tx("d", "c1", type = "income"), tx("e", "salary", type = "income"), tx("f", "hidden"))
+        val ranked = rankCategoriesByUsage(cats, rows)
+        assertEquals(listOf("c10", "salary"), ranked.take(2).map { it.id })
+        assertFalse(ranked.any { it.id == "hidden" })
+        assertEquals(listOf("c10", "salary"), rankCategoriesByUsage(cats, rows.toList()).take(2).map { it.id })
+    }
 }

@@ -297,7 +297,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     fun getDefaultCategoriesList(): List<Category> = listOf(
-        // Expense Categories (16 Variasi)
+        // Expense categories: broad groups and optional everyday detail.
         Category("cat_makanan", "Makanan & Minuman", "expense", "restaurant", "#8D3B3B", isDefault = true),
         Category("cat_transportasi", "Transportasi & Ojol", "expense", "directions_car", "#B57C1E", isDefault = true),
         Category("cat_tagihan", "Tagihan & Utilitas", "expense", "receipt_long", "#2E6F89", isDefault = true),
@@ -335,7 +335,22 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         Category("cat_laundry", "Laundry", "expense", "spa", "#8F5845", isDefault = true),
         Category("cat_perlengkapan_kerja", "Perlengkapan Kerja", "expense", "laptop", "#1A586E", isDefault = true),
 
-        // Income Categories (9 Variasi)
+        Category("cat_pakaian", "Pakaian", "expense", "shopping_bag", "#2D5D48", isDefault = true),
+        Category("cat_sepatu", "Sepatu", "expense", "shopping_bag", "#2D5D48", isDefault = true),
+        Category("cat_skincare", "Skincare", "expense", "spa", "#2D5D48", isDefault = true),
+        Category("cat_potong_rambut", "Potong Rambut", "expense", "face", "#2D5D48", isDefault = true),
+        Category("cat_elektronik", "Elektronik", "expense", "laptop", "#2D5D48", isDefault = true),
+        Category("cat_gadget", "Gadget", "expense", "laptop", "#2D5D48", isDefault = true),
+        Category("cat_perabot", "Perabot", "expense", "home", "#2D5D48", isDefault = true),
+        Category("cat_keamanan", "Keamanan", "expense", "home", "#2D5D48", isDefault = true),
+        Category("cat_angkutan_umum", "Bus/Kereta", "expense", "directions_bus", "#2D5D48", isDefault = true),
+        Category("cat_kursus", "Les/Kursus", "expense", "school", "#2D5D48", isDefault = true),
+        Category("cat_atk", "ATK", "expense", "school", "#2D5D48", isDefault = true),
+        Category("cat_kado", "Kado", "expense", "redeem", "#2D5D48", isDefault = true),
+        Category("cat_asisten_rumah", "Asisten Rumah", "expense", "home", "#2D5D48", isDefault = true),
+        Category("cat_kurir", "Paket/Kurir", "expense", "directions_car", "#2D5D48", isDefault = true),
+
+        // Income categories.
         Category("cat_gaji", "Gaji Pokok", "income", "payments", "#0A7559", isDefault = true),
         Category("cat_freelance", "Freelance & Jasa", "income", "laptop", "#1A586E", isDefault = true),
         Category("cat_bonus", "Bonus & THR", "income", "celebration", "#1D5A85", isDefault = true),
@@ -355,7 +370,17 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         Category("cat_barang_bekas", "Jual Barang Bekas", "income", "storefront", "#945219", isDefault = true),
         Category("cat_refund", "Pengembalian Dana", "income", "currency_exchange", "#8F6B23", isDefault = true),
         Category("cat_bantuan", "Bantuan & Subsidi", "income", "redeem", "#5E2B7A", isDefault = true),
-        Category("cat_proyek_sampingan", "Proyek Sampingan", "income", "laptop", "#1A586E", isDefault = true)
+        Category("cat_proyek_sampingan", "Proyek Sampingan", "income", "laptop", "#1A586E", isDefault = true),
+        Category("cat_upah_harian", "Upah Harian", "income", "payments", "#0A7559", isDefault = true),
+        Category("cat_honor", "Honor", "income", "payments", "#0A7559", isDefault = true),
+        Category("cat_bisnis_online", "Bisnis Online", "income", "storefront", "#0A7559", isDefault = true),
+        Category("cat_tip", "Tip", "income", "payments", "#0A7559", isDefault = true),
+        Category("cat_beasiswa", "Beasiswa", "income", "school", "#0A7559", isDefault = true),
+        Category("cat_pesangon", "Pesangon", "income", "payments", "#0A7559", isDefault = true),
+        Category("cat_uang_saku", "Uang Saku", "income", "redeem", "#0A7559", isDefault = true),
+        Category("cat_sewa_kendaraan", "Sewa Kend.", "income", "directions_car", "#0A7559", isDefault = true),
+        Category("cat_jasa_desain", "Jasa Desain", "income", "laptop", "#0A7559", isDefault = true),
+        Category("cat_jasa_mengajar", "Jasa Mengajar", "income", "school", "#0A7559", isDefault = true)
     ).map { it.copy(name = com.cashflow.app.data.model.shortDefaultCategoryLabels[it.name] ?: it.name) }
 
     fun seedMissingDefaultCategories(db: SQLiteDatabase) {

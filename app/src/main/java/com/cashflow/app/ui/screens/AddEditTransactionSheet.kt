@@ -117,7 +117,7 @@ fun AddEditTransactionContent(
     onTourTargetPositioned: (Int, Rect) -> Unit = { _, _ -> }
 ) {
     val activeAssets by viewModel.activeAssets.collectAsState()
-    val categories by viewModel.categories.collectAsState()
+    val categories by viewModel.categoriesByUsage.collectAsState()
     val defaultAsset by viewModel.defaultAsset.collectAsState()
     val debts by viewModel.debts.collectAsState()
 
@@ -1569,7 +1569,7 @@ private fun AssetChipRow(
  * All Categories Picker Dialog with Search Bar
  */
 @Composable
-private fun AllCategoriesDialog(
+internal fun AllCategoriesDialog(
     categories: List<Category>,
     selectedCategoryId: String,
     onCategorySelected: (Category) -> Unit,
@@ -1677,6 +1677,7 @@ private fun AllCategoriesDialog(
                         val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(100), label = "FullCategoryPress")
                         Box(
                             modifier = Modifier
+                                .heightIn(min = 96.dp)
                                 .graphicsLayer { scaleX = scale; scaleY = scale }
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isSelected) duit.primaryContainer else duit.surfaceVariant.copy(alpha = 0.5f))

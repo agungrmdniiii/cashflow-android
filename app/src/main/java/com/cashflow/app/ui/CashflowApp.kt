@@ -398,21 +398,29 @@ fun CashflowApp(viewModel: CashflowViewModel) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .imePadding()
-                    .animateContentSize(
-                        animationSpec = spring(
-                            dampingRatio = 0.82f,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    ),
+                    // Follow Android's IME animation directly; a second size spring adds layout work and lag.
+                    .imePadding(),
                 contentAlignment = Alignment.TopCenter
             ) {
-                AnimatedContent(
+                // A new form has no detail/edit transition; avoid lookahead remeasurement on every IME frame.
+                if (activeTx == null && editingTx == null) {
+                    AddEditTransactionContent(
+                        viewModel = viewModel,
+                        initialType = addTxInitialType,
+                        onDismiss = {
+                            viewModel.isAddTransactionOpen.value = false
+                            viewModel.editingTransaction.value = null
+                            viewModel.selectedTransactionForDetail.value = null
+                            lastViewedTx = null
+                        },
+                        modifier = Modifier.fillMaxHeight(0.90f)
+                    )
+                } else AnimatedContent(
                     targetState = inEditMode,
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.TopCenter,
                     transitionSpec = {
-                        if (targetState) {
+                        (if (targetState) {
                             // Detail -> Edit transition (ketika ingin mengedit!)
                             (slideInVertically(
                                 initialOffsetY = { (it * 0.12f).toInt() },
@@ -434,7 +442,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                     animationSpec = tween(180, easing = FastOutSlowInEasing)
                                 ) + fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
                             )
-                        }
+                        }).using(null)
                     },
                     label = "TransactionModalAnimatedContent"
                 ) { isEditing ->
@@ -500,21 +508,27 @@ fun CashflowApp(viewModel: CashflowViewModel) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .imePadding()
-                    .animateContentSize(
-                        animationSpec = spring(
-                            dampingRatio = 0.82f,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    ),
+                    // Follow Android's IME animation directly; a second size spring adds layout work and lag.
+                    .imePadding(),
                 contentAlignment = Alignment.TopCenter
             ) {
-                AnimatedContent(
+                if (activeAsset == null && editingAsset == null) {
+                    AddAssetContent(
+                        viewModel = viewModel,
+                        onDismiss = {
+                            viewModel.isAddAssetOpen.value = false
+                            viewModel.editingAsset.value = null
+                            viewModel.selectedAssetForDetail.value = null
+                            lastViewedAsset = null
+                        },
+                        modifier = Modifier.fillMaxHeight(0.90f)
+                    )
+                } else AnimatedContent(
                     targetState = inAssetEditMode,
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.TopCenter,
                     transitionSpec = {
-                        if (targetState) {
+                        (if (targetState) {
                             (slideInVertically(
                                 initialOffsetY = { (it * 0.12f).toInt() },
                                 animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
@@ -534,7 +548,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                     animationSpec = tween(180, easing = FastOutSlowInEasing)
                                 ) + fadeOut(tween(180)) + scaleOut(targetScale = 0.94f, animationSpec = tween(180))
                             )
-                        }
+                        }).using(null)
                     },
                     label = "AssetModalAnimatedContent"
                 ) { isEditing ->

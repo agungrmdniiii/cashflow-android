@@ -208,6 +208,9 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
     val assets: StateFlow<List<Asset>> = repository.assets
     val categories: StateFlow<List<Category>> = repository.categories
     val transactions: StateFlow<List<Transaction>> = repository.transactions
+    val categoriesByUsage: StateFlow<List<Category>> = combine(categories, transactions) { cats, rows ->
+        rankCategoriesByUsage(cats, rows)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val budgets: StateFlow<List<BudgetWithProgress>> = repository.budgets
     val goals: StateFlow<List<FinancialGoal>> = repository.goals
     val debts: StateFlow<List<Debt>> = repository.debts
