@@ -6,7 +6,7 @@ Aplikasi pencatatan keuangan pribadi untuk Android. Catat pemasukan dan pengelua
 
 ## Video aplikasi
 
-[Tonton video promosi Duit Aing](docs/media/duit-aing.mp4)
+https://github.com/user-attachments/assets/f9e0fda8-0727-4432-98fe-afd1ebe67755
 
 ## Instalasi di HP
 
