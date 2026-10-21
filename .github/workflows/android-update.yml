@@ -33,6 +33,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -84,9 +85,9 @@ jobs:
             gh release create "$UPDATE_TAG" --draft --target "$GITHUB_SHA" --title "Duit Aing $UPDATE_NAME" --notes-file app/build/update-release/release-notes.txt
           fi
           gh release upload "$UPDATE_TAG" app/build/outputs/apk/debug/app-debug.apk app/build/update-release/update.json --clobber
-          asset_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$UPDATE_TAG" --jq '.assets[] | select(.name == "app-debug.apk") | .id')
-          test -n "$asset_id"
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" -f name=DuitAing.apk > /dev/null
+          asset_url=$(gh release view "$UPDATE_TAG" --json assets --jq '.assets[] | select(.name == "app-debug.apk") | .apiUrl')
+          test -n "$asset_url"
+          gh api --method PATCH "$asset_url" -f name=DuitAing.apk > /dev/null
           gh release edit "$UPDATE_TAG" --draft=false --latest
       - name: Remove signing material
         if: always()
