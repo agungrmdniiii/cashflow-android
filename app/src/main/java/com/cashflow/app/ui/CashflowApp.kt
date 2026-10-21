@@ -5,6 +5,8 @@ import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +51,8 @@ import com.cashflow.app.ui.theme.*
 
 @Composable
 fun CashflowApp(viewModel: CashflowViewModel) {
+    // Keep the preferred height independent of animated IME insets; the sheet still limits it to the available space.
+    val formHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() * .90f }
     val initialLoadComplete by viewModel.initialLoadComplete.collectAsState()
     ReportDrawnWhen { initialLoadComplete }
     var showOnboarding by rememberSaveable { mutableStateOf(false) }
@@ -397,9 +403,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    // Follow Android's IME animation directly; a second size spring adds layout work and lag.
-                    .imePadding(),
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.TopCenter
             ) {
                 // A new form has no detail/edit transition; avoid lookahead remeasurement on every IME frame.
@@ -413,7 +417,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                             viewModel.selectedTransactionForDetail.value = null
                             lastViewedTx = null
                         },
-                        modifier = Modifier.fillMaxHeight(0.90f)
+                        modifier = Modifier.height(formHeight)
                     )
                 } else AnimatedContent(
                     targetState = inEditMode,
@@ -464,7 +468,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                     viewModel.selectedTransactionForDetail.value = lastViewedTx
                                 }
                             } else null,
-                            modifier = Modifier.fillMaxHeight(0.90f)
+                            modifier = Modifier.height(formHeight)
                         )
                     } else if (activeTx != null) {
                         TransactionDetailContent(
@@ -507,9 +511,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    // Follow Android's IME animation directly; a second size spring adds layout work and lag.
-                    .imePadding(),
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.TopCenter
             ) {
                 if (activeAsset == null && editingAsset == null) {
@@ -521,7 +523,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                             viewModel.selectedAssetForDetail.value = null
                             lastViewedAsset = null
                         },
-                        modifier = Modifier.fillMaxHeight(0.90f)
+                        modifier = Modifier.height(formHeight)
                     )
                 } else AnimatedContent(
                     targetState = inAssetEditMode,
@@ -569,7 +571,7 @@ fun CashflowApp(viewModel: CashflowViewModel) {
                                     viewModel.selectedAssetForDetail.value = lastViewedAsset
                                 }
                             } else null,
-                            modifier = Modifier.fillMaxHeight(0.90f)
+                            modifier = Modifier.height(formHeight)
                         )
                     } else if (activeAsset != null) {
                         AssetDetailContent(
@@ -603,6 +605,47 @@ fun CashflowApp(viewModel: CashflowViewModel) {
         FinancialChatSheet(
             viewModel = viewModel,
             onDismiss = { viewModel.closeChat() }
+        )
+    }
+
+    val pendingChange by viewModel.dataChangeConfirmation.collectAsState()
+    pendingChange?.let { change ->
+        var showPrevious by remember(change) { mutableStateOf(false) }
+        val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        LaunchedEffect(change) { keyboard?.hide() }
+        AlertDialog(
+            onDismissRequest = viewModel::cancelPendingDataChange,
+            title = { Text(change.title) },
+            text = {
+                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                    Text(change.message)
+                    if (change.reviewTransactions.isNotEmpty()) {
+                        TextButton(onClick = { showPrevious = !showPrevious }) {
+                            Text(if (showPrevious) "Sembunyikan pembanding" else "Periksa transaksi sebelumnya")
+                        }
+                        if (showPrevious) change.reviewTransactions.forEach { tx ->
+                            val source = viewModel.assets.value.firstOrNull { it.id == tx.assetId }?.name ?: "Rekening tidak tersedia"
+                            val destination = viewModel.assets.value.firstOrNull { it.id == tx.destinationAssetId }?.name ?: "Rekening tidak tersedia"
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            Text(tx.description, fontWeight = FontWeight.SemiBold)
+                            Text("${Formatters.formatDateReadable(tx.transactionDate)} • ${tx.transactionTime}")
+                            Text(if (tx.type == "transfer") "$source → $destination" else source)
+                            Text(Formatters.displayRupiah(tx.amount))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmPendingDataChange,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (change.destructive) MaterialTheme.duit.expense else MaterialTheme.duit.textPrimary
+                    )
+                ) { Text(change.confirmLabel ?: if (change.title.startsWith("Hapus")) "Hapus" else if (change.title.startsWith("Simpan")) "Simpan perubahan" else "Lanjutkan") }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelPendingDataChange) { Text("Batal") }
+            }
         )
     }
 }

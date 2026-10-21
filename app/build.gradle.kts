@@ -1,6 +1,14 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val optimizedReview = providers.gradleProperty("optimizedReview").map(String::toBoolean).getOrElse(false)
+
+val appVersion = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
 }
 
 android {
@@ -13,14 +21,24 @@ android {
         applicationId = "com.cashflow.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 110
-        versionName = "1.1.0"
+        versionCode = providers.gradleProperty("appVersionCode").getOrElse(appVersion.getProperty("versionCode")).toInt()
+        versionName = appVersion.getProperty("versionName")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "DIRECT_APK_UPDATES", "true")
+            isDebuggable = !optimizedReview
+            isMinifyEnabled = optimizedReview
+            if (optimizedReview) {
+                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro", "proguard-review.pro")
+                testProguardFiles("proguard-test.pro")
+            }
+        }
         release {
+            buildConfigField("boolean", "DIRECT_APK_UPDATES", "false")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -36,6 +54,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

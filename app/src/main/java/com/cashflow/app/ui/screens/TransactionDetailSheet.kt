@@ -1,6 +1,6 @@
 package com.cashflow.app.ui.screens
 
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.service.ReceiptOcrService
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
@@ -313,14 +314,12 @@ fun TransactionDetailContent(
                 }
 
                 if (!transaction.attachment.isNullOrBlank()) {
-                    val bitmap = remember(transaction.attachment) {
-                        try {
-                            BitmapFactory.decodeFile(transaction.attachment)
-                        } catch (_: Exception) {
-                            null
-                        }
+                    val bitmap by produceState<Bitmap?>(null, transaction.attachment) {
+                        value = null
+                        value = ReceiptOcrService.loadReceiptPreview(transaction.attachment, 256)
                     }
-                    if (bitmap != null) {
+                    val preview = bitmap
+                    if (preview != null) {
                         HorizontalDivider(color = duit.border, thickness = 1.dp)
                         Row(
                             modifier = Modifier
@@ -365,7 +364,7 @@ fun TransactionDetailContent(
                                     .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                             ) {
                                 Image(
-                                    bitmap = bitmap.asImageBitmap(),
+                                    bitmap = preview.asImageBitmap(),
                                     contentDescription = "Foto Struk",
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -477,7 +476,7 @@ fun TransactionDetailContent(
         confirmText = "HAPUS TRANSAKSI",
         confirmVariant = DuitAingButtonVariant.DANGER,
         onConfirm = {
-            viewModel.deleteTransactionWithUndo(transaction) {
+            viewModel.deleteTransactionWithUndo(transaction, confirmed = true) {
                 showDeleteConfirmDialog = false
                 onDismiss()
             }

@@ -83,15 +83,15 @@ class VinaQuestionCoverageTest {
     @Test fun shortFollowUpsReuseOnlyThePreviousTopic() = runBlocking {
         val history = listOf(ChatMessage(sender = ChatSender.USER, text = "pengeluaran makan dari BCA bulan ini"),
             ChatMessage(sender = ChatSender.ASSISTANT, text = "Rp10.000"), ChatMessage(sender = ChatSender.USER, text = "kalau kemarin?"))
-        val answer = FinancialInsightService.sendChatMessage(null, history, context()).getOrThrow()
+        val answer = FinancialInsightService.sendChatMessage(history, context()).getOrThrow()
         assertTrue(answer, answer.contains("10.000") && answer.contains("2026-10-16") && answer.contains("BCA"))
-        val income = FinancialInsightService.sendChatMessage(null, history + ChatMessage(sender = ChatSender.USER, text = "pemasukan januari 2026"), context()).getOrThrow()
+        val income = FinancialInsightService.sendChatMessage(history + ChatMessage(sender = ChatSender.USER, text = "pemasukan januari 2026"), context()).getOrThrow()
         assertTrue(income, income.contains("1.000.000"))
         val named = listOf(ChatMessage(sender = ChatSender.USER, text = "pengeluaran september 2026"),
             ChatMessage(sender = ChatSender.USER, text = "kalau kemarin?"))
-        val yesterday = FinancialInsightService.sendChatMessage(null, named, context()).getOrThrow()
+        val yesterday = FinancialInsightService.sendChatMessage(named, context()).getOrThrow()
         assertTrue(yesterday, yesterday.contains("10.000") && yesterday.contains("2026-10-16"))
-        val september = FinancialInsightService.sendChatMessage(null, history + ChatMessage(sender = ChatSender.USER, text = "kalau september 2026?"), context()).getOrThrow()
+        val september = FinancialInsightService.sendChatMessage(history + ChatMessage(sender = ChatSender.USER, text = "kalau september 2026?"), context()).getOrThrow()
         assertTrue(september, september.contains("Rp 0") && september.contains("BCA") && september.contains("2026-09-01"))
     }
 
@@ -121,7 +121,7 @@ class VinaQuestionCoverageTest {
     }
 
     @Test fun unknownAccountAndUnsupportedTimeAskForClarification() {
-        listOf("saldo Mandiri berapa", "pengeluaran hari Senin", "belanja 12/10/2026", "pengeluaran 2 bulan lalu").forEach {
+        listOf("saldo Mandiri berapa", "pengeluaran hari Senin", "belanja 31/02/2026", "pengeluaran 0 bulan lalu").forEach {
             val answer = FinancialInsightService.evaluateOfflineQuery(it, context())
             assertTrue("$it\n$answer", answer.contains("belum", true))
             assertFalse(answer, answer.contains("100.000"))
@@ -202,7 +202,7 @@ class VinaQuestionCoverageTest {
 
     @Test fun typoCorrectionPreservesAccountNamesInOfflineChat() = runBlocking {
         val ctx = context().copy(assets = context().assets.map { if (it.id == "bca") it.copy(name = "Transaksii") else it })
-        val answer = FinancialInsightService.sendChatMessage(null, listOf(ChatMessage(sender = ChatSender.USER,
+        val answer = FinancialInsightService.sendChatMessage(listOf(ChatMessage(sender = ChatSender.USER,
             text = "penegeluaran dari Transaksii kemarin")), ctx).getOrThrow()
         assertTrue(answer, answer.contains("Transaksii") && answer.contains("10.000") && answer.contains("2026-10-16"))
     }
@@ -210,16 +210,16 @@ class VinaQuestionCoverageTest {
     @Test fun conversationKeepsTopicAcrossThanksAndResolvesDetails() = runBlocking {
         val history = listOf("pengeluaran dari BCA bulan lalu", "terima kasih", "rincikan")
             .map { ChatMessage(text = it, sender = ChatSender.USER) }
-        val answer = FinancialInsightService.sendChatMessage("", history, context()).getOrThrow()
+        val answer = FinancialInsightService.sendChatMessage(history, context()).getOrThrow()
         assertTrue(answer, answer.contains("60.000") && answer.contains("Taksi September") && answer.contains("BCA"))
     }
 
     @Test fun conversationCorrectsPeriodAndSwitchesIncomeWithoutOldExpenseCategory() = runBlocking {
         val history = listOf("pengeluaran makan dari BCA bulan ini", "maksud saya bulan lalu")
             .map { ChatMessage(text = it, sender = ChatSender.USER) }
-        val corrected = FinancialInsightService.sendChatMessage("", history, context()).getOrThrow()
+        val corrected = FinancialInsightService.sendChatMessage(history, context()).getOrThrow()
         assertTrue(corrected, corrected.contains("2026-09-01") && corrected.contains("Makan · BCA"))
-        val switched = FinancialInsightService.sendChatMessage("", listOf("pengeluaran bulan lalu", "kalau pemasukannya?")
+        val switched = FinancialInsightService.sendChatMessage(listOf("pengeluaran bulan lalu", "kalau pemasukannya?")
             .map { ChatMessage(text = it, sender = ChatSender.USER) }, context()).getOrThrow()
         assertTrue(switched, switched.contains("Pemasukan") && switched.contains("2026-09-01"))
         assertFalse(switched, switched.contains("Pengeluaran ·"))
@@ -235,7 +235,7 @@ class VinaQuestionCoverageTest {
     @Test fun whyQuestionExplainsRecordedCategoryChangesWithoutInventingCauses() = runBlocking {
         val history = listOf("pengeluaran bulan ini", "kenapa naik?")
             .map { ChatMessage(text = it, sender = ChatSender.USER) }
-        val answer = FinancialInsightService.sendChatMessage("", history, context()).getOrThrow()
+        val answer = FinancialInsightService.sendChatMessage(history, context()).getOrThrow()
         assertTrue(answer, answer.contains("Makan") && answer.contains("20.000") && answer.contains("penyebab"))
     }
 

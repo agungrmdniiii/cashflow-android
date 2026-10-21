@@ -7,8 +7,12 @@ import java.time.DayOfWeek
 data class CashflowBucket(val label: String, val income: Long = 0L, val expense: Long = 0L)
 
 fun buildCashflowChart(transactions: List<Transaction>, period: PeriodFilter, today: LocalDate = LocalDate.now(), customRange: ReportDateRange? = null): List<CashflowBucket> {
-    val dated = transactions.filter { it.type == "income" || it.type == "expense" }
+    val dated = transactions.filter { !it.isAdjustment && (it.type == "income" || it.type == "expense") }
         .mapNotNull { tx -> runCatching { tx to LocalDate.parse(tx.transactionDate) }.getOrNull() }
+    val daily = period == PeriodFilter.HARI_INI && customRange == null
+    val hours = if (daily) dated.associate { (tx, _) ->
+        tx.id to runCatching { java.time.LocalTime.parse(tx.transactionTime).hour }.getOrNull()
+    } else emptyMap()
     val ranges: List<Triple<String, LocalDate, LocalDate>> = if (customRange != null) {
         val days = java.time.temporal.ChronoUnit.DAYS.between(customRange.start, customRange.end) + 1
         val step = ((days + 11) / 12).coerceAtLeast(1)
@@ -24,7 +28,9 @@ fun buildCashflowChart(transactions: List<Transaction>, period: PeriodFilter, to
             Triple(label, start, endExclusive)
         }.toList()
     } else when (period) {
-        PeriodFilter.HARI_INI -> (0..5).map { Triple("%02d".format(it * 4), today, today.plusDays(1)) }
+        PeriodFilter.HARI_INI -> (0..5).map { Triple("%02d".format(it * 4), today, today.plusDays(1)) } +
+            if (dated.any { (tx, date) -> date == today && hours[tx.id] == null })
+                listOf(Triple("Tanpa jam", today, today.plusDays(1))) else emptyList()
         PeriodFilter.MINGGU_INI -> {
             val start = today.with(DayOfWeek.MONDAY)
             listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min").mapIndexed { i, label -> Triple(label, start.plusDays(i.toLong()), start.plusDays(i + 1L)) }
@@ -53,8 +59,8 @@ fun buildCashflowChart(transactions: List<Transaction>, period: PeriodFilter, to
     val income = LongArray(ranges.size)
     val expense = LongArray(ranges.size)
     dated.forEach { (tx, date) ->
-        val index = if (period == PeriodFilter.HARI_INI && customRange == null) {
-            if (date != today) -1 else tx.transactionTime.substringBefore(':').toIntOrNull()?.takeIf { it in 0..23 }?.div(4) ?: -1
+        val index = if (daily) {
+            if (date != today) -1 else hours[tx.id]?.div(4) ?: 6
         } else ranges.indexOfFirst { date >= it.second && date < it.third }
         if (index >= 0) {
             if (tx.type == "income") income[index] += tx.amount else expense[index] += tx.amount

@@ -166,7 +166,7 @@ fun RecurringTransactionsScreen(
             ) {
                 if (upcoming.isNotEmpty()) {
                     item { Text("Jatuh tempo & 7 hari mendatang", color = duit.textPrimary, fontWeight = FontWeight.Bold) }
-                    items(upcoming, key = { "due_${it.recurring.id}_${it.dueDate}" }) { bill ->
+                    items(upcoming, key = { "due_${it.recurring.id}_${it.dueDate}" }, contentType = { "upcoming" }) { bill ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                             Text("${bill.recurring.name} • ${bill.dueDate}", color = duit.textPrimary)
                             Text(if (bill.isOverdue) "Terlambat" else "Belum dicatat", color = duit.textSecondary)
@@ -178,7 +178,7 @@ fun RecurringTransactionsScreen(
                     }
                     item { HorizontalDivider(); Text("Semua jadwal", color = duit.textPrimary) }
                 }
-                items(recurringList, key = { it.id }) { item ->
+                items(recurringList, key = { it.id }, contentType = { "recurring" }) { item ->
                     val cat = remember(item.categoryId, categories) {
                         categories.firstOrNull { it.id == item.categoryId }
                     }
@@ -338,8 +338,8 @@ fun RecurringTransactionsScreen(
             debts = debts,
             onDismiss = { showFormDialog = false },
             onSave = { recurring ->
-                viewModel.saveRecurringTransaction(recurring) {
-                    showFormDialog = false
+                viewModel.saveRecurringTransaction(recurring) { success ->
+                    if (success) showFormDialog = false
                 }
             }
         )

@@ -7,6 +7,16 @@ import org.junit.Test
 import java.time.LocalDate
 
 class FinancialInsightVarietyTest {
+    @Test fun monthlyMetricsRejectImpossibleDatesFromImportedData() {
+        val result = FinancialInsightService.computeMonthComparison(listOf(
+            Transaction("real", "expense", 200, "", "food", "cash", transactionDate = "2024-02-29"),
+            Transaction("bad", "expense", 900, "", "food", "cash", transactionDate = "2024-02-30"),
+            Transaction("prior-bad", "income", 800, "", null, "cash", transactionDate = "2024-01-99")
+        ), emptyList(), LocalDate.of(2024, 2, 29))
+        assertEquals(200L, result.currentMonthTotalExpense)
+        assertEquals(0L, result.prevMonthTotalIncome)
+        assertEquals("2024-02-29", result.highestExpenseDay)
+    }
     private val today = LocalDate.of(2026, 10, 17)
     private fun stats(income: Long = 0, expense: Long = 0) = FinancialInsightService.computeMonthComparison(
         listOf(Transaction("in", "income", income, "Gaji", null, "cash", transactionDate = "2026-10-01"),

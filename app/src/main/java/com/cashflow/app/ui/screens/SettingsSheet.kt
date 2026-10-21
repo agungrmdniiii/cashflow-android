@@ -51,7 +51,7 @@ private enum class SettingsPage(val title: String, val description: String) {
     SECURITY("Keamanan & Privasi", "Kunci aplikasi dan tangkapan layar"),
     NOTIFICATIONS("Notifikasi & Anggaran", "Pengingat, batas anggaran, dan tanggal gajian"),
     BACKUP("Data & Cadangan", "Backup, pemulihan, impor, dan ekspor"),
-    ONLINE("AI & Suara", "Kunci API dan izin pemrosesan online"),
+    ONLINE("Vina & Suara", "Analisis lokal dan pengaturan suara"),
     ABOUT("Tentang Aplikasi", "Panduan, versi, dan pemeriksaan sistem")
 }
 /**
@@ -75,13 +75,72 @@ fun SettingsSheet(
     val fileScope = rememberCoroutineScope()
     var page by remember { mutableStateOf<SettingsPage?>(null) }
     val duit = MaterialTheme.duit
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) viewModel.showSnackbar("Notifikasi belum diizinkan. Anda dapat mengaktifkannya di pengaturan Android.")
+    val permissionActivity = remember(context) {
+        generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<android.app.Activity>().firstOrNull()
     }
-    fun requestNotifications() {
-        if (android.os.Build.VERSION.SDK_INT >= 33 && !com.cashflow.app.data.service.NotificationHelper.hasNotificationPermission(context)) {
-            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    val permissionPrefs = remember(context) { com.cashflow.app.data.preferences.PreferenceManager(context) }
+    var notificationsAllowed by remember { mutableStateOf(com.cashflow.app.data.service.NotificationHelper.canSendNotifications(context)) }
+    var blockedNotificationChannels by remember { mutableStateOf(com.cashflow.app.data.service.NotificationHelper.blockedChannels(context)) }
+    var showNotificationDenied by remember { mutableStateOf(false) }
+    var pendingNotificationAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var returningFromNotificationSettings by remember { mutableStateOf(false) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsAllowed = com.cashflow.app.data.service.NotificationHelper.canSendNotifications(context)
+        if (granted && notificationsAllowed) {
+            val action = pendingNotificationAction
+            pendingNotificationAction = null
+            action?.invoke()
+        } else {
+            pendingNotificationAction = null
+            showNotificationDenied = true
         }
+    }
+    fun requestNotifications(action: () -> Unit = {}) {
+        notificationsAllowed = com.cashflow.app.data.service.NotificationHelper.canSendNotifications(context)
+        if (notificationsAllowed) {
+            action()
+        } else if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            !com.cashflow.app.data.service.NotificationHelper.hasNotificationPermission(context) &&
+            (!permissionPrefs.getBoolean("requested_notifications") ||
+                permissionActivity?.let { androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(it, android.Manifest.permission.POST_NOTIFICATIONS) } == true)) {
+            pendingNotificationAction = action
+            permissionPrefs.setBoolean("requested_notifications", true)
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            pendingNotificationAction = action
+            showNotificationDenied = true
+        }
+    }
+    fun openNotificationSettings() {
+        showNotificationDenied = false
+        returningFromNotificationSettings = true
+        try {
+            context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+        } catch (_: android.content.ActivityNotFoundException) {
+            pendingNotificationAction = null
+            returningFromNotificationSettings = false
+            viewModel.showSnackbar("Buka Pengaturan Android > Aplikasi > Duit Aing > Notifikasi.")
+        }
+    }
+    val permissionLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(permissionLifecycle, context) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                notificationsAllowed = com.cashflow.app.data.service.NotificationHelper.canSendNotifications(context)
+                blockedNotificationChannels = com.cashflow.app.data.service.NotificationHelper.blockedChannels(context)
+                if (returningFromNotificationSettings) {
+                    returningFromNotificationSettings = false
+                    val action = pendingNotificationAction
+                    pendingNotificationAction = null
+                    if (notificationsAllowed) action?.invoke()
+                    else viewModel.showSnackbar("Notifikasi masih dinonaktifkan di Android. Pencatatan tetap dapat digunakan.")
+                }
+            }
+        }
+        permissionLifecycle.lifecycle.addObserver(observer)
+        onDispose { permissionLifecycle.lifecycle.removeObserver(observer) }
     }
 
     val activeAssets by viewModel.activeAssets.collectAsState()
@@ -111,7 +170,6 @@ fun SettingsSheet(
     val isDailyReminderEnabled by viewModel.isDailyReminderEnabled.collectAsState()
     val dailyReminderTime by viewModel.dailyReminderTime.collectAsState()
     val isBudgetRolloverEnabled by viewModel.isBudgetRolloverEnabled.collectAsState()
-    val geminiApiKey by viewModel.geminiApiKey.collectAsState()
     val userName by viewModel.userName.collectAsState()
 
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -130,8 +188,6 @@ fun SettingsSheet(
     var showEncryptRestoreDialog by remember { mutableStateOf(false) }
     var decryptPasswordInput by remember { mutableStateOf("") }
     var selectedEncryptedFile by remember { mutableStateOf<java.io.File?>(null) }
-    var showApiKeyDialog by remember { mutableStateOf(false) }
-    var tempApiKeyInput by remember { mutableStateOf(geminiApiKey ?: "") }
     var showDiagnosticDialog by remember { mutableStateOf(false) }
     var diagnosticReportText by remember { mutableStateOf("") }
     var showChangelogDialog by remember { mutableStateOf(false) }
@@ -158,6 +214,7 @@ fun SettingsSheet(
     val savePreparedBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri: Uri? ->
+        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         val file = preparedBackupFile
         if (uri != null && file != null) {
             viewModel.savePreparedBackupToUri(file, uri) { result ->
@@ -171,6 +228,7 @@ fun SettingsSheet(
     val createBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
+        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         if (uri != null) {
             viewModel.exportBackupToUri(
                 uri = uri,
@@ -189,6 +247,7 @@ fun SettingsSheet(
     val restoreFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
+        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         if (uri != null) fileScope.launch {
             try {
                 val validation = withContext(Dispatchers.IO) {
@@ -217,6 +276,7 @@ fun SettingsSheet(
     val restoreEncryptedLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
+        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         if (uri != null) fileScope.launch {
             try {
                 val cacheFile = java.io.File(context.cacheDir, "temp_restore.enc")
@@ -235,6 +295,7 @@ fun SettingsSheet(
     val restoreZipLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
+        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         if (uri != null) fileScope.launch {
             try {
                 val cacheFile = java.io.File(context.cacheDir, "temp_restore.zip")
@@ -258,6 +319,7 @@ fun SettingsSheet(
     }
 
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         if (uri != null) fileScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -278,16 +340,22 @@ fun SettingsSheet(
         AlertDialog(onDismissRequest = { if (!importingCsv) csvPreview = null },
             title = { Text("Pratinjau impor CSV") },
             text = { Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                Text("${preview.transactions.size} transaksi baru • ${preview.duplicateCount} duplikat dilewati • ${preview.errors.size} kesalahan")
+                Text("${preview.transactions.size} transaksi baru • ${preview.duplicateCount} duplikat identik dilewati • ${preview.errors.size} kesalahan")
+                if (preview.similarTransactions.isNotEmpty()) Text("${preview.similarTransactions.size} baris mirip perlu ditinjau. Tidak ada baris mirip yang dihapus otomatis.", color = duit.expense)
                 Text("Hanya CSV ekspor Duit Aing untuk pemasukan, pengeluaran, dan transfer. Rekening serta kategori harus sudah ada. Cadangan lengkap memakai JSON/ZIP.")
                 preview.errors.take(5).forEach { Text(it, color = duit.expense) }
-                preview.transactions.take(10).forEach { Text("${it.transactionDate} • ${it.description} • ${Formatters.displayRupiah(it.amount)}") }
+                preview.transactions.take(10).forEach { tx ->
+                    Text("${tx.transactionDate} • ${tx.description} • ${Formatters.displayRupiah(tx.amount)}")
+                    preview.similarTransactions[tx.id]?.let { prior ->
+                        Text("Mirip: ${prior.transactionDate} ${prior.transactionTime} • ${prior.description}", color = duit.expense)
+                    }
+                }
                 if (preview.transactions.size > 10) Text("Dan ${preview.transactions.size - 10} transaksi lainnya.")
             } },
             confirmButton = { TextButton(enabled = !importingCsv && preview.errors.isEmpty() && preview.transactions.isNotEmpty(), onClick = {
                 importingCsv = true
                 viewModel.importCsv(csvContent) { success -> importingCsv = false; if (success) { csvPreview = null; csvContent = "" } }
-            }) { Text(if (importingCsv) "Mengimpor…" else "Impor transaksi") } },
+            }) { Text(if (importingCsv) "Mengimpor…" else if (preview.similarTransactions.isNotEmpty()) "Tinjau dan impor" else "Impor transaksi") } },
             dismissButton = { TextButton(enabled = !importingCsv, onClick = { csvPreview = null; csvContent = "" }) { Text("Batal") } })
     }
 
@@ -432,7 +500,22 @@ fun SettingsSheet(
                     }
 
                     SettingsPage.NOTIFICATIONS -> {
-                // 3. Notifikasi & Anggaran
+                // Permissions reflect Android's actual status, separately from reminder preferences.
+                NotificationAccessSection(
+                    allowed = notificationsAllowed, blockedChannels = blockedNotificationChannels,
+                    onRequest = { requestNotifications() }, onOpenSettings = { openNotificationSettings() },
+                    onTest = { requestNotifications {
+                        if (com.cashflow.app.data.service.NotificationHelper.showLocalNotification(context, 3099,
+                            "Notifikasi Duit Aing aktif", "Pengingat kini dapat ditampilkan. Jadwal mengikuti pengaturan Anda.",
+                            com.cashflow.app.data.service.NotificationHelper.CHANNEL_DAILY_REMINDER)) {
+                            viewModel.showSnackbar("Notifikasi uji dikirim. Periksa panel notifikasi.")
+                        } else {
+                            blockedNotificationChannels = com.cashflow.app.data.service.NotificationHelper.blockedChannels(context)
+                            showNotificationDenied = true
+                        }
+                    } }
+                )
+                Spacer(Modifier.height(12.dp))
                 NotificationSection(
                     isDailyReminderEnabled = isDailyReminderEnabled,
                     dailyReminderTime = dailyReminderTime,
@@ -440,8 +523,8 @@ fun SettingsSheet(
                     isBudgetRolloverEnabled = isBudgetRolloverEnabled,
                     activeAssets = activeAssets,
                     defaultAsset = defaultAsset,
-                    onDailyReminderToggled = { viewModel.setDailyReminderEnabled(it); if (it) requestNotifications() },
-                    onBudgetAlertsToggled = { viewModel.setBudgetAlertsEnabled(it); if (it) requestNotifications() },
+                    onDailyReminderToggled = { enabled -> if (enabled) requestNotifications { viewModel.setDailyReminderEnabled(true) } else viewModel.setDailyReminderEnabled(false) },
+                    onBudgetAlertsToggled = { enabled -> if (enabled) requestNotifications { viewModel.setBudgetAlertsEnabled(true) } else viewModel.setBudgetAlertsEnabled(false) },
                     onBudgetRolloverToggled = { viewModel.setBudgetRolloverEnabled(it) },
                     onDefaultAssetSelected = { viewModel.setDefaultAsset(it.id) }
                 )
@@ -466,6 +549,9 @@ fun SettingsSheet(
                     }
 
                     SettingsPage.BACKUP -> {
+                Text("Anda memilih sendiri berkas atau lokasi melalui pemilih Android. Aplikasi tidak meminta akses ke seluruh penyimpanan.",
+                    style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                Spacer(Modifier.height(12.dp))
                 // 5. Data & Cadangan (Backup, Restore, Sync, Reset)
                 DataBackupSection(
                     lastBackupTime = lastBackupTime,
@@ -475,7 +561,7 @@ fun SettingsSheet(
                     hasSampleData = hasSampleData,
                     onExportJson = { showBackupFormatDialog = true },
                     onRestoreJson = { showRestoreFormatDialog = true },
-                    onBackupReminderToggled = { viewModel.setBackupReminderEnabled(it) },
+                    onBackupReminderToggled = { enabled -> if (enabled) requestNotifications { viewModel.setBackupReminderEnabled(true) } else viewModel.setBackupReminderEnabled(false) },
                     onRecalculateBalances = {
                         viewModel.recalculateBalances { result ->
                             reconciliationResult = result
@@ -493,18 +579,9 @@ fun SettingsSheet(
 
                     SettingsPage.ONLINE -> {
                 // 6. Fitur Online & AI
-                OnlineFeaturesSection(
-                    geminiApiKey = geminiApiKey,
-                    onConfigureApiKey = {
-                        tempApiKeyInput = geminiApiKey ?: ""
-                        showApiKeyDialog = true
-                    }
-                )
-                val onlineAi by viewModel.isAiInsightsEnabled.collectAsState()
+                OnlineFeaturesSection()
                 val onlineVoice by viewModel.isOnlineVoiceEnabled.collectAsState()
-                SettingsItemRow(title = "Analisis online Gemini", description = "Jika aktif dan kunci terisi, percakapan serta ringkasan rekening, anggaran, hutang, dan tabungan dikirim ke Google. Nonaktif memakai analisis lokal.", icon = Icons.Rounded.Cloud,
-                    control = { Switch(checked = onlineAi, onCheckedChange = viewModel::setAiInsightsEnabled) })
-                SettingsItemRow(title = "Layanan suara online", description = "Izinkan layanan pengenalan suara Android memproses audio secara online. Nonaktif hanya memakai pengenal di perangkat jika tersedia.", icon = Icons.Rounded.Mic,
+                SettingsItemRow(title = "Layanan suara online", description = "Pengenalan ucapan memakai layanan suara Android dan dapat memerlukan internet. Nonaktifkan untuk hanya memakai pengenal offline jika tersedia.", icon = Icons.Rounded.Mic,
                     control = { Switch(checked = onlineVoice, onCheckedChange = viewModel::setOnlineVoiceEnabled) })
 
                     }
@@ -815,7 +892,7 @@ fun SettingsSheet(
                 )
 
                 Text(
-                    text = "Tindakan ini permanen dan tidak dapat dibatalkan. Semua transaksi, aset, target, hutang, dan anggaran Anda akan dihapus bersih.",
+                    text = "Transaksi, rekening, anggaran, target, hutang, kategori pribadi, struk, percakapan Vina, serta cadangan dan ekspor internal akan dihapus. Berkas yang sudah Anda simpan ke Downloads atau Drive tetap ada dan perlu dihapus sendiri. Pengaturan aplikasi dipertahankan.",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 12.sp,
                         lineHeight = 16.sp
@@ -869,6 +946,18 @@ fun SettingsSheet(
                 }
             }
         }
+    }
+
+    if (showNotificationDenied) {
+        AlertDialog(
+            onDismissRequest = { showNotificationDenied = false; pendingNotificationAction = null },
+            title = { Text(if (notificationsAllowed) "Kanal notifikasi dinonaktifkan" else "Izin notifikasi belum diberikan") },
+            text = { Text(if (notificationsAllowed)
+                "Aktifkan kanal pengingat di Pengaturan Android: ${blockedNotificationChannels.joinToString().ifBlank { "Pengingat Catat Harian" }}."
+                else "Pengingat tidak dapat muncul karena notifikasi belum diizinkan atau dinonaktifkan di Android. Anda tetap dapat memakai pencatatan manual.") },
+            confirmButton = { TextButton(onClick = { openNotificationSettings() }) { Text("Buka Pengaturan") } },
+            dismissButton = { TextButton(onClick = { showNotificationDenied = false; pendingNotificationAction = null }) { Text("Nanti") } }
+        )
     }
 
     // 5. Delete Sample Data Dialog
@@ -1045,52 +1134,6 @@ fun SettingsSheet(
         )
     }
 
-    // 9. Set Gemini API Key Dialog
-    if (showApiKeyDialog) {
-        AlertDialog(
-            onDismissRequest = { showApiKeyDialog = false },
-            title = {
-                Text("Gemini 3.8 Flash API Key", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Gunakan model Gemini 3.8 Flash gratis dari Google AI Studio (aistudio.google.com). Pilih Free Tier tanpa biaya/kartu kredit. Kunci disimpan terenkripsi di HP Anda.\n\nJika dikosongkan, aplikasi otomatis menggunakan analisis cerdas lokal secara offline dan 100% gratis.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = tempApiKeyInput,
-                        onValueChange = { tempApiKeyInput = it },
-                        label = { Text("API Key (Opsional - Free Tier)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.setGeminiApiKey(tempApiKeyInput.trim())
-                        showApiKeyDialog = false
-                        viewModel.showSnackbar("API Key Gemini berhasil disimpan")
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = duit.primary,
-                        contentColor = duit.onPrimary
-                    )
-                ) {
-                    Text("SIMPAN", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showApiKeyDialog = false }) {
-                    Text("BATAL", color = duit.textSecondary)
-                }
-            }
-        )
-    }
-
     // Edit User Nickname Dialog
     if (showEditNameDialog) {
         AlertDialog(
@@ -1116,12 +1159,10 @@ fun SettingsSheet(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.setUserName(tempNameInput)
-                        showEditNameDialog = false
-                        viewModel.showSnackbar(
-                            if (tempNameInput.isBlank()) "Nama panggilan dihapus"
-                            else "Nama panggilan disimpan: ${tempNameInput.trim()}"
-                        )
+                        viewModel.setUserName(tempNameInput) {
+                            showEditNameDialog = false
+                            viewModel.showSnackbar("Nama panggilan diperbarui.")
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = duit.primary,
@@ -1234,7 +1275,7 @@ fun SettingsSheet(
         )
     }
 
-    // 11. Changelog "Yang Baru di v1.1.0" Dialog
+    // 11. Catatan perubahan versi terpasang Dialog
     if (showChangelogDialog) {
         AlertDialog(
             onDismissRequest = { showChangelogDialog = false },
@@ -1250,7 +1291,7 @@ fun SettingsSheet(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        "Yang Baru di v1.1.0",
+                        "Yang baru di versi ${com.cashflow.app.BuildConfig.VERSION_NAME}",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -1263,41 +1304,10 @@ fun SettingsSheet(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Pembaruan stabilitas, performa tinggi, dan ketahanan sistem (Tahap 5):",
-                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
-                    )
-
-                    ChangelogItem(
-                        icon = Icons.Rounded.FlashOn,
-                        title = "Performa 10.000 Transaksi",
-                        description = "Indeks komposit SQLite multi-kolom membuat pemuatan data instan di bawah 50ms."
-                    )
-                    ChangelogItem(
-                        icon = Icons.Rounded.Security,
-                        title = "Keamanan & Anti-Screenshot",
-                        description = "Keystore Android terlindung, opsi blokir screenshot, dan zero-cleartext HTTPS."
-                    )
-                    ChangelogItem(
-                        icon = Icons.Rounded.Wifi,
-                        title = "Ketahanan Jaringan Resilient",
-                        description = "Auto-retry cerdas dengan exponential backoff dan sinkronisasi otomatis saat online."
-                    )
-                    ChangelogItem(
-                        icon = Icons.Rounded.Payments,
-                        title = "Dukungan Nominal Triliunan",
-                        description = "Pencatatan angka sangat besar (hingga Triliun/T) aman dari overflow dan diformat rapi."
-                    )
-                    ChangelogItem(
-                        icon = Icons.Rounded.Backup,
-                        title = "Cadangan Pra-Migrasi",
-                        description = "Database dicadangkan otomatis sebelum setiap pembaruan skema aplikasi."
-                    )
-                    ChangelogItem(
-                        icon = Icons.Rounded.Assessment,
-                        title = "Diagnostik & Privasi Mutlak",
-                        description = "Ekspor laporan diagnostik tersanitasi tanpa merekam nominal atau data pribadi."
-                    )
+                    val notes = remember(context) {
+                        context.resources.openRawResource(com.cashflow.app.R.raw.release_notes).bufferedReader().use { it.readText() }
+                    }
+                    Text(notes, style = MaterialTheme.typography.bodyMedium, color = duit.textSecondary)
                 }
             },
             confirmButton = {

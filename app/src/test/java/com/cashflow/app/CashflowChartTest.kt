@@ -38,4 +38,14 @@ class CashflowChartTest {
         assertEquals(100L, buckets.sumOf { it.income })
         assertTrue(buckets.size <= 12)
     }
+
+    @Test fun dailyChartKeepsBackupTransactionsWithoutInventingTheirHour() {
+        val buckets = buildCashflowChart(listOf(tx("known", today.toString(), time = "04:00"),
+            tx("missing", today.toString(), time = ""), tx("bad", today.toString(), time = "25:00")),
+            PeriodFilter.HARI_INI, today)
+        assertEquals(300L, buckets.sumOf { it.expense })
+        assertEquals(100L, buckets[1].expense)
+        assertEquals("Tanpa jam", buckets.last().label)
+        assertEquals(200L, buckets.last().expense)
+    }
 }

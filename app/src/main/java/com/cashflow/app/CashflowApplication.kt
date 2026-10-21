@@ -41,7 +41,7 @@ class CashflowApplication : Application() {
                 val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                 val report = buildString {
                     appendLine("Crash Timestamp: $time")
-                    appendLine("App Version: 1.1.0 (110)")
+                    appendLine("App Version: ${com.cashflow.app.BuildConfig.VERSION_NAME} (${com.cashflow.app.BuildConfig.VERSION_CODE})")
                     appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})")
                     appendLine("Thread: ${thread.name}")
                     appendLine("Exception: ${throwable.javaClass.name}: ${throwable.message}")

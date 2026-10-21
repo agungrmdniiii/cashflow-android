@@ -176,13 +176,10 @@ class AuditDatabaseRegressionTest {
         val raw = context.getSharedPreferences("duit_aing_preferences", 0)
         raw.edit().putString("gemini_api_key", "audit-secret-value").commit()
         val prefs = PreferenceManager(context)
-        assertEquals("audit-secret-value", prefs.getGeminiApiKey())
         assertFalse(raw.contains("gemini_api_key"))
         assertFalse(context.getSharedPreferences("duit_aing_credentials", 0).all.values.any { it.toString().contains("audit-secret-value") })
         assertFalse(prefs.isOnlineVoiceEnabled())
-        assertFalse(prefs.isAiInsightsEnabled())
-        prefs.setGeminiApiKey(null)
-        assertNull(prefs.getGeminiApiKey())
+        assertFalse(raw.contains("ai_insights_enabled"))
     }
 
     @Test

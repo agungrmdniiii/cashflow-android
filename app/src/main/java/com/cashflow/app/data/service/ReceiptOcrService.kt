@@ -17,6 +17,8 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.regex.Pattern
 import kotlin.coroutines.resume
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class ReceiptOcrResult(
     val merchantName: String? = null,
@@ -35,8 +37,8 @@ object ReceiptOcrService {
      * Mengompresi gambar struk (maksimal 1280px dan JPEG quality ~75%) dan menyimpannya di folder privat aplikasi.
      * Mengembalikan absolute path file yang disimpan.
      */
-    fun saveAndCompressReceipt(context: Context, sourceUri: Uri): String? {
-        return try {
+    suspend fun saveAndCompressReceipt(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
+        try {
             val receiptsDir = File(context.filesDir, "receipts").apply {
                 if (!exists()) mkdirs()
             }
@@ -75,7 +77,7 @@ object ReceiptOcrService {
 
             var bitmap = context.contentResolver.openInputStream(sourceUri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, decodeOptions)
-            } ?: return null
+            } ?: return@withContext null
 
             // Koreksi rotasi jika perlu
             if (rotationDegrees != 0) {
@@ -111,6 +113,20 @@ object ReceiptOcrService {
         }
     }
 
+    /** Decode only the pixels needed by the preview, outside composition and the UI thread. */
+    suspend fun loadReceiptPreview(imagePath: String?, maxDimension: Int): Bitmap? = withContext(Dispatchers.IO) {
+        require(maxDimension > 0)
+        if (imagePath.isNullOrBlank()) return@withContext null
+        try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(imagePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+            var sample = 1
+            while ((maxOf(bounds.outWidth, bounds.outHeight) - 1) / sample >= maxDimension && sample <= Int.MAX_VALUE / 2) sample *= 2
+            BitmapFactory.decodeFile(imagePath, BitmapFactory.Options().apply { inSampleSize = sample })
+        } catch (_: Exception) { null }
+    }
+
     /**
      * Menghapus file foto struk secara bersih.
      */
@@ -127,7 +143,7 @@ object ReceiptOcrService {
     /**
      * Menjalankan OCR lokal menggunakan Google ML Kit Text Recognition dari file foto.
      */
-    suspend fun scanReceipt(context: Context, imagePath: String): ReceiptOcrResult = suspendCancellableCoroutine { cont ->
+    suspend fun scanReceipt(context: Context, imagePath: String): ReceiptOcrResult = withContext(Dispatchers.IO) { suspendCancellableCoroutine { cont ->
         try {
             val file = File(imagePath)
             if (!file.exists()) {
@@ -146,18 +162,17 @@ object ReceiptOcrService {
 
             recognizer.process(image)
                 .addOnSuccessListener { visionText ->
-                    bitmap.recycle()
                     val parsed = parseReceiptText(visionText.text)
-                    cont.resume(parsed)
+                    if (cont.isActive) cont.resume(parsed)
                 }
                 .addOnFailureListener { e ->
-                    bitmap.recycle()
-                    cont.resume(ReceiptOcrResult(rawText = "Gagal membaca teks: ${e.message}"))
+                    if (cont.isActive) cont.resume(ReceiptOcrResult(rawText = "Gagal membaca teks: ${e.message}"))
                 }
+                .addOnCompleteListener { bitmap.recycle(); recognizer.close() }
         } catch (e: Exception) {
-            cont.resume(ReceiptOcrResult(rawText = "Kesalahan scan: ${e.message}"))
+            if (cont.isActive) cont.resume(ReceiptOcrResult(rawText = "Kesalahan scan: ${e.message}"))
         }
-    }
+    } }
 
     /**
      * Parsing pintar teks struk belanja untuk mencari:

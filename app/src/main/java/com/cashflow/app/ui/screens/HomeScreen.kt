@@ -25,7 +25,6 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,7 +39,6 @@ import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.components.home.*
 import com.cashflow.app.ui.theme.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.util.UUID
@@ -97,7 +95,7 @@ fun HomeScreen(
     var showBudgetDialog by remember { mutableStateOf(false) }
     var editingBudget by remember { mutableStateOf<Budget?>(null) }
     var budgetToDelete by remember { mutableStateOf<BudgetWithProgress?>(null) }
-    var isInsightDismissed by rememberSaveable { mutableStateOf(false) }
+    val isInsightDismissed by viewModel.isHomeInsightDismissed.collectAsState()
     var insightIndex by remember(ruleBasedInsights) { mutableIntStateOf(0) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     val userName by viewModel.userName.collectAsState()
@@ -117,8 +115,7 @@ fun HomeScreen(
         onRefresh = {
             isRefreshing = true
             coroutineScope.launch {
-                viewModel.recalculateBalances()
-                delay(400)
+                viewModel.refreshData()
                 isRefreshing = false
             }
         },
@@ -267,7 +264,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(22.dp))
                 HomeInsightBanner(
                     insight = ruleBasedInsights[insightIndex],
-                    onDismiss = { isInsightDismissed = true },
+                    onDismiss = { viewModel.isHomeInsightDismissed.value = true },
                     position = insightIndex + 1,
                     total = ruleBasedInsights.size,
                     onNext = { insightIndex = (insightIndex + 1) % ruleBasedInsights.size }
@@ -376,7 +373,7 @@ fun HomeScreen(
         confirmText = "HAPUS",
         confirmVariant = DuitAingButtonVariant.DANGER,
         onConfirm = {
-            budgetToDelete?.let { viewModel.deleteBudget(it.budget.id) }
+            budgetToDelete?.let { viewModel.deleteBudget(it.budget.id, confirmed = true) }
             budgetToDelete = null
         },
         onDismiss = { budgetToDelete = null }
@@ -461,12 +458,10 @@ fun HomeScreen(
 
                         Button(
                             onClick = {
-                                viewModel.setUserName(tempNameInput)
-                                showEditNameDialog = false
-                                viewModel.showSnackbar(
-                                    if (tempNameInput.isBlank()) "Nama panggilan dihapus"
-                                    else "Nama panggilan disimpan: ${tempNameInput.trim()}"
-                                )
+                                viewModel.setUserName(tempNameInput) {
+                                    showEditNameDialog = false
+                                    viewModel.showSnackbar("Nama panggilan diperbarui.")
+                                }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),

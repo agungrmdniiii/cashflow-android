@@ -14,9 +14,12 @@ fun groupTransactionDays(transactions: List<Transaction>): List<TransactionDay> 
     transactions.groupBy { it.transactionDate }.map { (date, list) ->
         var income = 0L
         var expense = 0L
-        for (tx in list) when (tx.type) {
-            "income" -> income += tx.amount
-            "expense" -> expense += tx.amount
+        for (tx in list) {
+            if (tx.isAdjustment) continue
+            when (tx.type) {
+                "income" -> income += tx.amount
+                "expense" -> expense += tx.amount
+            }
         }
         TransactionDay(date, list, income, expense)
     }
@@ -29,21 +32,34 @@ data class TransactionSummary(
     val expenseByAsset: Map<String, Long> = emptyMap()
 )
 
+// One emission keeps the period label, totals, and graph on the same dataset.
+data class ReportSnapshot(
+    val period: PeriodFilter = PeriodFilter.BULAN_INI,
+    val range: ReportDateRange? = null,
+    val summary: TransactionSummary = TransactionSummary(),
+    val chart: List<CashflowBucket> = emptyList()
+)
+
 fun summarizeTransactions(transactions: List<Transaction>): TransactionSummary {
     var income = 0L
     var expense = 0L
     val expenseByCategory = mutableMapOf<String, Long>()
     val incomeByCategory = mutableMapOf<String, Long>()
     val expenseByAsset = mutableMapOf<String, Long>()
-    for (tx in transactions) when (tx.type) {
-        "income" -> {
-            income += tx.amount
-            tx.categoryId?.let { incomeByCategory[it] = (incomeByCategory[it] ?: 0L) + tx.amount }
-        }
-        "expense" -> {
-            expense += tx.amount
-            tx.categoryId?.let { expenseByCategory[it] = (expenseByCategory[it] ?: 0L) + tx.amount }
-            expenseByAsset[tx.assetId] = (expenseByAsset[tx.assetId] ?: 0L) + tx.amount
+    for (tx in transactions) {
+        if (tx.isAdjustment) continue
+        when (tx.type) {
+            "income" -> {
+                income += tx.amount
+                val category = tx.categoryId.orEmpty()
+                incomeByCategory[category] = (incomeByCategory[category] ?: 0L) + tx.amount
+            }
+            "expense" -> {
+                expense += tx.amount
+                val category = tx.categoryId.orEmpty()
+                expenseByCategory[category] = (expenseByCategory[category] ?: 0L) + tx.amount
+                expenseByAsset[tx.assetId] = (expenseByAsset[tx.assetId] ?: 0L) + tx.amount
+            }
         }
     }
     return TransactionSummary(income, expense, expenseByCategory, incomeByCategory, expenseByAsset)
@@ -55,7 +71,7 @@ fun filterTransactionsByPeriod(
     today: LocalDate = LocalDate.now(),
     range: ReportDateRange? = null
 ): List<Transaction> {
-    if (range == null && period == PeriodFilter.SEMUA) return transactions
+    val allTime = range == null && period == PeriodFilter.SEMUA
     val start = range?.start ?: when (period) {
         PeriodFilter.HARI_INI -> today
         PeriodFilter.MINGGU_INI -> today.with(DayOfWeek.MONDAY)
@@ -74,7 +90,7 @@ fun filterTransactionsByPeriod(
     val matches = mutableMapOf<String, Boolean>()
     return transactions.filter { tx ->
         matches.getOrPut(tx.transactionDate) {
-            runCatching { LocalDate.parse(tx.transactionDate).let { it >= start && it <= end } }.getOrDefault(false)
+            runCatching { LocalDate.parse(tx.transactionDate).let { allTime || (it >= start && it <= end) } }.getOrDefault(false)
         }
     }
 }

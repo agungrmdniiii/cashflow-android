@@ -51,17 +51,17 @@ fun ReportsScreen(
     modifier: Modifier = Modifier,
     onTourCalendarPositioned: (Rect) -> Unit = {}
 ) {
-    val summary by viewModel.reportSummary.collectAsState()
-    val chartBuckets by viewModel.reportChart.collectAsState()
-    val reportRange by viewModel.reportDateRange.collectAsState()
+    val report by viewModel.reportSnapshot.collectAsState()
+    val summary = report.summary
+    val chartBuckets = report.chart
+    val reportRange = report.range
     val periodIncome = summary.income
     val periodExpense = summary.expense
     val netCashflow = periodIncome - periodExpense
-    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
+    val selectedPeriod = report.period
     val categories by viewModel.categories.collectAsState()
     val allAssets by viewModel.assets.collectAsState()
     val monthStats by viewModel.monthComparisonStats.collectAsState()
-    val geminiApiKey by viewModel.geminiApiKey.collectAsState()
 
     val catMap = remember(categories) { categories.associateBy { it.id } }
     val assetMap = remember(allAssets) { allAssets.associateBy { it.id } }
@@ -78,8 +78,6 @@ fun ReportsScreen(
     val periodLabel = reportRange?.let { "${Formatters.formatDateReadable(it.start.toString())} – ${Formatters.formatDateReadable(it.end.toString())}" } ?: selectedPeriod.displayName
 
     var showPayloadDialog by remember { mutableStateOf(false) }
-    var showApiKeyDialog by remember { mutableStateOf(false) }
-    var tempApiKey by remember { mutableStateOf(geminiApiKey ?: "") }
 
     val categoryBreakdown = remember(summary.expenseByCategory, catMap) {
         val total = summary.expenseByCategory.values.sum()
@@ -105,8 +103,7 @@ fun ReportsScreen(
         onRefresh = {
             isRefreshing = true
             coroutineScope.launch {
-                viewModel.recalculateBalances()
-                kotlinx.coroutines.delay(400)
+                viewModel.refreshData()
                 isRefreshing = false
             }
         },
@@ -350,10 +347,12 @@ fun ReportsScreen(
                                 color = duit.textSecondary
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            val expDeltaPct = stats.expensePercentChange
+                            val expDeltaPct = if (isExpense) stats.expensePercentChange else stats.incomePercentChange
+                            val previousTotal = if (isExpense) stats.prevMonthTotalExpense else stats.prevMonthTotalIncome
                             val expDeltaLabel = if (expDeltaPct > 0) "+${String.format(java.util.Locale.US, "%.1f", expDeltaPct)}%"
                                                else "${String.format(java.util.Locale.US, "%.1f", expDeltaPct)}%"
-                            val expBadgeColor = if (expDeltaPct > 0) duit.expense else duit.income
+                            val expBadgeColor = if (previousTotal <= 0) duit.textSecondary
+                                else if ((isExpense && expDeltaPct > 0) || (!isExpense && expDeltaPct < 0)) duit.expense else duit.income
                             val expBadgeBg = expBadgeColor.copy(alpha = 0.14f)
 
                             Box(
@@ -363,7 +362,7 @@ fun ReportsScreen(
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "vs Bulan lalu $expDeltaLabel",
+                                    text = if (previousTotal > 0) "vs Bulan lalu $expDeltaLabel" else "Belum ada pembanding",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -375,6 +374,8 @@ fun ReportsScreen(
                             }
                         }
 
+                        Text("Perbandingan total bulan ini dengan bulan lalu penuh.",
+                            style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Row(
@@ -383,7 +384,7 @@ fun ReportsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "RATA-RATA HARIAN",
+                                    text = "BELANJA / HARI",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
@@ -413,7 +414,7 @@ fun ReportsScreen(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 val srPct = (stats.savingsRate * 100).toInt()
                                 Text(
-                                    text = "$srPct%",
+                                    text = if (stats.currentMonthTotalIncome > 0) "$srPct%" else "—",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp
@@ -461,7 +462,7 @@ fun ReportsScreen(
             }
         }
 
-        // 4c. Gemini AI Financial Insight Card (4D)
+        // Vina offline
         item {
             Card(
                 modifier = Modifier
@@ -517,7 +518,7 @@ fun ReportsScreen(
                             Icon(imageVector = Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(14.dp), tint = duit.textSecondary)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Data Dikirim",
+                                text = "Privasi Vina",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -529,7 +530,7 @@ fun ReportsScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Tanyakan apa saja seputar arus kas, tren bulanan, evaluasi anggaran, atau simulasi pembelian kepada Vina, asisten finansial pribadi Anda.",
+                        text = "Baca transaksi, arus kas, anggaran, dan target bersama Vina. Analisis berjalan di perangkat tanpa internet atau kunci API.",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             lineHeight = 15.sp
@@ -560,17 +561,7 @@ fun ReportsScreen(
                             )
                         }
 
-                        OutlinedButton(
-                            onClick = {
-                                tempApiKey = geminiApiKey ?: ""
-                                showApiKeyDialog = true
-                            },
-                            modifier = Modifier.height(42.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, duit.border)
-                        ) {
-                            Icon(imageVector = Icons.Rounded.Key, contentDescription = "API Key", modifier = Modifier.size(16.dp), tint = duit.textPrimary)
-                        }
+
                     }
                 }
             }
@@ -713,7 +704,7 @@ fun ReportsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            itemsIndexed(activeBreakdown) { idx, (cat, amount, percent) ->
+            itemsIndexed(activeBreakdown, key = { index, row -> row.first?.id?.let { "category_$it" } ?: "missing_category_$index" }, contentType = { _, _ -> "category_breakdown" }) { idx, (cat, amount, percent) ->
                 val chartColors = duit.chart
                 val sliceColor = if (cat != null) getCategoryColor(cat.icon, isDark) else if (idx < 6 && idx < chartColors.size) chartColors[idx] else duit.chartOther
 
@@ -898,98 +889,10 @@ fun ReportsScreen(
             showReportCalendar = false
         })
     }
-    // Transparansi Privasi: Data yang Dikirim ke Gemini Dialog
     if (showPayloadDialog) {
-        val payloadJson = remember {
-            try {
-                viewModel.getGeminiPayloadPreview().toString(2)
-            } catch (e: Exception) {
-                "{ \"error\": \"${e.message}\" }"
-            }
-        }
-        AlertDialog(
-            onDismissRequest = { showPayloadDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(imageVector = Icons.Rounded.Security, contentDescription = null, tint = duit.textPrimary)
-                    Text("Transparansi Data", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = duit.textPrimary)
-                }
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Berikut adalah data JSON persis yang dikirim ke Gemini AI. Perhatikan bahwa hanya total angka kategori dan tanggal bulan yang dikirim. Tidak ada nama merchant, lokasi, atau catatan pribadi.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(duit.surfaceVariant)
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = payloadJson,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-                            color = duit.textPrimary
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPayloadDialog = false }) {
-                    Text("TUTUP", fontWeight = FontWeight.Bold, color = duit.textPrimary)
-                }
-            },
-            containerColor = duit.surface
-        )
-    }
-
-    // Set Gemini API Key Dialog
-    if (showApiKeyDialog) {
-        AlertDialog(
-            onDismissRequest = { showApiKeyDialog = false },
-            title = {
-                Text("Gemini 3.8 Flash API Key", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = duit.textPrimary)
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Gunakan model Gemini 3.8 Flash gratis dari Google AI Studio (aistudio.google.com). Pilih Free Tier tanpa biaya/kartu kredit. Kunci disimpan terenkripsi di HP Anda.\n\nJika dikosongkan, aplikasi otomatis menggunakan Penasihat Finansial Cerdas lokal secara offline dan 100% gratis.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = tempApiKey,
-                        onValueChange = { tempApiKey = it },
-                        label = { Text("API Key (Opsional - Free Tier)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.setGeminiApiKey(tempApiKey.trim())
-                        showApiKeyDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = duit.primary,
-                        contentColor = duit.onPrimary
-                    )
-                ) {
-                    Text("SIMPAN", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showApiKeyDialog = false }) {
-                    Text("BATAL", color = duit.textSecondary)
-                }
-            },
-            containerColor = duit.surface
-        )
+        AlertDialog(onDismissRequest = { showPayloadDialog = false },
+            title = { Text("Vina bekerja di perangkat") },
+            text = { Text("Vina membaca transaksi, rekening, kategori, anggaran, hutang, dan target yang tersimpan di aplikasi. Percakapan dan data keuangan tidak dikirim ke penyedia AI. Jawaban bergantung pada kelengkapan catatan dan bukan jaminan hasil keuangan.") },
+            confirmButton = { TextButton(onClick = { showPayloadDialog = false }) { Text("Tutup") } })
     }
 }

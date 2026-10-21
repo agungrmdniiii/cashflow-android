@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.ChatMessage
 import com.cashflow.app.data.model.ChatSender
+import com.cashflow.app.data.service.FinancialInsightService
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.DuitAingModalBottomSheet
 import com.cashflow.app.ui.components.FadingHorizontalScrollRow
@@ -74,13 +75,12 @@ fun FinancialChatContent(
     val duit = MaterialTheme.duit
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isLoading by viewModel.isChatLoading.collectAsState()
-    val geminiApiKey by viewModel.geminiApiKey.collectAsState()
-    val onlineEnabled by viewModel.isAiInsightsEnabled.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val suggestions = remember(chatMessages) { FinancialInsightService.suggestedQuestions(chatMessages) }
 
     // Auto-scroll ke pesan terbaru
     LaunchedEffect(chatMessages.size, isLoading) {
@@ -132,16 +132,16 @@ fun FinancialChatContent(
                             color = duit.textPrimary
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val isOnline = onlineEnabled && !geminiApiKey.isNullOrBlank()
+
                             Box(
                                 modifier = Modifier
                                     .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(if (isOnline) duit.accentLime else duit.textSecondary)
+                                    .background(duit.accentLime)
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = if (isOnline) "Vina • Gemini 3.8 Flash" else "Vina • Analisis Cerdas Lokal",
+                                text = "Vina • 100% offline",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                                 color = duit.textSecondary
                             )
@@ -192,7 +192,7 @@ fun FinancialChatContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(chatMessages, key = { it.id }) { msg ->
+                items(chatMessages, key = { it.id }, contentType = { it.sender }) { msg ->
                     ChatBubbleItem(message = msg)
                 }
 
@@ -204,14 +204,14 @@ fun FinancialChatContent(
             }
 
             // 3. Rekomendasi Pertanyaan Cepat (Inspirasi awal)
-            if (chatMessages.size <= 1) {
+            if (!isLoading && suggestions.isNotEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp)
                 ) {
                     Text(
-                        text = "CONTOH PERTANYAAN:",
+                        text = if (chatMessages.size <= 1) "MULAI PERCAKAPAN" else "LANJUTKAN",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp,
@@ -226,19 +226,17 @@ fun FinancialChatContent(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
-                        listOf(
-                            "Bagaimana tren arus kas saya bulan lalu?",
-                            "Kategori apa pengeluaran terbesar saya?",
-                            "Apakah tabungan dan anggaran saya aman?",
-                            "Berapa rata-rata pengeluaran harian saya?"
-                        ).forEach { suggestion ->
+                        suggestions.forEach { suggestion ->
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(duit.surfaceVariant)
                                     .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                                     .clickable(role = Role.Button) {
-                                        if (!isTourPreview) viewModel.sendChatMessage(suggestion)
+                                        if (!isTourPreview) {
+                                            viewModel.sendChatMessage(suggestion)
+                                            focusManager.clearFocus()
+                                        }
                                     }
                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                             ) {

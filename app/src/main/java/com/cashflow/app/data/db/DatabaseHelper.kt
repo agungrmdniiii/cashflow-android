@@ -451,6 +451,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.execSQL("DELETE FROM $TABLE_DEBTS")
         db.execSQL("DELETE FROM $TABLE_ASSETS")
         db.execSQL("DELETE FROM $TABLE_FAVORITES")
+        db.execSQL("DELETE FROM $TABLE_CATEGORIES")
+        seedMissingDefaultCategories(db)
         db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

@@ -9,23 +9,14 @@ import com.cashflow.app.data.model.Debt
 import com.cashflow.app.data.model.FinancialGoal
 import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.model.PeriodFilter
+import com.cashflow.app.data.model.filterTransactionsByPeriod
 import com.cashflow.app.ui.components.Formatters
-import com.cashflow.app.data.network.ResilientNetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 data class FinancialChatContext(
@@ -79,13 +70,6 @@ data class CategoryDelta(
 
 object FinancialInsightService {
 
-    internal suspend fun withGeminiModelFallback(call: suspend (String) -> Result<String>): Result<String> {
-        val primary = call("gemini-3.8-flash")
-        currentCoroutineContext().ensureActive()
-        if (primary.isSuccess || primary.exceptionOrNull()?.message?.startsWith("HTTP 404:") != true) return primary
-        return call("gemini-3-flash")
-    }
-
     /**
      * Menghitung statistik mendalam dan perbandingan antara bulan berjalan dan bulan sebelumnya.
      */
@@ -94,17 +78,15 @@ object FinancialInsightService {
         categories: List<Category>,
         currentMonthDate: LocalDate = LocalDate.now()
     ): MonthComparisonResult {
-        val currentMonthPrefix = currentMonthDate.toString().substring(0, 7) // "YYYY-MM"
         val prevMonthDate = currentMonthDate.minusMonths(1)
-        val prevMonthPrefix = prevMonthDate.toString().substring(0, 7)
 
         val catMap = categories.associateBy { it.id }
 
-        // Filter transaksi aktual (abaikan adjustment dan sample)
+        // Penyesuaian saldo bukan arus kas.
         val validTxs = transactions.filter { !it.isAdjustment && it.type != TransactionType.ADJUSTMENT.value }
 
-        val currentMonthTxs = validTxs.filter { it.transactionDate.startsWith(currentMonthPrefix) }
-        val prevMonthTxs = validTxs.filter { it.transactionDate.startsWith(prevMonthPrefix) }
+        val currentMonthTxs = filterTransactionsByPeriod(validTxs, PeriodFilter.BULAN_INI, currentMonthDate)
+        val prevMonthTxs = filterTransactionsByPeriod(validTxs, PeriodFilter.BULAN_INI, prevMonthDate)
 
         val curExpense = currentMonthTxs.filter { it.type == TransactionType.EXPENSE.value }.sumOf { it.amount }
         val prevExpense = prevMonthTxs.filter { it.type == TransactionType.EXPENSE.value }.sumOf { it.amount }
@@ -235,30 +217,6 @@ object FinancialInsightService {
         return insights.sortedBy { when (it.type) { "warning" -> 0; "info" -> 1; else -> 2 } }
     }
 
-    /**
-     * Mempersiapkan payload JSON agregat transparan untuk Gemini API.
-     * HANYA berisi agregat angka kategori, persentase, dan total — TANPA catatan, nama rekening, atau rincian mentah.
-     */
-    fun buildAggregatedAiPayload(stats: MonthComparisonResult): String {
-        val root = JSONObject()
-        root.put("bulan_ini_total_pengeluaran", stats.currentMonthTotalExpense)
-        root.put("bulan_ini_total_pemasukan", stats.currentMonthTotalIncome)
-        root.put("perubahan_pengeluaran_persen", stats.expensePercentChange.toInt())
-        root.put("savings_rate_persen", (stats.savingsRate * 100).toInt())
-        root.put("rata_rata_pengeluaran_harian", stats.averageDailyExpense)
-
-        val categoriesArray = JSONArray()
-        stats.categoryDeltas.take(5).forEach { cat ->
-            val catObj = JSONObject()
-            catObj.put("kategori", cat.categoryName)
-            catObj.put("nominal", cat.currentAmount)
-            catObj.put("perubahan_persen", cat.percentChange.toInt())
-            categoriesArray.put(catObj)
-        }
-        root.put("kategori_terbesar", categoriesArray)
-        return root.toString(2)
-    }
-
     fun generateLocalNarrativeInsight(stats: MonthComparisonResult): String {
         if (stats.currentMonthTotalIncome == 0L && stats.currentMonthTotalExpense == 0L)
             return "Belum ada pemasukan atau pengeluaran tercatat bulan ini. Catat transaksi untuk memperoleh insight yang sesuai."
@@ -266,40 +224,6 @@ object FinancialInsightService {
         return "**Ringkasan bulan berjalan**\nPemasukan: ${Formatters.formatRupiah(stats.currentMonthTotalIncome)}\n" +
             "Pengeluaran: ${Formatters.formatRupiah(stats.currentMonthTotalExpense)}\n\n" +
             facts.joinToString("\n\n") { "**${it.title}**\n${it.message}" }
-    }
-
-    /**
-     * Memanggil Gemini API (model gemini-3.8-flash) untuk menghasilkan insight naratif singkat.
-     * Jika API key kosong atau terjadi kendala jaringan, otomatis beralih ke analisis lokal cerdas (100% gratis).
-     */
-    suspend fun fetchGeminiInsight(
-        apiKey: String,
-        stats: MonthComparisonResult
-    ): Result<String> = withContext(Dispatchers.IO) {
-        val cleanKey = apiKey.trim()
-        if (cleanKey.isBlank()) {
-            return@withContext Result.success(generateLocalNarrativeInsight(stats))
-        }
-
-        val prompt = """
-            Anda adalah penasihat keuangan pribadi cerdas dan santun berbahasa Indonesia.
-            Berikut adalah data AGREGAT keuangan bulanan pengguna (hanya total angka, tanpa data pribadi):
-            ${buildAggregatedAiPayload(stats)}
-
-            Tugas:
-            Berikan analisis naratif singkat 2-3 paragraf:
-            1. Evaluasi arus kas dan savings rate saat ini secara realistis.
-            2. Rekomendasi 1 langkah penghematan paling efektif berdasarkan kategori terbesar.
-            Gunakan gaya bahasa santai, jelas, dan memotivasi. Jangan sebutkan prompt ini.
-        """.trimIndent()
-
-        val online = withGeminiModelFallback { model ->
-            executeGeminiCall(model, cleanKey, prompt, "Berikan analisis naratif evaluasi keuangan bulanan saya.")
-        }
-        if (online.isSuccess) return@withContext online
-
-        // Fallback ke analisis lokal jika koneksi/kuota luar terkendala
-        Result.success(generateLocalNarrativeInsight(stats))
     }
 
     fun calculateMonthComparison(
@@ -325,157 +249,6 @@ object FinancialInsightService {
     ): List<RuleBasedInsight> {
         val stats = calculateMonthComparison(transactions, currentMonthPrefix, "")
         return generateLocalRuleInsights(stats, budgets = budgets)
-    }
-
-    fun buildGeminiAggregatePayload(
-        transactions: List<Transaction>,
-        categories: List<Category>,
-        currentMonthPrefix: String,
-        previousMonthPrefix: String
-    ): JSONObject {
-        val curDate = try {
-            java.time.YearMonth.parse(currentMonthPrefix).let { month ->
-                if (month == java.time.YearMonth.now()) LocalDate.now() else month.atEndOfMonth()
-            }
-        } catch (_: Exception) {
-            LocalDate.now()
-        }
-        val stats = computeMonthComparison(transactions, categories, curDate)
-        return JSONObject(buildAggregatedAiPayload(stats))
-    }
-
-    suspend fun fetchGeminiInsight(
-        apiKey: String,
-        transactions: List<Transaction>,
-        categories: List<Category>,
-        currentMonthPrefix: String,
-        previousMonthPrefix: String
-    ): Result<String> {
-        val curDate = try {
-            java.time.YearMonth.parse(currentMonthPrefix).let { month ->
-                if (month == java.time.YearMonth.now()) LocalDate.now() else month.atEndOfMonth()
-            }
-        } catch (_: Exception) {
-            LocalDate.now()
-        }
-        val stats = withContext(Dispatchers.Default) { computeMonthComparison(transactions, categories, curDate) }
-        return fetchGeminiInsight(apiKey, stats)
-    }
-
-    /**
-     * Membangun prompt sistem komprehensif berisi seluruh snapshot data keuangan nyata pengguna.
-     */
-    fun buildFinancialSystemInstruction(
-        context: FinancialChatContext,
-        conversationHistory: List<ChatMessage> = emptyList()
-    ): String {
-        val sb = StringBuilder()
-        val userLabel = if (context.userName.isNotBlank()) context.userName.trim() else "Pengguna"
-        sb.append("Anda adalah 'Vina', asisten dan penasihat keuangan pribadi cerdas dari aplikasi Duit Aing. ")
-        sb.append("Gunakan bahasa Indonesia yang ringkas dan profesional: jawab inti dalam 2–4 kalimat atau maksimal 3 poin. Jangan mengulang perkenalan, memakai emoji berlebihan, atau menggurui. Bedakan fakta tercatat dari dugaan; jangan menyebut surplus sebagai tabungan atau saldo likuid sebagai kekayaan bersih. ")
-        sb.append("Anda berbicara langsung kepada $userLabel dengan nada profesional dan ramah.\n\n")
-
-        sb.append("=== DATA KEUANGAN NYATA PENGGUNA (SNAPSHOT HARI INI: ${context.currentDate}) ===\n")
-        sb.append("1. Total Saldo Likuid: ${Formatters.formatRupiah(context.totalLiquidBalance)}\n")
-        sb.append("   Rincian Aset:\n")
-        if (context.assets.isEmpty()) {
-            sb.append("   - Tidak ada aset terdaftar\n")
-        } else {
-            context.assets.forEach { a ->
-                sb.append("   - ${a.name} (${a.type}): ${Formatters.formatRupiah(a.currentBalance)}\n")
-            }
-        }
-
-        val cur = context.currentMonthStats
-        sb.append("\n2. Arus Kas Bulan Berjalan (${context.currentMonthPrefix}):\n")
-        sb.append("   - Total Pemasukan: ${Formatters.formatRupiah(cur.currentMonthTotalIncome)}\n")
-        sb.append("   - Total Pengeluaran: ${Formatters.formatRupiah(cur.currentMonthTotalExpense)}\n")
-        val netCashflow = cur.currentMonthTotalIncome - cur.currentMonthTotalExpense
-        sb.append("   - Arus Kas Bersih (Surplus/Defisit): ${Formatters.formatRupiah(netCashflow)}\n")
-        sb.append("   - Tingkat Tabungan (Savings Rate): ${(cur.savingsRate * 100).toInt()}%\n")
-        sb.append("   - Rata-rata Pengeluaran Harian: ${Formatters.formatRupiah(cur.averageDailyExpense)}\n")
-        if (cur.highestExpenseDay != null) {
-            sb.append("   - Hari Pengeluaran Tertinggi: ${cur.highestExpenseDay} (${Formatters.formatRupiah(cur.highestExpenseDayAmount)})\n")
-        }
-
-        sb.append("\n3. Arus Kas Bulan Lalu (${context.prevMonthPrefix}):\n")
-        sb.append("   - Total Pemasukan: ${Formatters.formatRupiah(cur.prevMonthTotalIncome)}\n")
-        sb.append("   - Total Pengeluaran: ${Formatters.formatRupiah(cur.prevMonthTotalExpense)}\n")
-        val prevNet = cur.prevMonthTotalIncome - cur.prevMonthTotalExpense
-        sb.append("   - Arus Kas Bersih Bulan Lalu: ${Formatters.formatRupiah(prevNet)}\n")
-
-        sb.append("\n4. Tren & Perbandingan (Bulan Ini vs Bulan Lalu):\n")
-        val expDiffSign = if (cur.expenseDifference >= 0) "+" else ""
-        sb.append("   - Perubahan Pengeluaran: $expDiffSign${Formatters.formatRupiah(cur.expenseDifference)} (${String.format(Locale.US, "%.1f", cur.expensePercentChange)}%)\n")
-        val incDiffSign = if (cur.incomeDifference >= 0) "+" else ""
-        sb.append("   - Perubahan Pemasukan: $incDiffSign${Formatters.formatRupiah(cur.incomeDifference)} (${String.format(Locale.US, "%.1f", cur.incomePercentChange)}%)\n")
-
-        sb.append("\n5. Rincian Pengeluaran per Kategori (Bulan Ini vs Bulan Lalu):\n")
-        if (context.topCategories.isEmpty()) {
-            sb.append("   (Belum ada data pengeluaran)\n")
-        } else {
-            context.topCategories.forEach { cat ->
-                val sign = if (cat.diff >= 0) "+" else ""
-                sb.append("   - ${cat.categoryName}: Bulan ini ${Formatters.formatRupiah(cat.currentAmount)}, Bulan lalu ${Formatters.formatRupiah(cat.prevAmount)} (Selisih: $sign${Formatters.formatRupiah(cat.diff)}, ${String.format(Locale.US, "%.1f", cat.percentChange)}%)\n")
-            }
-        }
-
-        sb.append("\n6. Status Anggaran Belanja (Budgets):\n")
-        if (context.budgets.isEmpty()) {
-            sb.append("   (Belum ada anggaran belanja yang disetel)\n")
-        } else {
-            context.budgets.forEach { b ->
-                val statusStr = when (b.status) {
-                    com.cashflow.app.data.model.BudgetStatus.EXCEEDED -> "⚠️ MELEBIHI BATAS"
-                    com.cashflow.app.data.model.BudgetStatus.NEAR_LIMIT,
-                    com.cashflow.app.data.model.BudgetStatus.WARNING -> "⚡ HAMPIR HABIS"
-                    else -> "✅ AMAN"
-                }
-                val catName = b.category?.name ?: "Kategori"
-                sb.append("   - $catName: Batas ${Formatters.formatRupiah(b.effectiveTargetAmount)}, Terpakai ${Formatters.formatRupiah(b.spentAmount)} (${(b.progressPercentage * 100).toInt()}%), Sisa ${Formatters.formatRupiah(b.remainingAmount)} [$statusStr]\n")
-            }
-        }
-
-        sb.append("\n7. Catatan Utang & Cicilan:\n")
-        val activeDebts = context.debts.filter { it.status != com.cashflow.app.data.model.DebtStatus.PAID.key }
-        if (activeDebts.isEmpty()) {
-            sb.append("   (Tidak ada utang atau cicilan aktif tercatat)\n")
-        } else {
-            val totalRemainingDebt = activeDebts.sumOf { it.remainingAmount }
-            sb.append("   - Total Utang Belum Lunas: ${Formatters.formatRupiah(totalRemainingDebt)}\n")
-            activeDebts.forEach { d ->
-                sb.append("   - ${d.title} (${d.lenderName}): Sisa ${Formatters.formatRupiah(d.remainingAmount)} dari ${Formatters.formatRupiah(d.totalAmount)} (Jatuh tempo: ${d.dueDate})\n")
-            }
-        }
-
-        sb.append("\n8. Target Finansial (Goals):\n")
-        if (context.goals.isEmpty()) {
-            sb.append("   (Belum ada target keuangan aktif)\n")
-        } else {
-            context.goals.forEach { g ->
-                val pct = if (g.targetAmount > 0) ((g.currentAmount.toDouble() / g.targetAmount) * 100).toInt() else 0
-                sb.append("   - ${g.name}: Terkumpul ${Formatters.formatRupiah(g.currentAmount)} dari target ${Formatters.formatRupiah(g.targetAmount)} ($pct%)\n")
-            }
-        }
-
-        // Cantumkan riwayat percakapan sebelumnya (jika ada) sebelum pertanyaan terakhir
-        val priorTurns = conversationHistory.dropLast(1).takeLast(8)
-        if (priorTurns.isNotEmpty()) {
-            sb.append("\n=== RIWAYAT PERCAKAPAN SEBELUMNYA ===\n")
-            priorTurns.forEach { msg ->
-                val speaker = if (msg.sender == ChatSender.USER) "Pengguna" else "Vina"
-                sb.append("$speaker: ${msg.text}\n")
-            }
-        }
-
-        sb.append("\n=== PANDUAN MENJAWAB ===\n")
-        sb.append("1. Jawablah langsung, spesifik, dan cerdas menggunakan angka-angka nyata di atas. Jangan mengarang data.\n")
-        sb.append("2. Bersikap ramah, cerdas, dan suportif layaknya seorang penasihat keuangan pribadi bernama Vina.\n")
-        sb.append("3. Jika pengguna bertanya tentang tren arus kas bulan lalu, jelaskan perbandingan nominal pemasukan & pengeluaran antara bulan lalu dan bulan ini, hitung apakah naik/turun berapa persen, jelaskan kategori mana yang paling melonjak/berhemat, dan berikan evaluasi arus kas.\n")
-        sb.append("4. Jika pengguna bertanya apakah bisa membeli sesuatu (misal gadget, kendaraan, liburan), analisis berdasarkan saldo likuid saat ini, sisa anggaran bulan ini, dan laju tabungan mereka.\n")
-        sb.append("5. Gunakan bahasa Indonesia yang santun, luwes, dan bersahabat. Berikan format angka dalam format Rupiah (cth: Rp 1.500.000) dan teks tebal (**angka**) agar mudah dibaca.\n")
-        sb.append("6. Jangan memberikan jawaban template yang kaku atau basa-basi berlebihan. Jawab tepat sasaran sesuai pertanyaan pengguna.")
-        return sb.toString()
     }
 
     /**
@@ -818,157 +591,20 @@ object FinancialInsightService {
         }
     }
 
-    /**
-     * Menjalankan pemanggilan REST API ke model Gemini (mendukung Gemini 3.8 Flash).
-     * Memfilter bagian internal thinking dan mengekstrak pesan final secara aman.
-     */
-    suspend fun executeGeminiCall(
-        model: String,
-        apiKey: String,
-        systemInstruction: String,
-        userQuery: String
-    ): Result<String> {
-        val cleanKey = apiKey.trim()
-        if (cleanKey.isBlank()) {
-            return Result.failure(IllegalArgumentException("API Key kosong"))
-        }
-
-        return try {
-            val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
-            val url = URL(endpoint)
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                connectTimeout = 5000
-                readTimeout = 8000
-                doOutput = true
-            }
-
-            val requestBody = JSONObject().apply {
-                put("system_instruction", JSONObject().apply {
-                    put("parts", JSONArray().put(JSONObject().put("text", systemInstruction)))
-                })
-
-                val contents = JSONArray().apply {
-                    val userContent = JSONObject().apply {
-                        put("role", "user")
-                        put("parts", JSONArray().put(JSONObject().put("text", userQuery)))
-                    }
-                    put(userContent)
-                }
-                put("contents", contents)
-
-                val genConfig = JSONObject().apply {
-                    put("temperature", 1.0)
-                    put("maxOutputTokens", 2048)
-                    val thinkingConfig = JSONObject().apply {
-                        put("thinkingLevel", "low")
-                        put("includeThoughts", false)
-                    }
-                    put("thinkingConfig", thinkingConfig)
-                }
-                put("generationConfig", genConfig)
-            }
-
-            ResilientNetworkClient.withConnectionTimeout(conn, timeoutMs = 12_000L) {
-                OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
-                    writer.write(requestBody.toString())
-                    writer.flush()
-                }
-
-                val responseCode = conn.responseCode
-                if (responseCode == 200) {
-                    val responseText = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
-                    val json = JSONObject(responseText)
-                    val candidates = json.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val candidate = candidates.getJSONObject(0)
-                        val content = candidate.optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-                        if (parts != null && parts.length() > 0) {
-                            val textBuilder = StringBuilder()
-                            for (i in 0 until parts.length()) {
-                                val part = parts.getJSONObject(i)
-                                // Abaikan bagian internal thinking Gemini 3
-                                if (!part.optBoolean("thought", false)) {
-                                    val t = part.optString("text", "")
-                                    if (t.isNotBlank()) textBuilder.append(t)
-                                }
-                            }
-                            val textResult = textBuilder.toString().trim()
-                            if (textResult.isNotEmpty()) {
-                                Result.success(textResult)
-                            } else {
-                                val fallbackText = parts.getJSONObject(parts.length() - 1).optString("text", "").trim()
-                                if (fallbackText.isNotEmpty()) Result.success(fallbackText)
-                                else Result.failure(java.io.IOException("Respons kosong dari Gemini"))
-                            }
-                        } else {
-                            Result.failure(java.io.IOException("Kandidat respons tidak memiliki bagian teks"))
-                        }
-                    } else {
-                        Result.failure(java.io.IOException("Tidak ada kandidat jawaban dari Gemini"))
-                    }
-                } else {
-                    val errorStream = conn.errorStream?.let { BufferedReader(InputStreamReader(it, Charsets.UTF_8)).use { r -> r.readText() } } ?: ""
-                    val errorMsg = try {
-                        val errJson = JSONObject(errorStream)
-                        errJson.optJSONObject("error")?.optString("message") ?: errorStream
-                    } catch (_: Exception) {
-                        errorStream
-                    }
-                    Result.failure(java.io.IOException("HTTP $responseCode: $errorMsg"))
-                }
-            }
-        } catch (e: TimeoutCancellationException) {
-            currentCoroutineContext().ensureActive()
-            Result.failure(java.net.SocketTimeoutException("AI online melewati batas waktu 12 detik"))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    /** Answers only from the current on-device ledger and conversation. */
+    fun suggestedQuestions(conversationHistory: List<ChatMessage>): List<String> {
+        val reply = conversationHistory.lastOrNull()?.takeIf { it.sender == ChatSender.ASSISTANT && !it.isError } ?: return emptyList()
+        return localFollowUps(localQuestionWithHistory(conversationHistory), reply.text).map { it.first }
     }
 
-    /**
-     * Mengirim pesan chat percakapan ke Gemini 3.8 Flash dengan fallback cerdas ke mesin lokal bila offline/gagal.
-     */
     suspend fun sendChatMessage(
-        apiKey: String?,
         conversationHistory: List<ChatMessage>,
         context: FinancialChatContext
-    ): Result<String> {
-        val lastUserMessage = conversationHistory.lastOrNull { it.sender == ChatSender.USER }?.text ?: ""
-        val cleanKey = apiKey?.trim() ?: ""
-
-        if (cleanKey.isBlank()) {
-            return withContext(Dispatchers.Default) {
-                Result.success(evaluateOfflineQuery(localQuestionWithHistory(conversationHistory, context.assets.map { it.name } + context.categories.map { it.name }), context))
-            }
-        }
-
-        return withContext(Dispatchers.IO) {
-            val systemInstruction = buildFinancialSystemInstruction(context, conversationHistory)
-
-            val online = withGeminiModelFallback { model ->
-                executeGeminiCall(model, cleanKey, systemInstruction, lastUserMessage)
-            }
-            if (online.isSuccess) return@withContext online
-            val primaryError = online.exceptionOrNull()
-
-            // 3. Fallback cerdas ke Mesin Analisis Finansial Lokal jika terjadi kendala pada API key / kuota
-            val localAnswer = evaluateOfflineQuery(localQuestionWithHistory(conversationHistory, context.assets.map { it.name } + context.categories.map { it.name }), context)
-            val errorNote = primaryError?.message?.let {
-                val cleanErrMsg = if (it.contains("API_KEY_INVALID", ignoreCase = true) || it.contains("400")) {
-                    "API Key tidak valid atau kedaluwarsa"
-                } else if (it.contains("RESOURCE_EXHAUSTED", ignoreCase = true) || it.contains("429")) {
-                    "Batas kuota gratis Gemini tercapai"
-                } else {
-                    it.take(80)
-                }
-                "\n\n*(Catatan: Mode dialihkan otomatis ke Analisis Cerdas Lokal karena kendala AI: $cleanErrMsg. Periksa API Key di Pengaturan).* "
-            } ?: ""
-            Result.success(localAnswer + errorNote)
-        }
+    ): Result<String> = withContext(Dispatchers.Default) {
+        currentCoroutineContext().ensureActive()
+        val question = localQuestionWithHistory(conversationHistory, context.assets.map { it.name } + context.categories.map { it.name })
+        val answer = evaluateOfflineQuery(question, context)
+        val followUp = localFollowUps(question, answer).firstOrNull()
+        Result.success(if (followUp != null && !answer.trimEnd().endsWith("?")) "$answer\n\n${followUp.second}" else answer)
     }
 }

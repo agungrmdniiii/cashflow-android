@@ -65,6 +65,7 @@ fun RecordCashFlowDialog(
     val voiceManager = remember { VoiceRecognitionManager(context) }
     val voiceState by voiceManager.voiceState.collectAsState()
     val audioRms by voiceManager.audioRms.collectAsState()
+    val onlineVoice by viewModel.isOnlineVoiceEnabled.collectAsState()
 
     val activeAssets by viewModel.activeAssets.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -105,6 +106,25 @@ fun RecordCashFlowDialog(
             )
             parsedResult = result
         }
+    }
+
+    val permissionLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(permissionLifecycle, context) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                if (hasMicPermission && !granted) {
+                    voiceManager.stopListening()
+                    isPermissionDenied = true
+                }
+                hasMicPermission = granted
+                if (granted) isPermissionDenied = false
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                voiceManager.stopListening()
+            }
+        }
+        permissionLifecycle.lifecycle.addObserver(observer)
+        onDispose { permissionLifecycle.lifecycle.removeObserver(observer) }
     }
 
     // Start listening when dialog opens if permission is already granted
@@ -156,7 +176,7 @@ fun RecordCashFlowDialog(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "RECORD CASH FLOW",
+                            text = "Catat dengan suara",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.8.sp
@@ -253,6 +273,7 @@ fun RecordCashFlowDialog(
                     VoiceRecordingView(
                         voiceState = voiceState,
                         audioRms = audioRms,
+                        usesOnlineVoice = onlineVoice,
                         hasPermission = hasMicPermission,
                         isPermissionDenied = isPermissionDenied,
                         onRequestPermission = {
@@ -260,8 +281,10 @@ fun RecordCashFlowDialog(
                         },
                         onOpenSettings = openAppSettings,
                         onRetryListening = retryListening,
-                        onStopListening = {
-                            voiceManager.stopListening()
+                        onStopListening = { voiceManager.finishListening() },
+                        onUseOnlineVoice = {
+                            viewModel.setOnlineVoiceEnabled(true)
+                            voiceManager.startListening()
                         },
                         onSimulate = { sampleText ->
                             voiceManager.simulateVoiceInput(sampleText)
@@ -281,8 +304,7 @@ fun RecordCashFlowDialog(
                             viewModel.editingTransaction.value = null
                             viewModel.addTransactionInitialType.value = TransactionType.TRANSFER
                             viewModel.isAddTransactionOpen.value = true
-                        },
-                        onDismiss = onDismiss
+                        }
                     )
                 }
             }
@@ -293,16 +315,17 @@ fun RecordCashFlowDialog(
 private fun VoiceRecordingView(
     voiceState: VoiceState,
     audioRms: Float,
+    usesOnlineVoice: Boolean,
     hasPermission: Boolean,
     isPermissionDenied: Boolean,
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
     onRetryListening: () -> Unit,
     onStopListening: () -> Unit,
+    onUseOnlineVoice: () -> Unit,
     onSimulate: (String) -> Unit,
     onManualClick: () -> Unit,
-    onTransferClick: () -> Unit,
-    onDismiss: () -> Unit
+    onTransferClick: () -> Unit
 ) {
     val duit = MaterialTheme.duit
     Spacer(modifier = Modifier.height(8.dp))
@@ -349,7 +372,7 @@ private fun VoiceRecordingView(
         ) {
             Icon(
                 imageVector = Icons.Rounded.Mic,
-                contentDescription = "Mendengarkan",
+                contentDescription = null,
                 tint = if (voiceState is VoiceState.Listening) duit.onPrimary else duit.textPrimary,
                 modifier = Modifier.size(38.dp)
             )
@@ -385,334 +408,105 @@ private fun VoiceRecordingView(
 
     Spacer(modifier = Modifier.height(14.dp))
 
-    // Title State
-    when {
-        !hasPermission && isPermissionDenied -> {
-            Text(
-                text = "IZIN MIKROFON DITOLAK",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp
-                ),
-                color = duit.expense,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Akses mikrofon ditolak atau belum aktif. Buka Pengaturan Aplikasi untuk mengizinkan mikrofon, atau tetap gunakan pencatatan manual di bawah.",
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                color = duit.textSecondary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                DuitAingButton(
-                    text = "PENGATURAN",
-                    onClick = onOpenSettings,
-                    leadingIcon = Icons.Rounded.Settings,
-                    variant = DuitAingButtonVariant.PRIMARY,
-                    height = 42.dp,
-                    shadowOffset = 0.dp
-                )
-                DuitAingButton(
-                    text = "CATAT MANUAL",
-                    onClick = onManualClick,
-                    leadingIcon = Icons.Rounded.Edit,
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 42.dp,
-                    shadowOffset = 0.dp
-                )
-            }
+    val title = when {
+        !hasPermission && isPermissionDenied -> "IZIN MIKROFON DITOLAK"
+        !hasPermission -> "IZINKAN AKSES MIKROFON"
+        voiceState is VoiceState.Processing -> "Memproses ucapan..."
+        voiceState is VoiceState.Error -> "Belum terdengar"
+        voiceState is VoiceState.Listening -> "Mendengarkan..."
+        else -> "Siap merekam"
+    }
+    val description = when {
+        !hasPermission && isPermissionDenied -> "Buka pengaturan untuk mengizinkan mikrofon."
+        !hasPermission -> "Mikrofon diperlukan untuk mencatat lewat suara."
+        voiceState is VoiceState.Error -> voiceState.message
+        voiceState is VoiceState.Processing -> ""
+        else -> ""
+    }
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        color = if (isPermissionDenied || voiceState is VoiceState.Error) duit.expense else duit.textPrimary,
+        textAlign = TextAlign.Center
+    )
+    if (description.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = duit.textSecondary,
+            textAlign = TextAlign.Center
+        )
+    }
+    if (voiceState is VoiceState.Error && voiceState.canUseOnline) {
+        TextButton(onClick = onUseOnlineVoice, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text("Gunakan layanan suara Android")
         }
-        !hasPermission -> {
-            Text(
-                text = "IZINKAN AKSES MIKROFON",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp
-                ),
-                color = duit.textPrimary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Duit Aing membutuhkan akses mikrofon untuk mendeteksi transaksi suara Anda. Semua data suara diproses offline dan aman di perangkat.",
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                color = duit.textSecondary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                DuitAingButton(
-                    text = "IZINKAN MIKROFON",
-                    onClick = onRequestPermission,
-                    leadingIcon = Icons.Rounded.Mic,
-                    variant = DuitAingButtonVariant.PRIMARY,
-                    height = 42.dp,
-                    shadowOffset = 0.dp
-                )
-                DuitAingButton(
-                    text = "CATAT MANUAL",
-                    onClick = onManualClick,
-                    leadingIcon = Icons.Rounded.Edit,
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 42.dp,
-                    shadowOffset = 0.dp
-                )
-            }
+    }
+    Spacer(Modifier.height(24.dp))
+    DuitAingButton(
+        text = when {
+            !hasPermission && isPermissionDenied -> "PENGATURAN"
+            !hasPermission -> "IZINKAN MIKROFON"
+            voiceState is VoiceState.Error -> "COBA LAGI"
+            voiceState is VoiceState.Processing -> "Memproses..."
+            voiceState is VoiceState.Listening -> "Selesai"
+            else -> "Mulai merekam"
+        },
+        onClick = when {
+            !hasPermission && isPermissionDenied -> onOpenSettings
+            !hasPermission -> onRequestPermission
+            voiceState is VoiceState.Listening -> onStopListening
+            else -> onRetryListening
+        },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = voiceState !is VoiceState.Processing,
+        variant = DuitAingButtonVariant.PRIMARY,
+        height = 48.dp,
+        shadowOffset = 0.dp
+    )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onManualClick, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+            Text("CATAT MANUAL", color = duit.textPrimary)
         }
-        voiceState is VoiceState.Processing -> {
-            Text(
-                text = "MEMPROSES...",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                ),
-                color = duit.textPrimary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Mengekstrak jenis, nominal, kategori, dan aset...",
-                style = MaterialTheme.typography.bodyMedium,
-                color = duit.textSecondary
-            )
-        }
-        voiceState is VoiceState.Error -> {
-            Text(
-                text = "GAGAL MENDENGAR",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp
-                ),
-                color = duit.expense,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = (voiceState as VoiceState.Error).message,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
-                color = duit.textSecondary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                DuitAingButton(
-                    text = "COBA LAGI",
-                    onClick = onRetryListening,
-                    leadingIcon = Icons.Rounded.Refresh,
-                    variant = DuitAingButtonVariant.PRIMARY,
-                    height = 42.dp,
-                    shadowOffset = 0.dp
-                )
-                DuitAingButton(
-                    text = "CATAT MANUAL",
-                    onClick = onManualClick,
-                    leadingIcon = Icons.Rounded.Edit,
-                    variant = DuitAingButtonVariant.OUTLINE,
-                    height = 42.dp,
-                    shadowOffset = 0.dp
-                )
-            }
-        }
-        else -> {
-            Text(
-                text = "MENDENGARKAN...",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                ),
-                color = duit.textPrimary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "“Sebutkan transaksi Anda.”",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                ),
-                color = duit.textPrimary
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Contoh: “Beli makan 30 ribu pakai BCA”",
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                color = duit.textSecondary
-            )
+        TextButton(onClick = onTransferClick, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+            Text("Transfer", color = duit.textPrimary)
         }
     }
 
-    Spacer(modifier = Modifier.height(18.dp))
-
-    // Quick Simulation / Test Chips (Essential for emulator and instant testing)
     Text(
-        text = "CONTOH SUARA CEPAT:",
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.8.sp
-        ),
+        text = "Contoh ucapan",
+        style = MaterialTheme.typography.labelMedium,
         color = duit.textSecondary
     )
-    Spacer(modifier = Modifier.height(8.dp))
-
+    Spacer(Modifier.height(8.dp))
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val testPhrases = listOf(
+        listOf(
             "Beli kopi 20 ribu pakai GoPay",
             "Gaji masuk lima juta ke BCA",
             "Bayar bensin 50 ribu dari BCA",
             "Transfer 1 juta dari BCA ke Tabungan",
             "Makan siang 35 ribu pakai BCA",
             "Kemarin makan malam 85 ribu pakai cash"
-        )
-
-        testPhrases.forEach { phrase ->
-            Box(
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(duit.surfaceVariant)
-                    .border(1.dp, duit.border, RoundedCornerShape(6.dp))
-                    .clickable(role = Role.Button) { onSimulate(phrase) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = phrase,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = duit.textPrimary
-                )
+        ).forEach { phrase ->
+            OutlinedButton(onClick = { onSimulate(phrase) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(phrase, color = duit.textPrimary)
             }
         }
     }
-
-    Spacer(modifier = Modifier.height(18.dp))
-    HorizontalDivider(color = duit.border, thickness = 0.8.dp)
-    Spacer(modifier = Modifier.height(14.dp))
-
-    Text(
-        text = "ATAU CATAT SECARA MANUAL:",
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.8.sp
-        ),
-        color = duit.textSecondary
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Catat Manual (Pengeluaran / Pemasukan)
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .defaultMinSize(minHeight = 44.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(duit.surfaceVariant)
-                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
-                .clickable(role = Role.Button, onClick = onManualClick)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = null,
-                    tint = duit.textPrimary,
-                    modifier = Modifier.size(17.dp)
-                )
-                Text(
-                    text = "CATAT MANUAL",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.4.sp,
-                        fontSize = 12.sp
-                    ),
-                    color = duit.textPrimary
-                )
-            }
-        }
-
-        // Transfer Antar Rekening
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .defaultMinSize(minHeight = 44.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(duit.surfaceVariant)
-                .border(1.dp, duit.border, RoundedCornerShape(8.dp))
-                .clickable(role = Role.Button, onClick = onTransferClick)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.SwapHoriz,
-                    contentDescription = null,
-                    tint = duit.textPrimary,
-                    modifier = Modifier.size(17.dp)
-                )
-                Text(
-                    text = "TRANSFER",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.4.sp,
-                        fontSize = 12.sp
-                    ),
-                    color = duit.textPrimary
-                )
-            }
-        }
-    }
-
-    Spacer(modifier = Modifier.height(20.dp))
-
-    // Action Buttons
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-    ) {
-        DuitAingButton(
-            text = "BATAL",
-            onClick = onDismiss,
-            modifier = Modifier.weight(1f),
-            variant = DuitAingButtonVariant.OUTLINE,
-            height = 48.dp,
-            shadowOffset = 0.dp
-        )
-
-        DuitAingButton(
-            text = "SELESAI",
-            onClick = onStopListening,
-            modifier = Modifier.weight(1f),
-            trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
-            variant = DuitAingButtonVariant.PRIMARY,
-            height = 48.dp,
-            shadowOffset = 0.dp
+    Spacer(Modifier.height(12.dp))
+    if (usesOnlineVoice) {
+        Text(
+            text = "Audio dapat diproses online oleh layanan suara Android.",
+            style = MaterialTheme.typography.bodySmall,
+            color = duit.textSecondary,
+            textAlign = TextAlign.Center
         )
     }
+    Spacer(Modifier.height(8.dp))
 }
 
 @Composable

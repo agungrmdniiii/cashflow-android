@@ -11,6 +11,7 @@ import com.cashflow.app.data.model.Asset
 import com.cashflow.app.data.model.Category
 import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.model.summarizeTransactions
 import com.cashflow.app.ui.components.Formatters
 import java.io.File
 import java.io.FileOutputStream
@@ -44,8 +45,9 @@ object PdfReportGenerator {
             val catMap = categories.associateBy { it.id }
             val assetMap = assets.associateBy { it.id }
 
-            val totalIncome = transactions.filter { it.type == TransactionType.INCOME.value }.sumOf { it.amount }
-            val totalExpense = transactions.filter { it.type == TransactionType.EXPENSE.value }.sumOf { it.amount }
+            val summary = summarizeTransactions(transactions)
+            val totalIncome = summary.income
+            val totalExpense = summary.expense
             val netCashflow = totalIncome - totalExpense
 
             val dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("id-ID")))

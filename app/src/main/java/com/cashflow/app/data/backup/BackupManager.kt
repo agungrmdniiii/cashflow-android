@@ -48,7 +48,7 @@ object BackupManager {
     const val MAX_BACKUP_BYTES = 32 * 1024 * 1024
 
     const val CURRENT_SCHEMA_VERSION = 10
-    const val APP_VERSION = "1.1.0"
+    const val APP_VERSION = com.cashflow.app.BuildConfig.VERSION_NAME
 
     fun readBackupBytes(input: InputStream): ByteArray {
         val output = ByteArrayOutputStream()
@@ -428,6 +428,9 @@ object BackupManager {
      * Memulihkan database dari JSON secara atomik dengan backup pengaman pra-restore (safety backup).
      */
     fun restoreBackup(db: SQLiteDatabase, data: JSONObject): Result<Unit> {
+        if (listOf("assets", "categories", "transactions").any { data.optJSONArray(it) == null }) {
+            return Result.failure(IllegalArgumentException("Struktur cadangan tidak lengkap. Data lama tidak diubah."))
+        }
         db.beginTransaction()
         return try {
             // Bersihkan data lama
@@ -439,6 +442,7 @@ object BackupManager {
             db.execSQL("DELETE FROM ${DatabaseHelper.TABLE_RECURRING_EXECUTIONS}")
             db.execSQL("DELETE FROM ${DatabaseHelper.TABLE_RECURRING}")
             db.execSQL("DELETE FROM ${DatabaseHelper.TABLE_ASSETS}")
+            db.execSQL("DELETE FROM ${DatabaseHelper.TABLE_CATEGORIES} WHERE is_default = 0")
 
             // Pulihkan Kategori jika ada kustom
             val categories = data.optJSONArray("categories")
@@ -821,7 +825,11 @@ object BackupManager {
             if (transactions != null) for (i in 0 until transactions.length()) {
                 val tx = transactions.getJSONObject(i)
                 val name = File(tx.optString("attachment", "")).name
-                restoredPaths[name]?.let { tx.put("attachment", it) }
+                if (name.isNotBlank()) {
+                    val path = restoredPaths[name]
+                        ?: throw IllegalArgumentException("Foto struk $name tidak ditemukan di ZIP. Data lama tidak diubah. Gunakan cadangan ZIP lengkap atau pulihkan JSON tanpa foto.")
+                    tx.put("attachment", path)
+                }
             }
             restoreBackup(db, validation.parsedData).getOrThrow()
             committed = true

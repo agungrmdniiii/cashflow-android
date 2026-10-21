@@ -327,7 +327,7 @@ fun AssetsScreen(
         }
 
         // Render Active Assets as Open List Items
-        items(activeAssets, key = { it.id }) { asset ->
+        items(activeAssets, key = { it.id }, contentType = { "asset" }) { asset ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -482,7 +482,7 @@ fun AssetsScreen(
                 )
             }
         } else {
-            items(goals, key = { it.id }) { goal ->
+            items(goals, key = { it.id }, contentType = { "goal" }) { goal ->
                 DoubleBezelCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -880,7 +880,7 @@ fun AssetsScreen(
                 }
             }
         } else {
-            items(filteredDebts, key = { it.id }) { debt ->
+            items(filteredDebts, key = { it.id }, contentType = { "debt" }) { debt ->
                 DebtItemCard(
                     debt = debt,
                     onPayClick = { viewModel.payingDebt.value = debt },
@@ -974,7 +974,7 @@ fun AssetsScreen(
         confirmText = "HAPUS",
         confirmVariant = DuitAingButtonVariant.DANGER,
         onConfirm = {
-            debtToDelete?.let { viewModel.deleteDebt(it.id) }
+            debtToDelete?.let { viewModel.deleteDebt(it.id, confirmed = true) }
             debtToDelete = null
         },
         onDismiss = { debtToDelete = null }
@@ -989,7 +989,7 @@ fun AssetsScreen(
         confirmText = "HAPUS",
         confirmVariant = DuitAingButtonVariant.DANGER,
         onConfirm = {
-            goalToDelete?.let { viewModel.deleteGoal(it.id) }
+            goalToDelete?.let { viewModel.deleteGoal(it.id, confirmed = true) }
             goalToDelete = null
         },
         onDismiss = { goalToDelete = null }

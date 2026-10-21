@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -29,10 +28,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.cashflow.app.ui.theme.duit
@@ -80,8 +78,7 @@ fun Modifier.tactileShimmer(): Modifier {
 }
 
 /**
- * Animated Empty State with tactile Neo-Brutalist floating icon and breathing pulse rings.
- * Provides interactive visual feedback when no data is available.
+ * Empty-state artwork plays once on entry and then rests to avoid continuous rendering.
  */
 @Composable
 fun AnimatedEmptyState(
@@ -94,39 +91,9 @@ fun AnimatedEmptyState(
     actionIcon: ImageVector? = null,
     onActionClick: (() -> Unit)? = null
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "emptyStateTransition")
-
-    // Smooth vertical floating animation (simulating buoyancy)
-    val floatOffset by infiniteTransition.animateFloat(
-        initialValue = -4f,
-        targetValue = 4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "emptyStateFloat"
-    )
-
-    // Breathing pulse scale for background halo
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "emptyStatePulse"
-    )
-
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.15f,
-        targetValue = 0.03f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "emptyStateAlpha"
-    )
+    // A short entrance stops when complete instead of keeping an idle screen at the display refresh rate.
+    val entranceOffset = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(8f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { entranceOffset.animateTo(0f, tween(300)) }
 
     val duit = MaterialTheme.duit
 
@@ -141,7 +108,7 @@ fun AnimatedEmptyState(
             val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(lottieRawRes))
             val progress by animateLottieCompositionAsState(
                 composition = composition,
-                iterations = LottieConstants.IterateForever,
+                iterations = 1,
                 speed = 1.0f
             )
             val emptyLimeArgb = duit.accentLime.toArgb()
@@ -157,7 +124,7 @@ fun AnimatedEmptyState(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(140.dp)
-                    .offset(y = floatOffset.dp)
+                    .graphicsLayer { translationY = entranceOffset.value * density }
             ) {
                 if (composition != null) {
                     LottieAnimation(
@@ -185,20 +152,19 @@ fun AnimatedEmptyState(
                 }
             }
         } else {
-            // Floating Tactile Icon Container with Breathing Aura
+            // Icon artwork with a short entrance and a static halo.
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(96.dp)
-                    .offset(y = floatOffset.dp)
+                    .graphicsLayer { translationY = entranceOffset.value * density }
             ) {
-                // Concentric Breathing Glow Ring
+                // Static halo
                 Box(
                     modifier = Modifier
                         .size(92.dp)
-                        .scale(pulseScale)
                         .clip(CircleShape)
-                        .background(duit.primary.copy(alpha = pulseAlpha))
+                        .background(duit.primary.copy(alpha = 0.1f))
                 )
 
                 // Inner Accent Ring

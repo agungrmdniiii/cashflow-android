@@ -8,16 +8,10 @@ import com.cashflow.app.data.model.ThemeMode
 class PreferenceManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val credentials = context.getSharedPreferences("duit_aing_credentials", Context.MODE_PRIVATE)
-
-    private fun credentialKey(): javax.crypto.SecretKey {
-        val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey("duit_aing_api_key", null) as? javax.crypto.SecretKey)?.let { return it }
-        return javax.crypto.KeyGenerator.getInstance("AES", "AndroidKeyStore").apply {
-            init(android.security.keystore.KeyGenParameterSpec.Builder("duit_aing_api_key",
-                android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes("GCM").setEncryptionPaddings("NoPadding").build())
-        }.generateKey()
+    init {
+        // Remove settings and encrypted credentials left by the retired online AI.
+        prefs.edit().remove("gemini_api_key").remove("ai_insights_enabled").apply()
+        context.getSharedPreferences("duit_aing_credentials", Context.MODE_PRIVATE).edit().remove("api_key").apply()
     }
 
     fun getThemeMode(): ThemeMode {
@@ -184,30 +178,6 @@ class PreferenceManager(context: Context) {
     }
 
     // AI & Cloud Backup
-    fun getGeminiApiKey(): String? {
-        prefs.getString(KEY_GEMINI_API_KEY, null)?.let { old ->
-            return runCatching { setGeminiApiKey(old); old }.getOrNull()
-        }
-        val encoded = credentials.getString("api_key", null) ?: return null
-        return runCatching {
-            val bytes = android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP)
-            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(javax.crypto.Cipher.DECRYPT_MODE, credentialKey(), javax.crypto.spec.GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
-            cipher.doFinal(bytes.copyOfRange(12, bytes.size)).toString(Charsets.UTF_8)
-        }.getOrNull()
-    }
-    fun setGeminiApiKey(key: String?) {
-        if (key.isNullOrBlank()) {
-            check(credentials.edit().remove("api_key").commit())
-        } else {
-            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, credentialKey())
-            val encoded = android.util.Base64.encodeToString(cipher.iv + cipher.doFinal(key.toByteArray(Charsets.UTF_8)), android.util.Base64.NO_WRAP)
-            check(credentials.edit().putString("api_key", encoded).commit())
-        }
-        check(prefs.edit().remove(KEY_GEMINI_API_KEY).commit())
-    }
-
     fun getCloudBackupEmail(): String? = prefs.getString(KEY_CLOUD_BACKUP_EMAIL, null)
     fun setCloudBackupEmail(email: String?) {
         prefs.edit().putString(KEY_CLOUD_BACKUP_EMAIL, email).apply()
@@ -226,7 +196,7 @@ class PreferenceManager(context: Context) {
     }
 
     // Online Privacy Hard Toggles (Kill Switches)
-    fun isOnlineVoiceEnabled(): Boolean = prefs.getBoolean(KEY_ONLINE_VOICE_ENABLED, false)
+    fun isOnlineVoiceEnabled(): Boolean = prefs.getBoolean(KEY_ONLINE_VOICE_ENABLED, true)
     fun setOnlineVoiceEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ONLINE_VOICE_ENABLED, enabled).apply()
     }
@@ -234,11 +204,6 @@ class PreferenceManager(context: Context) {
     fun isOnlineOcrEnabled(): Boolean = prefs.getBoolean(KEY_ONLINE_OCR_ENABLED, true)
     fun setOnlineOcrEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ONLINE_OCR_ENABLED, enabled).apply()
-    }
-
-    fun isAiInsightsEnabled(): Boolean = prefs.getBoolean(KEY_AI_INSIGHTS_ENABLED, false)
-    fun setAiInsightsEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AI_INSIGHTS_ENABLED, enabled).apply()
     }
 
     fun isCloudBackupEnabled(): Boolean = prefs.getBoolean(KEY_CLOUD_BACKUP_ENABLED, true)
@@ -274,11 +239,9 @@ class PreferenceManager(context: Context) {
         private const val KEY_DAILY_REMINDER_ENABLED = "daily_reminder_enabled"
         private const val KEY_DAILY_REMINDER_TIME = "daily_reminder_time"
         private const val KEY_BUDGET_ROLLOVER_ENABLED = "budget_rollover_enabled"
-        private const val KEY_GEMINI_API_KEY = "gemini_api_key"
         private const val KEY_CLOUD_BACKUP_EMAIL = "cloud_backup_email"
         private const val KEY_ONLINE_VOICE_ENABLED = "online_voice_enabled"
         private const val KEY_ONLINE_OCR_ENABLED = "online_ocr_enabled"
-        private const val KEY_AI_INSIGHTS_ENABLED = "ai_insights_enabled"
         private const val KEY_CLOUD_BACKUP_ENABLED = "cloud_backup_enabled"
     }
 }

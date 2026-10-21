@@ -76,7 +76,7 @@ object DiagnosticLogManager {
         return buildString {
             appendLine("=== DUIT AING SISTEM DIAGNOSTIK & LOG ===")
             appendLine("Waktu Laporan   : $dateStr")
-            appendLine("Versi Aplikasi  : 1.1.0 (Build 110)")
+            appendLine("Versi Aplikasi  : ${com.cashflow.app.BuildConfig.VERSION_NAME} (Build ${com.cashflow.app.BuildConfig.VERSION_CODE})")
             appendLine("Arsitektur      : Offline-First Hybrid")
             appendLine()
             appendLine("--- INFORMASI PERANGKAT ---")

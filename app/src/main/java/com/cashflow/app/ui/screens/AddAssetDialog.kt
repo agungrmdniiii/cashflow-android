@@ -105,7 +105,6 @@ fun AddAssetContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .imePadding()
             .padding(horizontal = 20.dp, vertical = 8.dp)
             .navigationBarsPadding()
     ) {
@@ -305,7 +304,6 @@ fun AddAssetContent(
                             }
                         }
                     }
-                }
 
                 // 4. Notes
                 OutlinedTextField(
@@ -423,3 +421,4 @@ fun AddAssetContent(
                 )
             }
         }
+}

@@ -74,7 +74,7 @@ class FinancialChatAssistantTest {
     }
 
     @Test fun offlineChatPathUsesTheSameTypoAndPeriodUnderstanding() = kotlinx.coroutines.runBlocking {
-        val result = FinancialInsightService.sendChatMessage(null, listOf(
+        val result = FinancialInsightService.sendChatMessage(listOf(
             ChatMessage(sender = ChatSender.USER, text = "bagaimana pengeleruan saya bulan lagu")
         ), createSampleContext()).getOrThrow()
         assertTrue(result, result.contains("6.000.000"))
@@ -160,23 +160,6 @@ class FinancialChatAssistantTest {
         )
     }
 
-    @Test
-    fun testBuildFinancialSystemInstruction_includesComprehensiveRealData() {
-        val context = createSampleContext()
-        val instruction = FinancialInsightService.buildFinancialSystemInstruction(context)
-
-        // Verifikasi instruksi sistem memuat data riil secara akurat tanpa template kosong
-        assertTrue("Harus menyapa nama pengguna", instruction.contains("Budi"))
-        assertTrue("Harus memuat saldo likuid riil", instruction.contains("15.500.000"))
-        assertTrue("Harus memuat rincian aset BCA", instruction.contains("BCA"))
-        assertTrue("Harus memuat pengeluaran bulan berjalan", instruction.contains("4.500.000"))
-        assertTrue("Harus memuat pengeluaran bulan lalu", instruction.contains("6.000.000"))
-        assertTrue("Harus memuat persentase perubahan pengeluaran", instruction.contains("-25.0%"))
-        assertTrue("Harus memuat savings rate riil", instruction.contains("55%"))
-        assertTrue("Harus memuat kategori makanan dan transportasi", instruction.contains("Makanan & Minuman") && instruction.contains("Transportasi"))
-        assertTrue("Harus memuat anggaran dan statusnya", instruction.contains("Makanan & Minuman") && instruction.contains("2.500.000"))
-        assertTrue("Harus memuat utang aktif", instruction.contains("Cicilan Laptop") && instruction.contains("Bank Mandiri"))
-    }
 
     @Test
     fun testEvaluateOfflineQuery_trendQuery_calculatesAccurately() {

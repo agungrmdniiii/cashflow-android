@@ -4,7 +4,8 @@ import com.cashflow.app.data.model.*
 import com.cashflow.app.data.repository.LedgerService
 import java.util.UUID
 
-data class CsvPreview(val transactions: List<Transaction>, val duplicateCount: Int, val errors: List<String>)
+data class CsvPreview(val transactions: List<Transaction>, val duplicateCount: Int, val errors: List<String>,
+    val similarTransactions: Map<String, Transaction> = emptyMap())
 
 object CsvImport {
     private val header = listOf("Tanggal", "Waktu", "Deskripsi", "Jenis", "Kategori", "Aset", "Aset Tujuan", "Nominal", "Catatan", "Metode Input")
@@ -51,6 +52,9 @@ object CsvImport {
         val rows = parse(content)
         require(rows.firstOrNull() == header) { "Gunakan CSV hasil ekspor Duit Aing dengan 10 kolom asli." }
         val seen = existing.map(::fingerprint).toMutableSet()
+        val similarIndex = mutableMapOf<List<Any?>, Transaction>()
+        existing.forEach { tx -> tx.similarityKey()?.let { similarIndex.putIfAbsent(it, tx) } }
+        val similar = mutableMapOf<String, Transaction>()
         val transactions = mutableListOf<Transaction>()
         val errors = mutableListOf<String>()
         var duplicates = 0
@@ -72,9 +76,12 @@ object CsvImport {
                     row[2], category, account(row[5]), if (type == "transfer") account(row[6]) else null,
                     row[0], row[1], row[8], inputMethod = row[9].ifBlank { "manual" })
                 LedgerService.validateTransaction(tx).getOrThrow()
-                if (seen.add(fingerprint(tx))) transactions.add(tx) else duplicates++
+                if (seen.add(fingerprint(tx))) {
+                    tx.similarityKey()?.let { key -> similarIndex.putIfAbsent(key, tx)?.let { similar[tx.id] = it } }
+                    transactions.add(tx)
+                } else duplicates++
             }.onFailure { errors.add("Baris ${index + 2}: ${it.message}") }
         }
-        return CsvPreview(transactions, duplicates, errors)
+        return CsvPreview(transactions, duplicates, errors, similar)
     }
 }

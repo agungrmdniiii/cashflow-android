@@ -27,7 +27,7 @@ import com.cashflow.app.ui.components.DuitAingLogo
 import com.cashflow.app.ui.theme.duit
 
 /**
- * Section Tentang: Identitas Duit Aing v1.1.0, panduan onboarding,
+ * Section Tentang: Identitas Duit Aing, panduan onboarding,
  * diagnostik sistem, dan preview design system.
  */
 @Composable
@@ -70,7 +70,7 @@ fun AboutSection(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Versi 1.1.0 · Klik untuk melihat changelog",
+                        text = "Versi ${com.cashflow.app.BuildConfig.VERSION_NAME} · Lihat catatan perubahan",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -99,6 +99,11 @@ fun AboutSection(
             }
 
             HorizontalDivider(color = duit.border, thickness = 1.dp)
+
+            if (com.cashflow.app.BuildConfig.DIRECT_APK_UPDATES) {
+                AppUpdateSection()
+                HorizontalDivider(color = duit.border, thickness = 1.dp)
+            }
 
             // Row 1: Panduan Penggunaan
             SettingsItemRow(

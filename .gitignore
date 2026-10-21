@@ -58,3 +58,11 @@ json/
 # Local delivery archives and private audit evidence
 DuitAing_Clean_Source.zip
 docs/audits/
+
+# Android signing keys are configured as encrypted CI secrets
+*.keystore
+*.jks
+
+# Python release-tool cache
+__pycache__/
+*.pyc

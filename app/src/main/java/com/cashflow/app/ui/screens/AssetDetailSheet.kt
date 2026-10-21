@@ -354,7 +354,7 @@ fun AssetDetailContent(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
-                        items(assetTransactions, key = { it.id }) { tx ->
+                        items(assetTransactions, key = { it.id }, contentType = { "transaction" }) { tx ->
                             TransactionItemCard(
                                 transaction = tx,
                                 category = catMap[tx.categoryId],
@@ -377,7 +377,7 @@ fun AssetDetailContent(
         confirmText = "HAPUS ASET",
         confirmVariant = DuitAingButtonVariant.DANGER,
         onConfirm = {
-            viewModel.deleteAsset(asset.id) {
+            viewModel.deleteAsset(asset.id, confirmed = true) {
                 showDeleteConfirmDialog = false
                 onDismiss()
             }

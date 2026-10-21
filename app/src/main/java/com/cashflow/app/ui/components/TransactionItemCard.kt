@@ -1,12 +1,11 @@
 package com.cashflow.app.ui.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +20,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.LayoutDirection
+import kotlin.math.abs
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,7 +43,7 @@ import com.cashflow.app.ui.theme.*
  * - Swipe right to edit, swipe left to delete (with haptics)
  * - 3-dots accessibility menu for non-gesture control (Detail, Edit, Favorit, Hapus)
  * - Global balance hiding (Rp ••••••)
- * - Press micro-scale (0.97f)
+ * - Native touch ripple, with no per-row press animation coroutine
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +63,7 @@ fun TransactionItemCard(
     val haptic = LocalHapticFeedback.current
     val duit = MaterialTheme.duit
     var showMenu by remember { mutableStateOf(false) }
+    var menuWasOpened by remember { mutableStateOf(false) }
     val formattedAmount = remember(transaction.amount, transaction.type) {
         val prefix = when (transaction.type) {
             TransactionType.INCOME.value -> "+"
@@ -67,104 +73,71 @@ fun TransactionItemCard(
         prefix + Formatters.formatRupiah(transaction.amount)
     }
 
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
-        label = "TxItemPressScale"
-    )
-
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { dismissValue ->
-            when (dismissValue) {
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    // Swipe right -> Edit
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onEdit?.invoke()
-                    false
-                }
-                SwipeToDismissBoxValue.EndToStart -> {
-                    // Swipe left -> Delete
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onDelete?.invoke()
-                    false
-                }
-                SwipeToDismissBoxValue.Settled -> false
-            }
-        }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        modifier = modifier.fillMaxWidth(),
-        enableDismissFromStartToEnd = onEdit != null,
-        enableDismissFromEndToStart = onDelete != null,
-        backgroundContent = {
-            val direction = dismissState.dismissDirection
-            val color by animateColorAsState(
-                targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> duit.primary
-                    SwipeToDismissBoxValue.EndToStart -> duit.expense
-                    SwipeToDismissBoxValue.Settled -> Color.Transparent
-                },
-                label = "SwipeDismissColor"
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-            ) {
-                if (direction == SwipeToDismissBoxValue.StartToEnd) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Edit,
-                            contentDescription = "Edit",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Edit",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                } else if (direction == SwipeToDismissBoxValue.EndToStart) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Hapus",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.Rounded.Delete,
-                            contentDescription = "Hapus",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-        }
+    // Rows request an action and stay in place; a dismiss layout/anchor state is unnecessary.
+    val currentEdit by rememberUpdatedState(onEdit)
+    val currentDelete by rememberUpdatedState(onDelete)
+    val directionMultiplier = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1f else 1f
+    val threshold = with(LocalDensity.current) { 96.dp.toPx() }
+    var rowWidth by remember { mutableIntStateOf(0) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    var swipeWasStarted by remember { mutableStateOf(false) }
+    // Vertical flings should not create an animation state and coroutine for every new row.
+    val swipeOffset = if (swipeWasStarted) {
+        val offset by animateFloatAsState(
+            targetValue = if (dragging) dragOffset else 0f,
+            animationSpec = if (dragging) snap() else spring(stiffness = 500f),
+            label = "TransactionSwipeOffset"
+        )
+        offset
+    } else 0f
+    val swipeModifier = if (onEdit == null && onDelete == null) Modifier else Modifier.pointerInput(
+        onEdit != null, onDelete != null, directionMultiplier, threshold
     ) {
+        detectHorizontalDragGestures(
+            onDragStart = { swipeWasStarted = true; dragOffset = 0f; dragging = true },
+            onDragCancel = { dragging = false },
+            onDragEnd = {
+                val logicalOffset = dragOffset * directionMultiplier
+                dragging = false
+                if (abs(logicalOffset) >= minOf(threshold, rowWidth * .45f) && rowWidth > 0) {
+                    val action = if (logicalOffset > 0) currentEdit else currentDelete
+                    if (action != null) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        action()
+                    }
+                }
+            }
+        ) { change, amount ->
+            change.consume()
+            val next = dragOffset + amount
+            val logicalOffset = next * directionMultiplier
+            dragOffset = if ((logicalOffset > 0 && currentEdit == null) || (logicalOffset < 0 && currentDelete == null)) 0f
+                else next.coerceIn(-rowWidth.toFloat(), rowWidth.toFloat())
+        }
+    }
+    Box(modifier.fillMaxWidth().onSizeChanged { rowWidth = it.width }.then(swipeModifier)) {
+        if (dragging || swipeOffset != 0f) {
+            val editing = (if (dragging) dragOffset else swipeOffset) * directionMultiplier > 0
+            Box(Modifier.matchParentSize().background(if (editing) duit.primary else duit.expense)
+                .padding(horizontal = 24.dp),
+                contentAlignment = if (editing) Alignment.CenterStart else Alignment.CenterEnd) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(if (editing) Icons.Rounded.Edit else Icons.Rounded.Delete, contentDescription = null,
+                        tint = Color.White, modifier = Modifier.size(24.dp))
+                    Text(if (editing) "Edit" else "Hapus", color = Color.White,
+                        style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
                 .graphicsLayer {
-                    scaleX = pressScale
-                    scaleY = pressScale
+                    translationX = swipeOffset
                 }
+                .background(MaterialTheme.colorScheme.surface)
                 .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
                     role = Role.Button,
                     onClick = onClick
                 )
@@ -302,7 +275,7 @@ fun TransactionItemCard(
                 // 3-dots accessibility menu
                 Box {
                     IconButton(
-                        onClick = { showMenu = true },
+                        onClick = { menuWasOpened = true; showMenu = true },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
@@ -313,7 +286,7 @@ fun TransactionItemCard(
                         )
                     }
 
-                    DropdownMenu(
+                    if (menuWasOpened) DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
                         shape = RoundedCornerShape(12.dp),

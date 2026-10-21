@@ -3,9 +3,12 @@ package com.cashflow.app
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.test.platform.app.InstrumentationRegistry
 import com.cashflow.app.data.db.DatabaseHelper
 import com.cashflow.app.data.model.Category
@@ -13,11 +16,34 @@ import com.cashflow.app.ui.screens.AllCategoriesDialog
 import com.cashflow.app.ui.theme.CashflowTheme
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.FileInputStream
 
 /** Isolated UI data only: never inserts categories or transactions into the user's database. */
 class CategoryPickerTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val categories = (1..300).map { Category("test$it", "Kategori $it", "expense", "restaurant") }
+
+    @Test fun openingThePickerDoesNotRecomposeItsParentForm() {
+        val visible = mutableStateOf(false)
+        var parentCompositions = 0
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, ComponentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+        instrumentation.runOnMainSync { activity.setContent { CashflowTheme {
+            SideEffect { parentCompositions++ }
+            AllCategoriesDialog(categories, "test1", onCategorySelected = {}, onDismiss = {}, visible = { visible.value })
+        } } }
+        try {
+            instrumentation.waitForIdleSync()
+            var before = 0
+            instrumentation.runOnMainSync { before = parentCompositions; visible.value = true }
+            node { it.text?.toString() == "Semua Kategori" }
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync {
+                assertEquals("Opening a picker must not rebuild the form behind it", before, parentCompositions)
+                visible.value = false
+            }
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
+    }
 
     @Test fun defaultCatalogHasFiftyExpensesThirtyIncomeAndShortUniqueNames() {
         val cats = DatabaseHelper(instrumentation.targetContext).getDefaultCategoriesList()
@@ -61,6 +87,71 @@ class CategoryPickerTest {
             assertNotNull("Last category must remain reachable", last)
             assertNull("Scrolling must not choose a category", selected)
             click(last!!)
+            instrumentation.runOnMainSync { assertEquals("test300", selected) }
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
+    }
+
+    @Test fun hundredsOfFavoritesAreLoadedLazilyAndScrollDoesNotDelete() {
+        val favorites = (1..300).map { com.cashflow.app.data.model.FavoriteTemplate(
+            id = "favorite$it", name = "Favorit $it", amount = 1000, assetId = "test-asset"
+        ) }
+        var deleteRequests = 0
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, ComponentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+        instrumentation.runOnMainSync { activity.setContent { CashflowTheme {
+            com.cashflow.app.ui.screens.settings.FavoritesSettingsSection(
+                favoriteTemplates = favorites, isFavoriteDirectSave = false,
+                currentAssets = emptyList(), categories = emptyList(), recurringCount = 0,
+                onToggleFavoriteDirectSave = {}, onDeleteFavorite = { deleteRequests++ }, onOpenRecurring = {}
+            )
+        } } }
+        try {
+            node { it.text?.toString() == "Favorit 1" }
+            assertNull("Off-screen favorites must not all be laid out", find(instrumentation.uiAutomation.rootInActiveWindow) {
+                it.text?.toString() == "Favorit 300"
+            })
+            var last: AccessibilityNodeInfo? = null
+            for (i in 0..80) {
+                last = find(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == "Favorit 300" }
+                if (last != null) break
+                node { it.isScrollable }.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                instrumentation.waitForIdleSync()
+                SystemClock.sleep(50)
+            }
+            assertNotNull("Last favorite must remain reachable", last)
+            assertEquals("Scrolling must never request deletion", 0, deleteRequests)
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
+    }
+
+    @Test fun reversingCategoryScrollKeepsSelectionAndSearchUsable() {
+        var selected: String? = null
+        val activity = showPicker { selected = it.id }
+        try {
+            node { it.text?.toString() == "Kategori 1" }
+            val bounds = Rect().also { instrumentation.uiAutomation.rootInActiveWindow.getBoundsInScreen(it) }
+            fun drag(forward: Boolean) {
+                val top = (bounds.height() * .55f).toInt()
+                val bottom = (bounds.height() * .85f).toInt()
+                val start = if (forward) bottom else top
+                val end = if (forward) top else bottom
+                instrumentation.uiAutomation.executeShellCommand(
+                    "input swipe ${bounds.centerX()} $start ${bounds.centerX()} $end 500"
+                ).use { FileInputStream(it.fileDescriptor).use { stream -> stream.readBytes() } }
+                SystemClock.sleep(250)
+            }
+            repeat(4) { drag(true) }
+            assertNull("Scrolling must not select a category", selected)
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == "Kategori 1" })
+            for (attempt in 0 until 8) {
+                if (find(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == "Kategori 1" } != null) break
+                drag(false)
+            }
+            node { it.text?.toString() == "Kategori 1" }
+            val field = node { it.className?.toString() == "android.widget.EditText" }
+            assertTrue(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Kategori 300")
+            }))
+            click(node { it.text?.toString() == "Kategori 300" && it.className?.toString() == "android.widget.TextView" })
             instrumentation.runOnMainSync { assertEquals("test300", selected) }
         } finally { instrumentation.runOnMainSync { activity.finish() } }
     }

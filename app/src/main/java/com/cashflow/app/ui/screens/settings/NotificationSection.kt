@@ -14,7 +14,34 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.Asset
 import com.cashflow.app.ui.components.AssetDropdownField
+import com.cashflow.app.ui.components.DuitAingButton
+import com.cashflow.app.ui.components.DuitAingButtonVariant
 import com.cashflow.app.ui.theme.duit
+
+@Composable
+fun NotificationAccessSection(
+    allowed: Boolean,
+    blockedChannels: List<String>,
+    onRequest: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onTest: () -> Unit
+) {
+    SettingsSectionCard(title = "Izin Android") {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(if (allowed) "Notifikasi diizinkan" else "Notifikasi belum diizinkan",
+                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.duit.textPrimary)
+            Text(when {
+                !allowed -> "Izinkan agar pengingat harian, anggaran, dan cadangan dapat muncul. Penolakan tidak membatasi pencatatan."
+                blockedChannels.isNotEmpty() -> "Kanal yang dinonaktifkan: ${blockedChannels.joinToString()}. Aktifkan melalui Pengaturan Android."
+                else -> "Izin dan kanal aktif. Pengingat mengikuti jadwal Anda dan dapat ditunda Android saat hemat baterai."
+            }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.duit.textSecondary)
+            DuitAingButton(text = if (allowed) "PENGATURAN ANDROID" else "IZINKAN NOTIFIKASI",
+                onClick = if (allowed) onOpenSettings else onRequest,
+                variant = DuitAingButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
+            TextButton(onClick = onTest) { Text("Kirim notifikasi uji") }
+        }
+    }
+}
 
 /**
  * Section Notifikasi: Pengingat harian, peringatan batas anggaran, rollover, dan preferensi aset default.

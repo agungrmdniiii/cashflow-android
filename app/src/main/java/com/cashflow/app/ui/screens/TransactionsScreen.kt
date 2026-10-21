@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -41,7 +44,7 @@ import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionsScreen(
     viewModel: CashflowViewModel,
@@ -78,6 +81,11 @@ fun TransactionsScreen(
     val assetMap = remember(assets) { assets.associateBy { it.id } }
 
     val duit = MaterialTheme.duit
+
+    // Cache around the viewport, not the history length; reverse scrolling can reuse recent rows.
+    val transactionListState = rememberLazyListState(
+        cacheWindow = remember { LazyLayoutCacheWindow(aheadFraction = .5f, behindFraction = 1f) }
+    )
 
     val transactionCount = remember(groupedTransactions) { groupedTransactions.sumOf { it.transactions.size } }
 
@@ -391,6 +399,7 @@ fun TransactionsScreen(
             }
         } else {
             LazyColumn(
+                state = transactionListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp, top = 4.dp)
             ) {
@@ -492,15 +501,14 @@ fun TransactionsScreen(
         val directSave by viewModel.isFavoriteDirectSave.collectAsState()
         val recurring by viewModel.recurringTransactions.collectAsState()
         DuitAingModalBottomSheet(onDismissRequest = { showTransactionTools = false }) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp).navigationBarsPadding()) {
-                com.cashflow.app.ui.screens.settings.FavoritesSettingsSection(
-                    favoriteTemplates = favorites, isFavoriteDirectSave = directSave,
-                    currentAssets = assets, categories = categories, recurringCount = recurring.size,
-                    onToggleFavoriteDirectSave = viewModel::setFavoriteDirectSave,
-                    onDeleteFavorite = viewModel::deleteFavoriteTemplate,
-                    onOpenRecurring = { showTransactionTools = false; viewModel.isRecurringScreenOpen.value = true }
-                )
-            }
+            com.cashflow.app.ui.screens.settings.FavoritesSettingsSection(
+                favoriteTemplates = favorites, isFavoriteDirectSave = directSave,
+                currentAssets = assets, categories = categories, recurringCount = recurring.size,
+                onToggleFavoriteDirectSave = viewModel::setFavoriteDirectSave,
+                onDeleteFavorite = viewModel::deleteFavoriteTemplate,
+                onOpenRecurring = { showTransactionTools = false; viewModel.isRecurringScreenOpen.value = true },
+                modifier = Modifier.heightIn(max = 600.dp).navigationBarsPadding()
+            )
         }
     }
     if (isFilterSheetOpen) {
@@ -560,7 +568,7 @@ fun TransactionsScreen(
                     onClick = {
                         val deletedTx = tx
                         transactionToDelete = null
-                        viewModel.deleteTransactionWithUndo(deletedTx)
+                        viewModel.deleteTransactionWithUndo(deletedTx, confirmed = true)
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = duit.expense,

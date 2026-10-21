@@ -231,7 +231,7 @@ fun BudgetsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
             ) {
-                items(budgets, key = { it.budget.id }) { item ->
+                items(budgets, key = { it.budget.id }, contentType = { "budget" }) { item ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -13,6 +13,9 @@ private val monthNames = listOf("januari", "februari", "maret", "april", "mei", 
 private val abbreviations = listOf("jan", "feb", "mar", "apr", "mei", "jun", "jul", "agu", "sep", "okt", "nov", "des")
 
 private val financialWords = listOf("pengeluaran", "pemasukan", "pendapatan", "penghasilan", "anggaran", "transaksi", "piutang", "tabungan")
+private val affirmativeReply = Regex("(?:ya|iya|boleh|silakan|lanjut)(?:[ ,]+(?:boleh|tolong|vina|dong|lanjut|silakan|saja|mau))*[!?. ]*")
+private val decliningReply = Regex("(?:(?:tidak|nggak|enggak|ga|gak)(?: dulu| usah| perlu)?|cukup|nanti(?: saja| dulu)?|sudah cukup|stop|jangan dulu)[!?. ]*")
+private val socialReply = Regex("(?:(?:kamu )?apa kabar|siapa (?:kamu|anda)|kamu siapa|terima kasih|makasih|makasi|thanks|ok|oke|baik|sip)(?: vina)?[!?. ,]*")
 
 private fun oneTypingError(word: String, target: String): Boolean {
     if (word.length == target.length) {
@@ -48,10 +51,12 @@ internal fun normalizeLocalQuestion(text: String, protectedNames: List<String> =
 
 /** Small talk stays separate from the last financial topic; explicit new questions reset filters. */
 internal fun localConversationReply(q: String, context: FinancialChatContext): String? = when {
-    q.isBlank() || q.matches(Regex("(?:assalamualaikum|assalamu alaikum|siapa (?:kamu|anda)|kamu siapa|apa kabar)[?!., ]*")) ->
+    q.isBlank() || q.matches(Regex("(?:assalamualaikum|assalamu alaikum|siapa (?:kamu|anda)|kamu siapa|(?:kamu )?apa kabar)[?!., ]*")) ->
         "Halo${context.userName.trim().takeIf { it.isNotBlank() }?.let { ", $it" }.orEmpty()}. Saya Vina. Saya membantu membaca transaksi, anggaran, utang, dan target dari data yang tercatat. Apa yang ingin Anda periksa?"
     q.matches(Regex("(?:terima kasih|makasih|makasi|thanks|ok|oke|baik|sip)(?: vina)?[!., ]*")) ->
         "Sama-sama. Anda dapat melanjutkan dengan periode lain atau meminta rincian."
+    decliningReply.matches(q) -> "Baik, kita berhenti di sini dulu. Anda bisa melanjutkan kapan saja."
+    affirmativeReply.matches(q) -> "Boleh. Apa yang ingin Anda periksa: pengeluaran, pemasukan, atau anggaran?"
     q.matches(Regex("(?:bisa apa|bantu apa|bantuan|contoh pertanyaan|cara pakai vina)[?!., ]*")) ->
         "Coba: ‘Pengeluaran bulan lalu’, ‘Sisa anggaran transport’, atau ‘Insight keuangan’. Setelah itu, Anda bisa bertanya ‘rincikan’ atau ‘kalau bulan ini?’."
     q.matches(Regex("(?:rincikan|jelaskan|kenapa(?: naik| turun)?|mengapa|ringkas|lebih singkat|yang terbesar)[?!., ]*")) ->
@@ -59,21 +64,46 @@ internal fun localConversationReply(q: String, context: FinancialChatContext): S
     else -> null
 }
 
+/** Each pair is an actionable question and the invitation shown in the answer. */
+internal fun localFollowUps(question: String, answer: String): List<Pair<String, String>> {
+    if (question.isBlank()) return listOf("Pengeluaran bulan ini" to "Ingin mulai dari pengeluaran bulan ini?",
+        "Insight keuangan" to "Ingin melihat ringkasan keuangan?")
+    if (question.has("rincikan", "detail", "ringkas", "lebih singkat")) return emptyList()
+    if (answer.startsWith("**") && question.has("pengeluaran", "pemasukan", "transaksi", "belanja", "arus kas", "transfer")) {
+        if (answer.contains("Belum ada transaksi tercatat")) return listOf(
+            "Panduan mencatat transaksi" to "Ingin saya jelaskan cara mencatat transaksi?")
+        val detail = "Rincikan" to "Ingin saya tampilkan rincian transaksi pada periode ini?"
+        return if (question.has("bandingkan", "banding", "tren", "vs", "kenapa", "mengapa", "terbaru", "terakhir", "terbesar")) listOf(detail)
+        else listOf(detail, "Bandingkan" to "Ingin saya bandingkan dengan periode sebelumnya?")
+    }
+    if (answer.startsWith("**") && question.has("saldo", "anggaran", "budget", "utang", "hutang", "piutang", "target"))
+        return listOf("Insight keuangan" to "Ingin melihat ringkasan hal yang perlu diperhatikan?")
+    return emptyList()
+}
+
 internal fun localQuestionWithHistory(history: List<ChatMessage>, protectedNames: List<String> = emptyList()): String {
-    val users = history.filter { it.sender == ChatSender.USER }.takeLast(8)
+    val users = history.withIndex().filter { it.value.sender == ChatSender.USER }.takeLast(8)
     var question = ""
-    val periodPattern = "(?:hari ini|kemarin|sehari yang lalu|minggu (?:ini|lalu)|bulan (?:ini|lalu)|tahun (?:ini|lalu)|\\d+ hari terakhir|(?:${(monthNames + abbreviations).joinToString("|")})(?: \\d{4})?|\\d{4}-\\d{2}-\\d{2})"
+    val periodPattern = "(?:hari ini|kemarin|sehari yang lalu|\\d+ (?:minggu|bulan|tahun) lalu|minggu (?:ini|lalu)|bulan (?:ini|lalu)|tahun (?:ini|lalu)|\\d+ hari terakhir|(?:${(monthNames + abbreviations).joinToString("|")})(?: \\d{4})?|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}/\\d{1,2}/\\d{4})"
     val followUp = Regex("^(?:(?:kalau|kalo|bagaimana|gimana|yang|untuk|terus|lalu|dan|maksud saya|maksudnya)\\s+)?$periodPattern[?!., ]*$")
     val periods = Regex("\\b$periodPattern\\b")
-    val detail = Regex("^(?:rincikan|jelaskan|lebih detail|detailnya|yang terbesar|yang paling besar|kenapa(?: naik| turun)?|mengapa|ringkas|lebih singkat)[?!., ]*$")
+    val detail = Regex("^(?:rincikan|jelaskan|lebih detail|detailnya|bandingkan|yang terbesar|yang paling besar|kenapa(?: naik| turun)?|mengapa|ringkas|lebih singkat)[?!., ]*$")
     var output = ""
-    users.forEach { message ->
-        val current = normalizeLocalQuestion(message.text, protectedNames)
+    users.forEach { (index, message) ->
+        var current = normalizeLocalQuestion(message.text, protectedNames)
+        if (affirmativeReply.matches(current)) {
+            val previous = history.subList(0, index).lastOrNull { it.sender == ChatSender.ASSISTANT }
+            val offered = previous?.takeUnless { it.isError }?.let { reply ->
+                localFollowUps(question, reply.text).firstOrNull { reply.text.trimEnd().endsWith(it.second) }
+            }
+            current = offered?.first?.let { normalizeLocalQuestion(it, protectedNames) } ?: current
+        }
         output = when {
             current.isBlank() || current.matches(Regex("(?:terima kasih|makasih|makasi|thanks|ok|oke|baik|sip)(?: vina)?[!., ]*")) -> current
             followUp.matches(current) && question.isNotBlank() -> periods.replace(question, "").trim() + " " + periods.find(current)!!.value
             detail.matches(current) && question.isNotBlank() -> question.replace(Regex("\\b(?:rincikan|terbesar|kenapa|mengapa|ringkas)\\b"), "").trim() + " " + when {
                 current.startsWith("kenapa") || current == "mengapa" -> "kenapa"
+                current == "bandingkan" -> "bandingkan"
                 current.contains("besar") -> "terbesar"
                 current in listOf("ringkas", "lebih singkat") -> "ringkas"
                 else -> "rincikan"
@@ -85,19 +115,34 @@ internal fun localQuestionWithHistory(history: List<ChatMessage>, protectedNames
             }
             else -> current
         }
-        if (output.isNotBlank() && output == current &&
-            current.matches(Regex("(?:terima kasih|makasih|makasi|thanks|ok|oke|baik|sip)(?: vina)?[!., ]*"))) return@forEach
+        if (output == current && (current.isBlank() || socialReply.matches(current) ||
+                affirmativeReply.matches(current) || decliningReply.matches(current))) return@forEach
         if (output.isNotBlank()) question = output
     }
     return output
 }
 
 private fun queryPeriod(q: String, today: LocalDate, transactions: List<Transaction>): ReportDateRange {
-    require(!Regex("\\b\\d+ (?:minggu|bulan|tahun) lalu\\b|\\bhari (?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)\\b|\\b\\d{1,2}/\\d{1,2}/\\d{4}\\b").containsMatchIn(q))
-    val dates = Regex("\\b\\d{4}-\\d{2}-\\d{2}\\b").findAll(q).map { LocalDate.parse(it.value) }.toList()
+    require(!Regex("\\bhari (?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)\\b").containsMatchIn(q))
+    val numericDate = java.time.format.DateTimeFormatter.ofPattern("d/M/uuuu").withResolverStyle(java.time.format.ResolverStyle.STRICT)
+    val dates = Regex("\\b(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}/\\d{1,2}/\\d{4})\\b").findAll(q).map {
+        if ('/' in it.value) LocalDate.parse(it.value, numericDate) else LocalDate.parse(it.value)
+    }.toList()
     if (dates.isNotEmpty()) {
         require(dates.size <= 2)
         return ReportDateRange(dates.first(), dates.last())
+    }
+    val namedMonths = Regex("\\b(?:${(monthNames + abbreviations).distinct().joinToString("|")})\\b").findAll(q).count()
+    require(namedMonths <= 1) { "Sebutkan satu periode atau rentang tanggal lengkap." }
+    val relative = Regex("\\b(\\d+) (minggu|bulan|tahun) lalu\\b").find(q)
+    if (relative != null) {
+        val count = relative.groupValues[1].toLong()
+        require(count in 1..120)
+        return when (relative.groupValues[2]) {
+            "minggu" -> today.with(DayOfWeek.MONDAY).minusWeeks(count).let { ReportDateRange(it, it.plusDays(6)) }
+            "bulan" -> YearMonth.from(today).minusMonths(count).let { ReportDateRange(it.atDay(1), it.atEndOfMonth()) }
+            else -> (today.year - count.toInt()).let { ReportDateRange(LocalDate.of(it, 1, 1), LocalDate.of(it, 12, 31)) }
+        }
     }
     monthNames.indices.forEach { i ->
         val match = Regex("\\b(?:${monthNames[i]}|${abbreviations[i]})(?: (\\d{4}))?\\b").find(q)
@@ -201,7 +246,7 @@ internal fun answerLocalDataQuestion(q: String, context: FinancialChatContext): 
         return "**Saldo Rekening Saat Ini**\n" + accounts.joinToString("\n") { "• ${it.name}: **${money(it.currentBalance)}**" }
     }
     val requestedAccount = Regex("\\b(?:saldo|rekening|uang di) ([\\p{L}\\d_-]+)").find(q)?.groupValues?.get(1)
-    if (!transactionQuestion && accounts.isEmpty() && requestedAccount != null && requestedAccount !in listOf("saya", "aku", "total", "semua", "dan", "saat", "sekarang", "berapa", "brp", "rekening", "aset", "bank"))
+    if (accounts.isEmpty() && requestedAccount != null && requestedAccount !in listOf("saya", "aku", "total", "semua", "dan", "saat", "sekarang", "berapa", "brp", "rekening", "aset", "bank", "bulan", "minggu", "tahun", "hari", "terbesar", "terkecil"))
         return "Rekening itu belum ditemukan. Rekening yang tercatat: ${context.assets.joinToString { it.name }.ifBlank { "belum ada" }}. Sebutkan nama rekening yang ingin diperiksa."
     val source = context.transactions ?: run {
         if (transactionQuestion && (q.has("hari ini", "kemarin", "minggu ini", "minggu lalu", "tahun ini", "tahun lalu", "tanggal") || Regex("\\d{4}-\\d{2}-\\d{2}").containsMatchIn(q)))
@@ -210,9 +255,9 @@ internal fun answerLocalDataQuestion(q: String, context: FinancialChatContext): 
     }
     if (!transactionQuestion) return null
     // Existing health/tips/purchase answers remain responsible for advice rather than a transaction sum.
-    if (intent.has("tips", "saran", "hemat", "sehat", "audit", "bisa beli", "boleh beli", "mau beli", "simulasi", "cara")) return null
+    if (intent.has("tips", "saran", "hemat", "sehat", "audit", "bisa beli", "boleh beli", "mau beli", "simulasi", "cara", "panduan", "bantuan")) return null
     val range = runCatching { queryPeriod(intent, today, source) }.getOrElse {
-        return "Saya belum mengenali rentang tanggal itu. Gunakan periode seperti kemarin, minggu lalu, September 2026, atau tanggal YYYY-MM-DD sampai YYYY-MM-DD dengan urutan yang benar."
+        return "Rentang tanggalnya belum jelas. Sebutkan satu periode, misalnya 2 bulan lalu atau September 2026, atau tulis tanggal awal sampai akhir (DD/MM/YYYY atau YYYY-MM-DD)."
     }
     val types = if (transfer) listOf("transfer") else if (expense && income) listOf("expense", "income") else if (expense) listOf("expense") else if (income) listOf("income") else listOf("expense", "income", "transfer")
     val matching = source.filter { !it.isAdjustment && it.type in types &&

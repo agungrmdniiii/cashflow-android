@@ -97,66 +97,51 @@ object NotificationHelper {
 
             if (percentage >= 1.0f && !hasNotified100) {
                 // Ambang 100% tercapai
-                showBudgetNotification(
+                val sent = showBudgetNotification(
                     context = context,
                     notificationId = budget.id.hashCode() + 100,
                     title = "⚠️ Anggaran $catName Habis!",
                     message = "Pengeluaran ${Formatters.formatRupiah(item.spentAmount)} telah mencapai limit ${Formatters.formatRupiah(item.effectiveTargetAmount)}."
                 )
-                pref.setBoolean(notified100Key, true)
-                pref.setBoolean(notified80Key, true) // Otomatis tandai 80% sudah lewat
+                if (sent) {
+                    pref.setBoolean(notified100Key, true)
+                    pref.setBoolean(notified80Key, true)
+                }
             } else if (percentage >= 0.80f && percentage < 1.0f && !hasNotified80) {
                 // Ambang 80% tercapai
-                showBudgetNotification(
+                val sent = showBudgetNotification(
                     context = context,
                     notificationId = budget.id.hashCode() + 80,
                     title = "⚡ Anggaran $catName Mencapai 80%",
                     message = "Sisa anggaran Anda: ${Formatters.formatRupiah(item.remainingAmount)} dari total ${Formatters.formatRupiah(item.effectiveTargetAmount)}."
                 )
-                pref.setBoolean(notified80Key, true)
+                if (sent) pref.setBoolean(notified80Key, true)
             }
         }
     }
 
-    private fun showBudgetNotification(
-        context: Context,
-        notificationId: Int,
-        title: String,
-        message: String
-    ) {
-        try {
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                notificationId,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+    private fun showBudgetNotification(context: Context, notificationId: Int, title: String, message: String): Boolean =
+        showLocalNotification(context, notificationId, title, message, CHANNEL_BUDGET_ALERTS)
 
-            val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET_ALERTS)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .setContentIntent(pendingIntent)
-                .build()
+    fun canSendNotifications(context: Context): Boolean = hasNotificationPermission(context) &&
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
 
-            NotificationManagerCompat.from(context).notify(notificationId, notification)
-        } catch (_: SecurityException) {
-            // Permission rejected by user
-        }
-    }
+    fun blockedChannels(context: Context): List<String> =
+        context.getSystemService(NotificationManager::class.java).notificationChannels
+            .filter { it.id in listOf(CHANNEL_BUDGET_ALERTS, CHANNEL_DAILY_REMINDER, CHANNEL_BACKUP_REMINDER) &&
+                it.importance == NotificationManager.IMPORTANCE_NONE }
+            .map { it.name.toString() }
 
     fun showLocalNotification(context: Context, id: Int, title: String, message: String, channel: String): Boolean {
-        if (!hasNotificationPermission(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+        initNotificationChannels(context)
+        if (!canSendNotifications(context)) return false
+        val notificationChannel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(channel)
+        if (notificationChannel == null || notificationChannel.importance == NotificationManager.IMPORTANCE_NONE) return false
         return try {
             val intent = PendingIntent.getActivity(context, id, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(title).setContentText(message).setContentIntent(intent).setAutoCancel(true)
+            val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_stat_notification)
+                .setContentTitle(title).setContentText(message).setStyle(NotificationCompat.BigTextStyle().bigText(message))
+                .setContentIntent(intent).setAutoCancel(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
             NotificationManagerCompat.from(context).notify(id, notification)
             true

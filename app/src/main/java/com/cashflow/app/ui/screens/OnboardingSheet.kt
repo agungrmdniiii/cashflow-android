@@ -72,8 +72,8 @@ enum class AppTourStep(
         "Tekan ikon bintang di bagian atas Beranda untuk membuka Tanya Vina. Kamu bisa menanyakan pengeluaran, pemasukan, kategori, dan kondisi keuangan dari catatan aplikasi.",
         "Berikutnya kita lihat layar Vina. Tur ini tidak mengirim pertanyaan atau memanggil API."),
     AI_MODE(21, 0, "Kenali mode Vina",
-        "Label di bawah nama Vina menunjukkan mode yang aktif. Vina lokal membaca data aplikasi tanpa API. Mode online membutuhkan internet, kunci API, dan izin AI online.",
-        "AI online bersifat pilihan. Atur melalui Pengaturan > AI & Suara bila ingin menggunakannya."),
+        "Vina membaca catatan langsung di perangkat, tanpa internet dan kunci API. Tanyakan pengeluaran, pemasukan, anggaran, hutang, atau target.",
+        "Sebutkan periode dan rekening bila perlu. Vina memakai data tercatat; periksa catatan jika hasilnya belum sesuai."),
     AI_QUESTION(20, 0, "Tanya dengan periode jelas",
         "Ketik pertanyaan di kolom bawah, lalu tekan kirim. Sebutkan periode, kategori, atau rekening agar hasilnya lebih tepat. Jawaban mengikuti transaksi yang sudah tercatat.",
         "Coba: Berapa pengeluaran saya bulan lalu? Lanjutkan: Kalau bulan ini? Jika hasilnya kosong, periksa tanggal dan data transaksi."),
@@ -109,7 +109,7 @@ fun AppGuideSheet(onStartTour: () -> Unit, onDismiss: () -> Unit) {
             "Tanya Vina" to listOf(
                 "Tekan ikon Tanya Vina di bagian atas Beranda.",
                 "Coba: Berapa pengeluaran saya bulan lalu? Atau: Kategori apa yang paling banyak saya belanjakan minggu ini?",
-                "Vina lokal membaca catatan yang ada di aplikasi. Hasil bergantung pada tanggal dan kategori transaksi. AI online dapat diatur terpisah melalui Pengaturan > AI & Suara."
+                "Vina bekerja sepenuhnya offline dengan catatan di aplikasi. Hasil bergantung pada tanggal, kategori, dan kelengkapan transaksi."
             ),
             "Backup & pemulihan" to listOf(
                 "Cadangkan sebelum ganti HP atau menghapus aplikasi.",

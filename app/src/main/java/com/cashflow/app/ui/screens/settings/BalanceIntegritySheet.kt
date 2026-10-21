@@ -380,7 +380,7 @@ fun BalanceIntegritySheet(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.repairBalanceDiscrepancies {
+                        viewModel.repairBalanceDiscrepancies(confirmed = true) {
                             showConfirmRepairDialog = false
                         }
                     },

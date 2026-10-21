@@ -447,6 +447,13 @@ class CashflowRepository(private val context: Context) {
             try {
                 dbHelper.deleteAllUserData(db)
                 loadFromDb()
+                _integrityDiscrepancies.value = emptyList()
+                _integrityReportItems.value = emptyList()
+                try {
+                    deleteFinancialFiles()
+                } catch (e: Exception) {
+                    throw java.io.IOException("Data utama sudah dihapus, tetapi sebagian berkas internal belum dapat dibersihkan. Coba Hapus Semua lagi.", e)
+                }
                 Result.success(Unit)
             } catch (e: Exception) {
                 Result.failure(e)
@@ -455,6 +462,29 @@ class CashflowRepository(private val context: Context) {
     }
 
     // --- ASSET OPERATIONS ---
+
+    private fun deleteFinancialFiles() {
+        val targets = listOf("receipts", "backups", "logs").map { File(context.filesDir, it) } +
+            listOf("exports", "backups", "camera", "temp_restore.enc", "temp_restore.zip").map { File(context.cacheDir, it) } +
+            context.cacheDir.listFiles().orEmpty().filter { it.name.startsWith("restore-") || it.name.startsWith("duitaing-backup-") } +
+            context.getDatabasePath(DatabaseHelper.DATABASE_NAME).parentFile!!.listFiles().orEmpty()
+                .filter { it.name.startsWith(DatabaseHelper.DATABASE_NAME + ".bak_") }
+        for (target in targets) {
+            if (!java.nio.file.Files.exists(target.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) continue
+            // walkFileTree does not follow symbolic links outside the app's owned directories.
+            java.nio.file.Files.walkFileTree(target.toPath(), object : java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+                override fun visitFile(path: java.nio.file.Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
+                    java.nio.file.Files.delete(path)
+                    return java.nio.file.FileVisitResult.CONTINUE
+                }
+                override fun postVisitDirectory(path: java.nio.file.Path, error: java.io.IOException?): java.nio.file.FileVisitResult {
+                    if (error != null) throw error
+                    java.nio.file.Files.delete(path)
+                    return java.nio.file.FileVisitResult.CONTINUE
+                }
+            })
+        }
+    }
 
     suspend fun addAsset(asset: Asset): Result<Unit> = balanceWriteMutex.withLock {
         withContext(Dispatchers.IO) {
@@ -1217,12 +1247,13 @@ class CashflowRepository(private val context: Context) {
         return str.replace("\"", "\"\"")
     }
 
-    suspend fun importCsv(content: String): Result<Int> = balanceWriteMutex.withLock {
+    suspend fun importCsv(content: String, allowSimilar: Boolean = false): Result<Int> = balanceWriteMutex.withLock {
         withContext(Dispatchers.IO) {
             runCatching {
                 loadFromDb()
                 val preview = com.cashflow.app.data.importer.CsvImport.preview(content, _assets.value, _categories.value, _transactions.value)
                 require(preview.errors.isEmpty()) { preview.errors.take(5).joinToString("\n") }
+                require(allowSimilar || preview.similarTransactions.isEmpty()) { "Ada transaksi mirip. Tinjau impor CSV sebelum melanjutkan." }
                 val db = dbHelper.writableDatabase
                 db.beginTransaction()
                 try {

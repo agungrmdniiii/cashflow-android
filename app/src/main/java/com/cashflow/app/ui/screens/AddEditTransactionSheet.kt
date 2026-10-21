@@ -1,6 +1,6 @@
 package com.cashflow.app.ui.screens
 
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +13,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.expandVertically
@@ -51,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -223,7 +225,7 @@ fun AddEditTransactionContent(
     var isOcrActive by remember { mutableStateOf(existingTx?.inputMethod == InputMethod.OCR.value) }
     var isScanningReceipt by remember { mutableStateOf(false) }
     var showReceiptSourceDialog by remember { mutableStateOf(false) }
-    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var tempCameraUri by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Uri?>(null) }
 
     // Multi-tag state
     var selectedTags by remember {
@@ -255,7 +257,11 @@ fun AddEditTransactionContent(
                     isOcrActive = true
                     showMoreDetails = true
                     viewModel.showSnackbar("Struk terbaca! Periksa kembali nominal & detail.")
+                } else {
+                    viewModel.showSnackbar("Foto tidak dapat dibaca. Pilih ulang foto atau catat secara manual.")
                 }
+            } catch (e: SecurityException) {
+                viewModel.showSnackbar("Akses foto tidak tersedia. Pilih ulang foto atau catat secara manual.")
             } catch (e: Exception) {
                 viewModel.showSnackbar("Gagal memindai struk: ${e.message}")
             } finally {
@@ -265,17 +271,19 @@ fun AddEditTransactionContent(
     }
 
     val receiptPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            processReceiptImage(uri)
-        }
+        if (uri != null) processReceiptImage(uri)
+        else viewModel.showSnackbar("Pemilihan foto dibatalkan. Tidak ada foto yang diakses.")
     }
 
     val takePictureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success: Boolean ->
         if (success) {
-            tempCameraUri?.let { uri ->
-                processReceiptImage(uri)
-            }
+            val uri = tempCameraUri
+            if (uri != null) processReceiptImage(uri)
+            else viewModel.showSnackbar("Foto belum dapat dibaca. Silakan ambil ulang.")
+        } else {
+            viewModel.showSnackbar("Foto tidak diambil. Kamera dibatalkan atau aksesnya belum diizinkan. Anda tetap bisa mencatat manual.")
         }
+        tempCameraUri = null
     }
 
     // Filter categories based on selected type
@@ -316,7 +324,6 @@ fun AddEditTransactionContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .imePadding()
             .padding(horizontal = 20.dp, vertical = 8.dp)
             .navigationBarsPadding()
     ) {
@@ -981,14 +988,12 @@ fun AddEditTransactionContent(
                             }
 
                             if (receiptPhotoPath != null) {
-                                val bitmap = remember(receiptPhotoPath) {
-                                    try {
-                                        BitmapFactory.decodeFile(receiptPhotoPath)
-                                    } catch (_: Exception) {
-                                        null
-                                    }
+                                val bitmap by produceState<Bitmap?>(null, receiptPhotoPath) {
+                                    value = null
+                                    value = ReceiptOcrService.loadReceiptPreview(receiptPhotoPath, 256)
                                 }
-                                if (bitmap != null) {
+                                val preview = bitmap
+                                if (preview != null) {
                                     Box(
                                         modifier = Modifier
                                             .size(44.dp)
@@ -996,7 +1001,7 @@ fun AddEditTransactionContent(
                                             .border(1.dp, duit.border, RoundedCornerShape(8.dp))
                                     ) {
                                         Image(
-                                            bitmap = bitmap.asImageBitmap(),
+                                            bitmap = preview.asImageBitmap(),
                                             contentDescription = "Foto Struk",
                                             modifier = Modifier.fillMaxSize()
                                         )
@@ -1274,20 +1279,19 @@ fun AddEditTransactionContent(
     }
 
     // Modal Sheet: All Categories Search & Pick Dialog
-    if (showAllCategoriesDialog) {
-        AllCategoriesDialog(
-            categories = relevantCategories,
-            selectedCategoryId = selectedCategoryId,
-            onCategorySelected = { cat ->
-                selectedCategoryId = cat.id
-                if (descriptionText.isBlank() || descriptionText == "Pengeluaran" || descriptionText == "Pemasukan") {
-                    descriptionText = cat.name
-                }
-                showAllCategoriesDialog = false
-            },
-            onDismiss = { showAllCategoriesDialog = false }
-        )
-    }
+    AllCategoriesDialog(
+        visible = { showAllCategoriesDialog },
+        categories = relevantCategories,
+        selectedCategoryId = selectedCategoryId,
+        onCategorySelected = { cat ->
+            selectedCategoryId = cat.id
+            if (descriptionText.isBlank() || descriptionText == "Pengeluaran" || descriptionText == "Pemasukan") {
+                descriptionText = cat.name
+            }
+            showAllCategoriesDialog = false
+        },
+        onDismiss = { showAllCategoriesDialog = false }
+    )
 
     // Modal Sheet: Receipt Photo Source (Camera vs Gallery)
     if (showReceiptSourceDialog) {
@@ -1308,7 +1312,11 @@ fun AddEditTransactionContent(
             },
             onSelectGallery = {
                 showReceiptSourceDialog = false
-                receiptPickerLauncher.launch("image/*")
+                try {
+                    receiptPickerLauncher.launch("image/*")
+                } catch (_: Exception) {
+                    viewModel.showSnackbar("Pemilih foto tidak dapat dibuka. Gunakan kamera atau catat secara manual.")
+                }
             },
             onDismiss = { showReceiptSourceDialog = false }
         )
@@ -1573,10 +1581,14 @@ internal fun AllCategoriesDialog(
     categories: List<Category>,
     selectedCategoryId: String,
     onCategorySelected: (Category) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    visible: () -> Boolean = { true }
 ) {
+    if (!visible()) return
     val duit = MaterialTheme.duit
     var searchQuery by remember { mutableStateOf("") }
+    val searchInteraction = remember { MutableInteractionSource() }
+    val searchFocused by searchInteraction.collectIsFocusedAsState()
 
     val filtered = remember(categories, searchQuery) {
         if (searchQuery.isBlank()) categories
@@ -1638,47 +1650,43 @@ internal fun AllCategoriesDialog(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Search Bar
-                OutlinedTextField(
+                BasicTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Cari kategori...", fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = null,
-                            tint = duit.textSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = duit.surfaceVariant.copy(alpha = 0.4f),
-                        unfocusedContainerColor = duit.surfaceVariant.copy(alpha = 0.4f),
-                        focusedBorderColor = duit.primary,
-                        unfocusedBorderColor = duit.border
-                    )
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 13.sp, color = duit.textPrimary),
+                    cursorBrush = SolidColor(duit.primary),
+                    interactionSource = searchInteraction,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .background(duit.surfaceVariant.copy(alpha = .4f), RoundedCornerShape(12.dp))
+                        .border(if (searchFocused) 2.dp else 1.dp,
+                            if (searchFocused) duit.primary else duit.border, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    decorationBox = { input ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Icon(Icons.Rounded.Search, contentDescription = null, tint = duit.textSecondary, modifier = Modifier.size(18.dp))
+                            Box(Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) Text("Cari kategori...", fontSize = 13.sp, color = duit.textSecondary)
+                                input()
+                            }
+                        }
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Category Grid
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Adaptive(minSize = 88.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(filtered, key = { it.id }) { cat ->
+                    items(filtered, key = { it.id }, contentType = { "category" }) { cat ->
                         val isSelected = cat.id == selectedCategoryId
-                        val interaction = remember { MutableInteractionSource() }
-                        val pressed by interaction.collectIsPressedAsState()
-                        val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(100), label = "FullCategoryPress")
                         Box(
                             modifier = Modifier
                                 .heightIn(min = 96.dp)
-                                .graphicsLayer { scaleX = scale; scaleY = scale }
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isSelected) duit.primaryContainer else duit.surfaceVariant.copy(alpha = 0.5f))
                                 .border(
@@ -1686,7 +1694,7 @@ internal fun AllCategoriesDialog(
                                     color = if (isSelected) duit.primary else duit.border,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-                                .selectable(selected = isSelected, interactionSource = interaction, indication = ripple(), role = Role.RadioButton) {
+                                .selectable(selected = isSelected, interactionSource = null, indication = ripple(), role = Role.RadioButton) {
                                     onCategorySelected(cat)
                                 }
                                 .padding(vertical = 10.dp, horizontal = 4.dp),
@@ -1770,7 +1778,7 @@ private fun ReceiptSourceDialog(
                             color = duit.textPrimary
                         )
                         Text(
-                            text = "Pilih sumber foto struk untuk membaca otomatis",
+                            text = "Kamera hanya dibuka setelah Anda memilihnya. Aplikasi hanya mengakses foto yang Anda ambil atau pilih.",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                             color = duit.textSecondary
                         )
