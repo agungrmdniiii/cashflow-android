@@ -76,12 +76,6 @@ fun AppUpdateSection() {
                     Text("Memeriksa pembaruan...")
                 }
                 if (status.message.isNotBlank()) Text(status.message, color = if (status.phase == UpdatePhase.ERROR) duit.expense else duit.textPrimary)
-                status.release?.let { release ->
-                    Text("Versi terbaru: ${release.versionName} (Build ${release.versionCode})", fontWeight = FontWeight.Bold)
-                    Text(String.format(Locale.forLanguageTag("id-ID"), "Ukuran unduhan: %.1f MB", release.size / 1048576.0), color = duit.textSecondary)
-                    Text("Catatan perubahan", fontWeight = FontWeight.Bold)
-                    Text(release.notes, color = duit.textSecondary)
-                }
                 if (status.phase == UpdatePhase.DOWNLOADING) {
                     LinearProgressIndicator(progress = { status.progress / 100f }, modifier = Modifier.fillMaxWidth())
                     Text("Mengunduh pembaruan · ${status.progress}%")
@@ -89,6 +83,12 @@ fun AppUpdateSection() {
                 }
                 if (status.phase == UpdatePhase.READY) Text("Unduhan telah diverifikasi. Android akan meminta konfirmasi pemasangan.")
                 installError?.let { Text(it, color = duit.expense) }
+                status.release?.let { release ->
+                    Text("Versi terbaru: ${release.versionName} (Build ${release.versionCode})", fontWeight = FontWeight.Bold)
+                    Text(String.format(Locale.forLanguageTag("id-ID"), "Ukuran unduhan: %.1f MB", release.size / 1048576.0), color = duit.textSecondary)
+                    Text("Catatan perubahan", fontWeight = FontWeight.Bold)
+                    Text(release.notes, color = duit.textSecondary)
+                }
             }
         },
         confirmButton = {
