@@ -10,7 +10,7 @@ https://github.com/user-attachments/assets/f9e0fda8-0727-4432-98fe-afd1ebe67755
 
 ## Instalasi di HP
 
-Memerlukan **Android 8.0 atau lebih baru**. Aplikasi menargetkan Android 16. Versi pengembangan saat ini adalah **1.0.0**, berupa APK untuk uji coba. Tautan unduhan diperbarui setelah rilis selesai diterbitkan.
+Memerlukan **Android 8.0 atau lebih baru**. Aplikasi menargetkan Android 16. Versi **1.0.0** tersedia sebagai APK untuk uji coba.
 
 1. [Unduh DuitAing.apk](https://github.com/agungrmdniiii/cashflow-android/releases/latest/download/DuitAing.apk). Jika membuka halaman Releases, pilih **DuitAing.apk** pada bagian **Assets**, bukan *Source code*.
 2. Setelah unduhan selesai, buka APK dari notifikasi unduhan atau **Pengelola File → Download**.
@@ -18,7 +18,7 @@ Memerlukan **Android 8.0 atau lebih baru**. Aplikasi menargetkan Android 16. Ver
 4. Tekan **Instal**, tunggu selesai, lalu pilih **Buka**.
 5. Buat rekening pertama dan isi saldo awal. Ikuti tur aplikasi, lalu gunakan tombol **+** untuk mencatat transaksi.
 
-**Memperbarui aplikasi:** buat cadangan melalui **Pengaturan → Data & Cadangan**, lalu pasang APK baru di atas versi lama. Jangan hapus aplikasi terlebih dahulu. Pembaruan memerlukan tanda tangan APK yang sama; jika muncul pesan konflik paket atau aplikasi tidak terpasang, pastikan cadangan sudah tersimpan sebelum mencoba instalasi ulang.
+**Memperbarui aplikasi:** mulai versi 1.0.0, buka **Pengaturan → Tentang Aplikasi → Pembaruan aplikasi**. Baca catatan perubahan, unduh, lalu setujui pemasangan Android. Untuk APK yang lebih lama, pasang versi 1.0.0 sekali secara manual di atas aplikasi yang ada. Jangan hapus aplikasi terlebih dahulu. Jika muncul konflik paket, hubungi pengembang untuk memperoleh APK dengan tanda tangan yang sesuai. Cadangan dapat dibuat melalui **Pengaturan → Data & Cadangan**.
 
 ## Yang bisa digunakan
 
@@ -73,7 +73,7 @@ Mode review menonaktifkan debugger dan mengaktifkan optimasi kode. Jalankan buil
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-Verifikasi terakhir: **237 tes unit** dan **34 tes Android terpilih pada APK review teroptimasi** lulus. Tes mencakup gulir cepat dengan 200 baris UI, konfirmasi perubahan, backup terisolasi, kategori, foto, keutuhan data, dan laporan. Build berhasil; lint masih memiliki peringatan. Pengukuran POCO F6 tidak menjamin hasil yang sama pada seluruh perangkat.
+Pemeriksaan versi 1.0.0: **250 tes unit** lulus. Pengujian Android mencakup keutuhan data dan validasi paket pembaruan. Pemeriksaan sebelumnya mencakup gulir cepat dengan 200 baris UI, konfirmasi perubahan, backup terisolasi, kategori, foto, dan laporan. Build berhasil; lint masih memiliki peringatan. Pengukuran POCO F6 tidak menjamin hasil yang sama pada seluruh perangkat.
 
 Tes UI memerlukan emulator atau perangkat. Gunakan emulator khusus untuk tes database audit karena sebagian tes mengubah data pengujian.
 
