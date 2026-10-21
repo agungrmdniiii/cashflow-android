@@ -29,6 +29,9 @@ android {
 
     buildTypes {
         debug {
+            providers.environmentVariable("DUITAING_SIGNING_KEYSTORE").orNull?.let {
+                signingConfigs.getByName("debug").storeFile = file(it)
+            }
             buildConfigField("boolean", "DIRECT_APK_UPDATES", "true")
             isDebuggable = !optimizedReview
             isMinifyEnabled = optimizedReview

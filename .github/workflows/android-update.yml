@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: write
+    env:
+      DUITAING_SIGNING_KEYSTORE: ${{ github.workspace }}/app/build/tester-signing.keystore
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -49,9 +51,9 @@ jobs:
             printf '%s\n' 'Missing DUITAING_DEBUG_KEYSTORE_BASE64. Configure the existing tester key before publishing.' >&2
             exit 1
           fi
-          mkdir -p "$HOME/.android"
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
-          chmod 600 "$HOME/.android/debug.keystore"
+          mkdir -p "$(dirname "$DUITAING_SIGNING_KEYSTORE")"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$DUITAING_SIGNING_KEYSTORE"
+          chmod 600 "$DUITAING_SIGNING_KEYSTORE"
       - name: Test and build optimized APK
         env:
           UPDATE_CODE: ${{ steps.version.outputs.code }}
@@ -66,7 +68,7 @@ jobs:
           set -euo pipefail
           actual=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | sed -n 's/Signer #1 certificate SHA-256 digest: //p')
           expected=$(tr -d '\r\n' < scripts/android-signing-cert.sha256)
-          test "$actual" = "$expected" || { printf '%s\n' 'Signing certificate does not match existing tester installations.' >&2; exit 1; }
+          test "$actual" = "$expected" || { printf 'Signing certificate mismatch. Expected: %s Actual: %s\n' "$expected" "$actual" >&2; exit 1; }
           python3 scripts/update_release.py --apk app/build/outputs/apk/debug/app-debug.apk --build-metadata app/build/outputs/apk/debug/output-metadata.json --notes-file app/src/main/res/raw/release_notes.txt --tag "$UPDATE_TAG" --output-dir app/build/update-release
       - name: Publish APK and update information atomically
         env:
@@ -88,4 +90,4 @@ jobs:
           gh release edit "$UPDATE_TAG" --draft=false --latest
       - name: Remove signing material
         if: always()
-        run: rm -f "$HOME/.android/debug.keystore"
+        run: rm -f "$DUITAING_SIGNING_KEYSTORE"
