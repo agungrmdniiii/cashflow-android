@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.ui.components.DuitAingButton
@@ -70,7 +71,8 @@ fun AboutSection(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Versi ${com.cashflow.app.BuildConfig.VERSION_NAME} · Lihat catatan perubahan",
+                        text = "Versi ${com.cashflow.app.BuildConfig.VERSION_NAME} · Build ${com.cashflow.app.BuildConfig.VERSION_CODE}\nLihat catatan perubahan",
+                        textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium

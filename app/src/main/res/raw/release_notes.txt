@@ -1,9 +1,1 @@
-- Menambahkan pemeriksaan dan pengunduhan pembaruan melalui aplikasi, disertai catatan perubahan sebelum pemasangan.
-- Memperjelas status unduhan dan verifikasi paket sebelum pemasangan.
-- Menyederhanakan pencatatan suara dengan contoh ucapan yang langsung terlihat.
-- Memperbaiki kartu insight agar tetap tersembunyi setelah ditutup selama sesi penggunaan yang sama.
-- Menambahkan konfirmasi sebelum perubahan dan penghapusan data disimpan.
-- Menyempurnakan konsistensi perhitungan dan rentang tanggal pada laporan keuangan.
-- Meningkatkan keandalan pencadangan, pemulihan, dan penghapusan data.
-- Menyediakan percakapan Vina secara offline berdasarkan catatan keuangan di perangkat.
-- Meningkatkan kelancaran daftar transaksi dan pemilihan kategori.
+- Menampilkan nomor build di halaman Tentang Aplikasi agar versi terpasang lebih mudah dikenali saat pemeriksaan pembaruan.
