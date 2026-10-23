@@ -97,6 +97,7 @@ fun AssetDetailContent(
     }
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showBalanceCheck by remember { mutableStateOf(false) }
     val duit = MaterialTheme.duit
 
     Column(
@@ -312,6 +313,13 @@ fun AssetDetailContent(
                         )
                     }
 
+                    DuitAingButton(
+                        text = "CEK SALDO",
+                        onClick = { showBalanceCheck = true },
+                        leadingIcon = Icons.Rounded.FactCheck,
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = DuitAingButtonVariant.SECONDARY
+                    )
                     if (!asset.isDefault) {
                         DuitAingButton(
                             text = "JADIKAN ASET UTAMA (DEFAULT)",
@@ -369,6 +377,10 @@ fun AssetDetailContent(
                 }
             }
 
+    if (showBalanceCheck) {
+        BalanceCheckDialog(currentAsset, onDismiss = { showBalanceCheck = false },
+            onAdjust = { target, note, done -> viewModel.adjustAssetBalance(currentAsset.id, target, note, done) })
+    }
     // Delete Confirmation Dialog (Standardized Neo-Brutalist Frame)
     DuitAingConfirmDialog(
         isOpen = showDeleteConfirmDialog,

@@ -23,10 +23,12 @@ Memerlukan **Android 8.0 atau lebih baru**. Aplikasi menargetkan Android 16. Ver
 ## Yang bisa digunakan
 
 - Pemasukan, pengeluaran, dan transfer antar rekening; tersedia input manual, suara, serta pemindaian struk.
-- 50 kategori pengeluaran dan 30 pemasukan. Kategori yang sering dipakai naik ke pilihan awal berdasarkan transaksi tersimpan.
+- 62 kategori pengeluaran dan 36 pemasukan. Tandai kategori favorit agar tampil lebih dahulu; kategori lainnya diurutkan menurut penggunaan.
 - Anggaran, utang/piutang, target tabungan, dan laporan dengan rentang tanggal yang bisa dipilih.
 - Asisten **Vina** untuk membaca catatan keuangan sepenuhnya offline, tanpa kunci API. Coba “Pengeluaran bulan lalu”, lalu “Rincikan” atau “Kalau bulan ini?”.
-- Cadangan dan pemulihan data, ekspor PDF/CSV, tema gelap, serta kunci biometrik.
+- Cadangan JSON, ZIP beserta foto struk, dan cadangan terenkripsi. Favorit kategori serta pengaturan penggunaan ikut dipulihkan.
+- Empat pilihan widget: Saldo & pintasan, Saldo ringkas, Catat cepat, dan Ringkasan bulanan. Tombol mata menyembunyikan nominal pada widget keuangan.
+- Ekspor PDF/CSV, tema gelap, dan kunci biometrik.
 
 Vina memakai aturan bahasa dan perhitungan transaksi di perangkat. Percakapan dan data keuangan tidak dikirim ke penyedia AI. Jawabannya mengikuti data yang tercatat; Vina belum dapat menjawab semua pertanyaan bebas. Pengenalan suara dan OCR mengikuti dukungan perangkat dan pengaturannya sendiri.
 
@@ -73,7 +75,7 @@ Mode review menonaktifkan debugger dan mengaktifkan optimasi kode. Jalankan buil
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-Pemeriksaan versi 1.0.0: **250 tes unit** lulus. Pengujian Android mencakup keutuhan data dan validasi paket pembaruan. Pemeriksaan sebelumnya mencakup gulir cepat dengan 200 baris UI, konfirmasi perubahan, backup terisolasi, kategori, foto, dan laporan. Build berhasil; lint masih memiliki peringatan. Pengukuran POCO F6 tidak menjamin hasil yang sama pada seluruh perangkat.
+Pemeriksaan build 1.0.0 (132): **274 tes unit** dan **4 tes skrip pembaruan** lulus; lint lengkap tidak memiliki error. Di emulator, 34 tes Android lulus. Di POCO F6, 32 tes lulus dan 2 pemeriksaan khusus emulator dilewati. Pengujian terisolasi mencakup pemulihan cadangan, kelengkapan foto struk, saldo widget, jadwal berulang, dan pergantian tanggal. Lint masih mencatat peringatan. Hasil di POCO F6 tidak menjamin kelancaran yang sama pada seluruh perangkat.
 
 Tes UI memerlukan emulator atau perangkat. Gunakan emulator khusus untuk tes database audit karena sebagian tes mengubah data pengujian.
 

@@ -58,13 +58,27 @@
         <!-- Sat-Set Home Screen Widget -->
         <receiver
             android:name=".widget.DuitAingQuickWidget"
-            android:exported="true">
+            android:label="@string/widget_name"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/duit_aing_widget_info" />
+        </receiver>
+
+        <receiver android:name=".widget.DuitAingBalanceWidget" android:label="@string/widget_balance_name" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/duit_aing_balance_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.DuitAingEntryWidget" android:label="@string/widget_entry_name" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/duit_aing_entry_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.DuitAingSummaryWidget" android:label="@string/widget_summary_name" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/duit_aing_summary_widget_info" />
         </receiver>
 
         <provider

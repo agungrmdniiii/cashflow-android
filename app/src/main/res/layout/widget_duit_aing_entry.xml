@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_bg_lime">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+        <LinearLayout android:id="@+id/widget_brand" android:layout_width="0dp" android:layout_height="match_parent"
+            android:layout_weight="1" android:gravity="center_vertical" android:contentDescription="Buka Duit Aing">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_duit_aing_logo" android:contentDescription="@null" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:layout_marginStart="6dp" android:text="Catat cepat" android:textColor="#161616"
+                android:textStyle="bold" android:textSize="12sp" android:maxLines="2" />
+        </LinearLayout>
+        <ImageButton android:id="@+id/btn_widget_voice" android:layout_width="48dp" android:layout_height="48dp"
+            android:background="@drawable/widget_btn_bg_voice" android:src="@drawable/ic_widget_mic"
+            android:padding="14dp" android:scaleType="fitCenter" android:contentDescription="Catat transaksi dengan suara" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp">
+        <LinearLayout android:id="@+id/btn_widget_add" android:layout_width="0dp" android:layout_height="match_parent"
+            android:layout_weight="1" android:layout_marginEnd="4dp" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/widget_btn_bg_voice" android:padding="6dp" android:contentDescription="Catat pengeluaran">
+            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_minus" android:contentDescription="@null" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                android:gravity="center" android:text="Keluar" android:textColor="#F2F2EE" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/btn_widget_income" android:layout_width="0dp" android:layout_height="match_parent"
+            android:layout_weight="1" android:layout_marginStart="4dp" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/widget_btn_bg_voice" android:padding="6dp" android:contentDescription="Catat pemasukan">
+            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_add_lime" android:contentDescription="@null" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                android:gravity="center" android:text="Masuk" android:textColor="#F2F2EE" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

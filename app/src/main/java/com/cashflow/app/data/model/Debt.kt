@@ -30,9 +30,11 @@ data class Debt(
         } else 0f
 
     val isOverdue: Boolean
-        get() = try {
+        get() = isOverdue(LocalDate.now())
+
+    fun isOverdue(today: LocalDate): Boolean = try {
             if (status == DebtStatus.PAID.key) false
-            else LocalDate.parse(dueDate).isBefore(LocalDate.now())
+            else LocalDate.parse(dueDate).isBefore(today)
         } catch (_: Exception) {
             false
         }

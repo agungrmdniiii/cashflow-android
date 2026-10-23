@@ -668,6 +668,7 @@ private fun DuitAingBottomNavBar(
     val isDark = LocalIsDarkTheme.current
     val duit = MaterialTheme.duit
     val navBarShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    val navBarHeight = maxOf(72.dp, with(androidx.compose.ui.platform.LocalDensity.current) { 16.sp.toDp() + 47.dp })
 
     val leftTabs = listOf(
         Triple(0, "Beranda", Icons.Rounded.Home),
@@ -699,7 +700,7 @@ private fun DuitAingBottomNavBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
+                .height(navBarHeight)
                 .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -856,6 +857,7 @@ private fun BottomNavTabItem(
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = title,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     fontSize = 11.sp,
@@ -863,6 +865,7 @@ private fun BottomNavTabItem(
                 ),
                 color = if (isSelected) duit.textPrimary else duit.textSecondary,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }

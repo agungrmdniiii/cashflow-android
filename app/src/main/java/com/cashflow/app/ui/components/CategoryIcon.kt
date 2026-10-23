@@ -55,6 +55,12 @@ fun CategoryIcon(
         // Hiburan & Rekreasi
         "movie", "hiburan", "bioskop", "film" -> Icons.Rounded.Movie
         "sports_esports", "game", "gaming" -> Icons.Rounded.SportsEsports
+        "smoking_rooms" -> Icons.Rounded.SmokingRooms
+        "apps" -> Icons.Rounded.Apps
+        "groups" -> Icons.Rounded.Groups
+        "local_shipping" -> Icons.Rounded.LocalShipping
+        "subscriptions" -> Icons.Rounded.Subscriptions
+        "camera_alt" -> Icons.Rounded.CameraAlt
         "flight", "flight_takeoff", "liburan", "travel" -> Icons.Rounded.FlightTakeoff
         "headphones", "musik" -> Icons.Rounded.Headphones
 

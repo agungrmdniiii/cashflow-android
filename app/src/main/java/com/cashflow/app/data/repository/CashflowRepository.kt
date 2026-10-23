@@ -13,6 +13,7 @@ import com.cashflow.app.data.model.*
 import com.cashflow.app.data.preferences.PreferenceManager
 import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,11 +29,14 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
-class CashflowRepository(private val context: Context) {
+class CashflowRepository(private val context: Context, cursorFactory: SQLiteDatabase.CursorFactory? = null) {
 
-    private val dbHelper = DatabaseHelper(context)
+    private val dbHelper = DatabaseHelper(context, cursorFactory)
     private val scope = CoroutineScope(Dispatchers.IO)
     private val balanceWriteMutex = Mutex()
+
+    private val _calendarDate = MutableStateFlow(LocalDate.now())
+    val calendarDate: StateFlow<LocalDate> = _calendarDate.asStateFlow()
 
     private val _assets = MutableStateFlow<List<Asset>>(emptyList())
     val assets: StateFlow<List<Asset>> = _assets.asStateFlow()
@@ -105,13 +109,20 @@ class CashflowRepository(private val context: Context) {
 
     fun refreshAll() {
         scope.launch {
-            loadFromDb()
+            balanceWriteMutex.withLock { loadFromDb() }
+        }
+    }
+
+    suspend fun refreshCalendar(today: LocalDate = LocalDate.now()) {
+        if (calendarDate.value == today) return
+        balanceWriteMutex.withLock {
+            if (calendarDate.value != today) loadFromDb(today)
         }
     }
 
     suspend fun reloadForBackgroundCheck() = balanceWriteMutex.withLock { loadFromDb() }
 
-    private suspend fun loadFromDb() = withContext(Dispatchers.IO) {
+    private suspend fun loadFromDb(today: LocalDate = LocalDate.now()) = withContext(Dispatchers.IO) {
         val db = dbHelper.readableDatabase
 
         // 1. Load Assets
@@ -168,7 +179,7 @@ class CashflowRepository(private val context: Context) {
 
         val prefManager = PreferenceManager(context)
         val budgetWithProgressList = calculateBudgetProgress(budgetList, categoryList, txList,
-            prefManager.isBudgetRolloverEnabled(), periodStartDay = prefManager.getBudgetStartDay())
+            prefManager.isBudgetRolloverEnabled(), today = today, periodStartDay = prefManager.getBudgetStartDay())
         _budgets.value = budgetWithProgressList
 
         // Trigger budget notification alerts if threshold (80% or 100%) reached
@@ -176,7 +187,8 @@ class CashflowRepository(private val context: Context) {
             com.cashflow.app.data.service.NotificationHelper.checkAndNotifyBudgets(
                 context = context,
                 budgets = budgetWithProgressList,
-                pref = prefManager
+                pref = prefManager,
+                today = today
             )
         } catch (_: Exception) {}
 
@@ -235,6 +247,7 @@ class CashflowRepository(private val context: Context) {
             }
         } catch (_: Exception) {}
         _recurringTransactions.value = recList
+        _calendarDate.value = today
 
         try {
             com.cashflow.app.widget.DuitAingQuickWidget.updateAllWidgets(context)
@@ -412,7 +425,7 @@ class CashflowRepository(private val context: Context) {
         // Buat backup pengaman otomatis sebelum perbaikan saldo
         try {
             val db = dbHelper.readableDatabase
-            val json = BackupManager.createBackupJson(db)
+            val json = BackupManager.createBackupJson(db, PreferenceManager(context))
             val backupDir = File(context.filesDir, "backups/safety")
             if (!backupDir.exists()) backupDir.mkdirs()
             val safetyFile = File(backupDir, "safety_repair_${System.currentTimeMillis()}.json")
@@ -1164,7 +1177,7 @@ class CashflowRepository(private val context: Context) {
     suspend fun createBackupJson(): Result<String> = withContext(Dispatchers.IO) {
         val db = dbHelper.readableDatabase
         try {
-            val json = BackupManager.createBackupJson(db)
+            val json = BackupManager.createBackupJson(db, PreferenceManager(context))
             Result.success(json)
         } catch (e: Exception) {
             Result.failure(e)
@@ -1180,7 +1193,7 @@ class CashflowRepository(private val context: Context) {
             val db = dbHelper.writableDatabase
             val res = runCatching {
                 BackupManager.writeSafetyBackup(context, db)
-                BackupManager.restoreBackup(db, data).getOrThrow()
+                BackupManager.restoreBackup(db, data, PreferenceManager(context)).getOrThrow()
             }
             if (res.isSuccess) {
                 loadFromDb()
@@ -1491,10 +1504,11 @@ class CashflowRepository(private val context: Context) {
         }
     }
 
-    suspend fun executeRecurringOccurrence(recurringId: String, scheduledDate: String, confirmed: Boolean = false): Result<Transaction?> = balanceWriteMutex.withLock {
+    suspend fun executeRecurringOccurrence(recurringId: String, scheduledDate: String, confirmed: Boolean = false, refresh: Boolean = true): Result<Transaction?> = balanceWriteMutex.withLock {
         withContext(Dispatchers.IO) {
             val db = dbHelper.writableDatabase
             db.beginTransaction()
+            var changed = false
             try {
                 val rec = db.query(DatabaseHelper.TABLE_RECURRING, null, "id = ?", arrayOf(recurringId),
                     null, null, null).use { if (it.moveToFirst()) cursorToRecurringTransaction(it) else null }
@@ -1518,12 +1532,13 @@ class CashflowRepository(private val context: Context) {
                 insertRecurringExecution(db, RecurringExecution(recurringId = rec.id, scheduledDate = scheduledDate,
                     transactionId = tx.id, status = "completed"))
                 db.setTransactionSuccessful()
+                changed = true
                 Result.success(tx)
             } catch (e: Exception) {
                 Result.failure(e)
             } finally {
                 db.endTransaction()
-                loadFromDb()
+                if (changed && refresh) withContext(NonCancellable) { loadFromDb() }
             }
         }
     }

@@ -23,7 +23,7 @@ except urllib.error.HTTPError as error:
         raise
 if previous.get("notes", "").strip() == notes:
     raise ValueError("Perbarui release_notes.txt agar catatan sesuai dengan revisi yang akan diterbitkan.")
-code = max(base + int(os.environ["GITHUB_RUN_NUMBER"]), int(previous.get("versionCode", 0)) + 1)
+code = max(base, int(previous.get("versionCode", 0)) + 1)
 if not 110 < code <= 2147483647:
     raise ValueError("Invalid internal version code")
 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:

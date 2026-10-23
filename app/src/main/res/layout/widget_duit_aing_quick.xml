@@ -13,17 +13,25 @@
     android:paddingEnd="14dp"
     android:paddingBottom="12dp">
 
-    <!-- Left side: App Logo + Live Balance + Subtitle (Opens App) -->
+    <!-- Balance area toggles privacy; the brand and quick actions open the app. -->
     <LinearLayout
         android:id="@+id/layout_widget_info"
+        android:clickable="true"
+        android:focusable="true"
+        android:contentDescription="Tampilkan saldo aset"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:layout_marginEnd="8dp"
         android:gravity="center_vertical"
         android:orientation="vertical">
 
         <!-- Branding Row -->
         <LinearLayout
+            android:id="@+id/widget_brand"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Buka Duit Aing"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
@@ -53,14 +61,16 @@
         <!-- Live Balance -->
         <TextView
             android:id="@+id/tv_widget_balance"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
+            android:drawableEnd="@drawable/ic_widget_visibility_off"
+            android:drawablePadding="6dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:fontFamily="sans-serif-black"
             android:maxLines="1"
             android:singleLine="true"
-            android:text="Rp 0"
+            android:text="Rp ••••••"
             android:textColor="#F2F2EE"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -75,7 +85,7 @@
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:singleLine="true"
-            android:text="Kas Bersih Aktif"
+            android:text="Saldo disembunyikan"
             android:textColor="#9C9C96"
             android:textSize="10sp" />
     </LinearLayout>

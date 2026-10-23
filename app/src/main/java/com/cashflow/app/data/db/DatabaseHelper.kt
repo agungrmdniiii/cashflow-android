@@ -17,7 +17,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
-class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class DatabaseHelper(context: Context, cursorFactory: SQLiteDatabase.CursorFactory? = null) : SQLiteOpenHelper(context, DATABASE_NAME, cursorFactory, DATABASE_VERSION) {
     private val appContext: Context = context.applicationContext
 
     companion object {
@@ -349,6 +349,18 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         Category("cat_kado", "Kado", "expense", "redeem", "#2D5D48", isDefault = true),
         Category("cat_asisten_rumah", "Asisten Rumah", "expense", "home", "#2D5D48", isDefault = true),
         Category("cat_kurir", "Paket/Kurir", "expense", "directions_car", "#2D5D48", isDefault = true),
+        Category("cat_game", "Game", "expense", "sports_esports", "#6B3E7A", isDefault = true),
+        Category("cat_rokok", "Rokok", "expense", "smoking_rooms", "#704E38", isDefault = true),
+        Category("cat_nongkrong", "Nongkrong", "expense", "coffee", "#8D3B3B", isDefault = true),
+        Category("cat_bioskop", "Bioskop", "expense", "movie", "#6B3E7A", isDefault = true),
+        Category("cat_spp", "SPP", "expense", "school", "#3B487A", isDefault = true),
+        Category("cat_buku", "Buku", "expense", "menu_book", "#3B487A", isDefault = true),
+        Category("cat_aplikasi", "Aplikasi", "expense", "apps", "#1A586E", isDefault = true),
+        Category("cat_aksesori", "Aksesori", "expense", "shopping_bag", "#2D5D48", isDefault = true),
+        Category("cat_iuran", "Iuran", "expense", "groups", "#9E4B3E", isDefault = true),
+        Category("cat_ongkir", "Ongkir", "expense", "local_shipping", "#B57C1E", isDefault = true),
+        Category("cat_streaming", "Streaming", "expense", "subscriptions", "#6B3E7A", isDefault = true),
+        Category("cat_dokter", "Dokter", "expense", "local_hospital", "#1E7063", isDefault = true),
 
         // Income categories.
         Category("cat_gaji", "Gaji Pokok", "income", "payments", "#0A7559", isDefault = true),
@@ -380,7 +392,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         Category("cat_uang_saku", "Uang Saku", "income", "redeem", "#0A7559", isDefault = true),
         Category("cat_sewa_kendaraan", "Sewa Kend.", "income", "directions_car", "#0A7559", isDefault = true),
         Category("cat_jasa_desain", "Jasa Desain", "income", "laptop", "#0A7559", isDefault = true),
-        Category("cat_jasa_mengajar", "Jasa Mengajar", "income", "school", "#0A7559", isDefault = true)
+        Category("cat_jasa_mengajar", "Jasa Mengajar", "income", "school", "#0A7559", isDefault = true),
+        Category("cat_afiliasi", "Afiliasi", "income", "storefront", "#945219", isDefault = true),
+        Category("cat_konten", "Konten", "income", "movie", "#1A586E", isDefault = true),
+        Category("cat_reimburse", "Reimburse", "income", "currency_exchange", "#8F6B23", isDefault = true),
+        Category("cat_jasa_antar", "Jasa Antar", "income", "two_wheeler", "#0A7559", isDefault = true),
+        Category("cat_jual_makanan", "Jual Makanan", "income", "restaurant", "#945219", isDefault = true),
+        Category("cat_jasa_foto", "Jasa Foto", "income", "camera_alt", "#1A586E", isDefault = true)
     ).map { it.copy(name = com.cashflow.app.data.model.shortDefaultCategoryLabels[it.name] ?: it.name) }
 
     fun seedMissingDefaultCategories(db: SQLiteDatabase) {

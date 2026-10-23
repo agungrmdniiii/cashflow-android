@@ -15,6 +15,11 @@ data class UpdateRelease(
     fun isNewerThan(installedCode: Long) = versionCode > installedCode
     fun supportsAndroid(sdk: Int) = sdk >= minSdk
 
+    fun toJson(): String = JSONObject().apply {
+        put("versionCode", versionCode); put("versionName", versionName); put("minSdk", minSdk)
+        put("size", size); put("sha256", sha256); put("apkUrl", apkUrl); put("notes", notes)
+    }.toString()
+
     companion object {
         const val FEED_URL = "https://github.com/agungrmdniiii/cashflow-android/releases/latest/download/update.json"
         const val MAX_APK_BYTES = 200L * 1024 * 1024

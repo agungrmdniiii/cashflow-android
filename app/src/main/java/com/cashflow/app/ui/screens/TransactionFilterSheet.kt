@@ -4,8 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +23,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.TransactionType
+import com.cashflow.app.data.model.ReportDateRange
+import com.cashflow.app.data.model.transactionFilterError
+import com.cashflow.app.ui.components.ReportDateRangeDialog
+import com.cashflow.app.ui.components.ThousandSeparatorVisualTransformation
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.DateFilterPreset
 import com.cashflow.app.ui.components.CategoryIcon
@@ -32,12 +34,10 @@ import com.cashflow.app.ui.components.DuitAingButton
 import com.cashflow.app.ui.components.DuitAingButtonVariant
 import com.cashflow.app.ui.components.FadingHorizontalScrollRow
 import com.cashflow.app.ui.theme.*
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TransactionFilterSheet(
     viewModel: CashflowViewModel,
@@ -66,11 +66,13 @@ fun TransactionFilterSheet(
     var tempMinAmountText by remember { mutableStateOf(currentMinAmount?.toString() ?: "") }
     var tempMaxAmountText by remember { mutableStateOf(currentMaxAmount?.toString() ?: "") }
 
-    var showStartDatePicker by remember { mutableStateOf(false) }
-    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showDateRangePicker by remember { mutableStateOf(false) }
+    val filterError = transactionFilterError(tempMinAmountText, tempMaxAmountText,
+        tempDatePreset == DateFilterPreset.CUSTOM, tempStartDate, tempEndDate)
+    val amountTransformation = remember { ThousandSeparatorVisualTransformation() }
 
     val categories by viewModel.categories.collectAsState()
-    val assets by viewModel.activeAssets.collectAsState()
+    val assets by viewModel.assets.collectAsState()
 
     val duit = MaterialTheme.duit
     val surfaceColor = duit.surface
@@ -98,6 +100,7 @@ fun TransactionFilterSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(bottom = 12.dp)
         ) {
             // Header
@@ -180,7 +183,7 @@ fun TransactionFilterSheet(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DateFilterPreset.values().forEach { preset ->
                         val isSelected = tempDatePreset == preset
                         FilterChip(
@@ -204,58 +207,26 @@ fun TransactionFilterSheet(
                     }
                 }
 
-                // Custom date pickers when CUSTOM is selected
                 AnimatedVisibility(visible = tempDatePreset == DateFilterPreset.CUSTOM) {
-                    Column(modifier = Modifier.padding(top = 8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedCard(
-                                onClick = { showStartDatePicker = true },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.outlinedCardColors(containerColor = surfaceColor),
-                                border = BorderStroke(1.dp, borderColor)
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text(
-                                        text = "Dari Tanggal",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = onSurfaceVariantColor
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = tempStartDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "Pilih...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = onSurfaceColor
-                                    )
-                                }
+                    OutlinedCard(
+                        onClick = { showDateRangePicker = true },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = CardDefaults.outlinedCardColors(containerColor = surfaceColor),
+                        border = BorderStroke(1.dp, borderColor)
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Rounded.DateRange, contentDescription = null, tint = onSurfaceColor)
+                            Column(Modifier.weight(1f)) {
+                                Text("Rentang transaksi", style = MaterialTheme.typography.labelMedium, color = onSurfaceVariantColor)
+                                val formatter = DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.forLanguageTag("id-ID"))
+                                Text(if (tempStartDate != null && tempEndDate != null)
+                                    "${tempStartDate!!.format(formatter)} – ${tempEndDate!!.format(formatter)}"
+                                    else "Pilih tanggal awal dan akhir",
+                                    style = MaterialTheme.typography.bodyMedium, color = onSurfaceColor)
                             }
-
-                            OutlinedCard(
-                                onClick = { showEndDatePicker = true },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.outlinedCardColors(containerColor = surfaceColor),
-                                border = BorderStroke(1.dp, borderColor)
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text(
-                                        text = "Sampai Tanggal",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = onSurfaceVariantColor
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = tempEndDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "Pilih...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = onSurfaceColor
-                                    )
-                                }
-                            }
+                            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = onSurfaceVariantColor)
                         }
                     }
                 }
@@ -279,7 +250,7 @@ fun TransactionFilterSheet(
                     TransactionType.TRANSFER.value to "Transfer"
                 )
 
-                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth()) {
+                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth(), fadeColor = surfaceColor) {
                     typeOptions.forEach { (typeVal, label) ->
                         val isSelected = tempType == typeVal || (tempType == null && typeVal == "all")
                         FilterChip(
@@ -315,7 +286,7 @@ fun TransactionFilterSheet(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth()) {
+                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth(), fadeColor = surfaceColor) {
                     val isAllAssets = tempAssetId == null
                     FilterChip(
                         selected = isAllAssets,
@@ -341,7 +312,7 @@ fun TransactionFilterSheet(
                         FilterChip(
                             selected = isSelected,
                             onClick = { tempAssetId = asset.id },
-                            label = { Text(asset.name, style = MaterialTheme.typography.labelMedium) },
+                            label = { Text(if (asset.isActive) asset.name else "${asset.name} (arsip)", style = MaterialTheme.typography.labelMedium) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Rounded.AccountBalanceWallet,
@@ -379,7 +350,7 @@ fun TransactionFilterSheet(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth()) {
+                FadingHorizontalScrollRow(modifier = Modifier.fillMaxWidth(), fadeColor = surfaceColor) {
                     val isAllCats = tempCatId == null
                     FilterChip(
                         selected = isAllCats,
@@ -450,11 +421,12 @@ fun TransactionFilterSheet(
                 ) {
                     OutlinedTextField(
                         value = tempMinAmountText,
-                        onValueChange = { tempMinAmountText = it.filter { ch -> ch.isDigit() } },
+                        onValueChange = { tempMinAmountText = it.filter { ch -> ch in '0'..'9' } },
                         modifier = Modifier.weight(1f),
-                        label = { Text("Min. Nominal") },
+                        label = { Text("Minimum") },
                         placeholder = { Text("0") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = amountTransformation,
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -467,11 +439,12 @@ fun TransactionFilterSheet(
 
                     OutlinedTextField(
                         value = tempMaxAmountText,
-                        onValueChange = { tempMaxAmountText = it.filter { ch -> ch.isDigit() } },
+                        onValueChange = { tempMaxAmountText = it.filter { ch -> ch in '0'..'9' } },
                         modifier = Modifier.weight(1f),
-                        label = { Text("Maks. Nominal") },
+                        label = { Text("Maksimum") },
                         placeholder = { Text("Tak terbatas") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = amountTransformation,
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -484,6 +457,11 @@ fun TransactionFilterSheet(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            if (filterError != null) {
+                Text(filterError, color = duit.expense, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
             }
 
             // Bottom Action
@@ -501,8 +479,10 @@ fun TransactionFilterSheet(
                 )
 
                 DuitAingButton(
-                    text = "Terapkan Filter",
+                    text = "Terapkan",
+                    enabled = filterError == null,
                     onClick = {
+                        if (filterError != null) return@DuitAingButton
                         viewModel.filterType.value = tempType
                         viewModel.filterCategoryId.value = tempCatId
                         viewModel.filterAssetId.value = tempAssetId
@@ -520,59 +500,14 @@ fun TransactionFilterSheet(
         }
     }
 
-    // Start Date Picker Dialog
-    if (showStartDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = tempStartDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
-                ?: System.currentTimeMillis()
-        )
-        DatePickerDialog(
-            onDismissRequest = { showStartDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            tempStartDate = Instant.ofEpochMilli(millis)
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDate()
-                        }
-                        showStartDatePicker = false
-                    }
-                ) { Text("Pilih", color = duit.textPrimary) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showStartDatePicker = false }) { Text("Batal", color = duit.textSecondary) }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-
-    // End Date Picker Dialog
-    if (showEndDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = tempEndDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
-                ?: System.currentTimeMillis()
-        )
-        DatePickerDialog(
-            onDismissRequest = { showEndDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            tempEndDate = Instant.ofEpochMilli(millis)
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDate()
-                        }
-                        showEndDatePicker = false
-                    }
-                ) { Text("Pilih", color = duit.textPrimary) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEndDatePicker = false }) { Text("Batal", color = duit.textSecondary) }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+    if (showDateRangePicker) {
+        val initialRange = if (tempStartDate != null && tempEndDate != null && !tempEndDate!!.isBefore(tempStartDate))
+            ReportDateRange(tempStartDate!!, tempEndDate!!) else null
+        ReportDateRangeDialog(initialRange = initialRange, title = "Rentang transaksi",
+            onDismiss = { showDateRangePicker = false }, onApply = {
+                tempStartDate = it.start
+                tempEndDate = it.end
+                showDateRangePicker = false
+            })
     }
 }

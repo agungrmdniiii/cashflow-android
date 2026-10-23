@@ -290,7 +290,8 @@ object FinancialInsightService {
      * Mesin evaluasi pertanyaan analitik lokal Vina yang cerdas, luwes, dan multi-domain.
      * Mampu menjawab beragam variasi pertanyaan keuangan tanpa ketergantungan koneksi internet.
      */
-    fun evaluateOfflineQuery(userQuery: String, context: FinancialChatContext): String {
+    fun evaluateOfflineQuery(userQuery: String, context: FinancialChatContext,
+        onEvidence: (com.cashflow.app.data.model.ChatTransactionEvidence) -> Unit = {}): String {
         val q = normalizeLocalQuestion(userQuery, context.assets.map { it.name } + context.categories.map { it.name })
         localConversationReply(q, context)?.let { return it }
         if (q in listOf("insight", "insight keuangan", "ringkasan keuangan", "evaluasi keuangan", "beri insight", "analisis keuangan saya", "beri saya insight keuangan", "apa yang perlu diperhatikan", "ringkasan kondisi keuangan", "cek keuangan saya", "kasih insight dong")) {
@@ -299,7 +300,7 @@ object FinancialInsightService {
             return insights.take(3).joinToString("\n\n") { "**${it.title}**\n${it.message}" }
                 .ifBlank { "Belum ada data yang cukup untuk insight. Mulai dengan mencatat pemasukan dan pengeluaran." }
         }
-        answerLocalDataQuestion(q, context)?.let { return it }
+        answerLocalDataQuestion(q, context, onEvidence)?.let { return it }
         val cur = context.currentMonthStats
         val netCashflow = cur.currentMonthTotalIncome - cur.currentMonthTotalExpense
         val srPct = (cur.savingsRate * 100).toInt()
@@ -599,11 +600,12 @@ object FinancialInsightService {
 
     suspend fun sendChatMessage(
         conversationHistory: List<ChatMessage>,
-        context: FinancialChatContext
+        context: FinancialChatContext,
+        onEvidence: (com.cashflow.app.data.model.ChatTransactionEvidence) -> Unit = {}
     ): Result<String> = withContext(Dispatchers.Default) {
         currentCoroutineContext().ensureActive()
         val question = localQuestionWithHistory(conversationHistory, context.assets.map { it.name } + context.categories.map { it.name })
-        val answer = evaluateOfflineQuery(question, context)
+        val answer = evaluateOfflineQuery(question, context, onEvidence)
         val followUp = localFollowUps(question, answer).firstOrNull()
         Result.success(if (followUp != null && !answer.trimEnd().endsWith("?")) "$answer\n\n${followUp.second}" else answer)
     }

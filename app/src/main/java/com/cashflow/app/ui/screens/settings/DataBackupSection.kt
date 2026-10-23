@@ -141,7 +141,7 @@ fun DataBackupSection(
             // Row 1: Cadangkan Data
             SettingsItemRow(
                 title = "Cadangkan Data",
-                description = "Simpan salinan data keuangan ke penyimpanan perangkat",
+                description = "Simpan data keuangan, favorit kategori, dan pengaturan aplikasi",
                 icon = Icons.Rounded.CloudUpload,
                 iconTint = duit.textPrimary,
                 iconBackground = duit.surfaceVariant,

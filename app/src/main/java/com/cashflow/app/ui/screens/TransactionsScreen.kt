@@ -68,13 +68,15 @@ fun TransactionsScreen(
     val filterCatId by viewModel.filterCategoryId.collectAsState()
     val filterAssetId by viewModel.filterAssetId.collectAsState()
     val filterDatePreset by viewModel.filterDatePreset.collectAsState()
+    val filterStartDate by viewModel.filterStartDate.collectAsState()
+    val filterEndDate by viewModel.filterEndDate.collectAsState()
     val filterMinAmt by viewModel.filterMinAmount.collectAsState()
     val filterMaxAmt by viewModel.filterMaxAmount.collectAsState()
     val activeFilterCount by viewModel.activeFilterCount.collectAsState()
     val hasActiveFilters by viewModel.hasActiveFilters.collectAsState()
 
     val categories by viewModel.categories.collectAsState()
-    val assets by viewModel.activeAssets.collectAsState()
+    val assets by viewModel.assets.collectAsState()
     val isBalanceHidden by viewModel.isBalanceHidden.collectAsState()
 
     val catMap = remember(categories) { categories.associateBy { it.id } }
@@ -120,7 +122,7 @@ fun TransactionsScreen(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "$transactionCount transaksi tercatat",
+                    text = if (searchQuery.isNotBlank() || hasActiveFilters) "$transactionCount transaksi ditemukan" else "$transactionCount transaksi tercatat",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = duit.textSecondary
                 )
@@ -162,7 +164,7 @@ fun TransactionsScreen(
                 onValueChange = { viewModel.searchQuery.value = it },
                 modifier = Modifier
                     .weight(1f),
-                placeholder = { Text("Cari transaksi...", fontSize = 13.sp, color = duit.textSecondary) },
+                placeholder = { Text("Cari kata atau nominal…", fontSize = 13.sp, color = duit.textSecondary) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Rounded.Search,
@@ -278,7 +280,12 @@ fun TransactionsScreen(
                     InputChip(
                         selected = true,
                         onClick = { viewModel.filterDatePreset.value = DateFilterPreset.ALL },
-                        label = { Text(filterDatePreset.label, style = MaterialTheme.typography.labelSmall) },
+                        label = {
+                            val dateFormat = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.forLanguageTag("id-ID"))
+                            val label = if (filterDatePreset == DateFilterPreset.CUSTOM && filterStartDate != null && filterEndDate != null)
+                                "${filterStartDate!!.format(dateFormat)} – ${filterEndDate!!.format(dateFormat)}" else filterDatePreset.label
+                            Text(label, style = MaterialTheme.typography.labelSmall)
+                        },
                         trailingIcon = {
                             Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(14.dp))
                         },

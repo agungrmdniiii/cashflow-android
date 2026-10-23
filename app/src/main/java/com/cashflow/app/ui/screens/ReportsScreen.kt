@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.TransactionType
 import com.cashflow.app.data.model.PeriodFilter
+import com.cashflow.app.data.model.Category
+import com.cashflow.app.data.model.reportTransactionDetails
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.*
 import com.cashflow.app.ui.theme.*
@@ -44,7 +46,7 @@ import com.cashflow.app.ui.theme.*
  * Editorial Reports Screen for "Duit Aing"
  * Open layout without excessive card nesting, emphasizing data clarity and insights.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReportsScreen(
     viewModel: CashflowViewModel,
@@ -78,17 +80,19 @@ fun ReportsScreen(
     val periodLabel = reportRange?.let { "${Formatters.formatDateReadable(it.start.toString())} – ${Formatters.formatDateReadable(it.end.toString())}" } ?: selectedPeriod.displayName
 
     var showPayloadDialog by remember { mutableStateOf(false) }
+    var detailCategory by remember { mutableStateOf<String?>(null) }
+    var detailType by remember { mutableStateOf<String?>(null) }
 
     val categoryBreakdown = remember(summary.expenseByCategory, catMap) {
         val total = summary.expenseByCategory.values.sum()
         if (total == 0L) emptyList() else summary.expenseByCategory.map { (id, amount) ->
-            Triple(catMap[id], amount, amount.toFloat() / total * 100f)
+            Triple(catMap[id] ?: Category(id, "Lainnya", "expense"), amount, amount.toFloat() / total * 100f)
         }.sortedByDescending { it.second }
     }
     val incomeCategoryBreakdown = remember(summary.incomeByCategory, catMap) {
         val total = summary.incomeByCategory.values.sum()
         if (total == 0L) emptyList() else summary.incomeByCategory.map { (id, amount) ->
-            Triple(catMap[id], amount, amount.toFloat() / total * 100f)
+            Triple(catMap[id] ?: Category(id, "Lainnya", "income"), amount, amount.toFloat() / total * 100f)
         }.sortedByDescending { it.second }
     }
     val assetBreakdown = remember(summary.expenseByAsset, assetMap) {
@@ -137,8 +141,7 @@ fun ReportsScreen(
                             letterSpacing = (-0.5).sp
                         ),
                         color = duit.textPrimary,
-                        maxLines = 1,
-                        softWrap = false
+                        softWrap = true
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -296,12 +299,19 @@ fun ReportsScreen(
         } else {
         // 4. Donut Chart with Center Total and 2-Column Legend
         item {
+            Column(Modifier.fillMaxWidth().clickable(role = Role.Button) {
+                detailCategory = null
+                detailType = reportChartType
+            }) {
             DonutExpenseChart(
                 breakdownList = currentBreakdown,
                 totalExpense = currentTotal,
                 isExpense = isExpense,
                 isBalanceHidden = isBalanceHidden
             )
+            Text("Lihat transaksi pembentuk total", style = MaterialTheme.typography.labelLarge,
+                color = duit.primary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            }
             Spacer(modifier = Modifier.height(24.dp))
         }
 
@@ -332,13 +342,12 @@ fun ReportsScreen(
                             .fillMaxWidth()
                             .padding(16.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "METRIK & PERBANDINGAN",
+                                text = "Metrik & perbandingan",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = 0.8.sp,
@@ -346,9 +355,10 @@ fun ReportsScreen(
                                 ),
                                 color = duit.textSecondary
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val expDeltaPct = if (isExpense) stats.expensePercentChange else stats.incomePercentChange
-                            val previousTotal = if (isExpense) stats.prevMonthTotalExpense else stats.prevMonthTotalIncome
+                            val comparison = report.comparison
+                            val previousTotal = if (isExpense) comparison?.previous?.expense ?: 0L else comparison?.previous?.income ?: 0L
+                            val comparisonTotal = if (isExpense) comparison?.current?.expense ?: 0L else comparison?.current?.income ?: 0L
+                            val expDeltaPct = if (previousTotal > 0) (comparisonTotal - previousTotal).toDouble() / previousTotal * 100.0 else 0.0
                             val expDeltaLabel = if (expDeltaPct > 0) "+${String.format(java.util.Locale.US, "%.1f", expDeltaPct)}%"
                                                else "${String.format(java.util.Locale.US, "%.1f", expDeltaPct)}%"
                             val expBadgeColor = if (previousTotal <= 0) duit.textSecondary
@@ -362,7 +372,7 @@ fun ReportsScreen(
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = if (previousTotal > 0) "vs Bulan lalu $expDeltaLabel" else "Belum ada pembanding",
+                                    text = if (isBalanceHidden) "••••••" else if (previousTotal > 0) expDeltaLabel else "Belum ada pembanding",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -374,13 +384,20 @@ fun ReportsScreen(
                             }
                         }
 
-                        Text("Perbandingan total bulan ini dengan bulan lalu penuh.",
-                            style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                        val comparison = report.comparison
+                        Spacer(Modifier.height(12.dp))
+                        comparison?.let {
+                            Text("Bulan ini: ${Formatters.formatDateReadable(it.currentRange.start.toString())} – ${Formatters.formatDateReadable(it.currentRange.end.toString())}",
+                                style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Bulan lalu: ${Formatters.formatDateReadable(it.previousRange.start.toString())} – ${Formatters.formatDateReadable(it.previousRange.end.toString())}",
+                                style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                        }
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -404,7 +421,7 @@ fun ReportsScreen(
 
                             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = "SAVINGS RATE",
+                                    text = "SISA PEMASUKAN",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
@@ -414,7 +431,7 @@ fun ReportsScreen(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 val srPct = (stats.savingsRate * 100).toInt()
                                 Text(
-                                    text = if (stats.currentMonthTotalIncome > 0) "$srPct%" else "—",
+                                    text = if (isBalanceHidden) "••••••" else if (stats.currentMonthTotalIncome > 0) "$srPct%" else "—",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.5.sp
@@ -428,10 +445,9 @@ fun ReportsScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                             HorizontalDivider(color = duit.border, thickness = 0.5.dp)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Row(
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
                                     text = "Puncak Belanja: ${Formatters.formatDateReadable(stats.highestExpenseDay!!)}",
@@ -440,19 +456,15 @@ fun ReportsScreen(
                                         fontWeight = FontWeight.Medium
                                     ),
                                     color = duit.textSecondary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
+                                    modifier = Modifier.fillMaxWidth()
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = if (isBalanceHidden) "••••••" else Formatters.displayRupiah(stats.highestExpenseDayAmount),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     ),
-                                    color = duit.expense,
-                                    maxLines = 1
+                                    color = duit.expense
                                 )
                             }
                         }
@@ -477,12 +489,12 @@ fun ReportsScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -501,7 +513,8 @@ fun ReportsScreen(
                                 )
                             }
                             Text(
-                                text = "Konsultasi Finansial Bersama Vina",
+                                text = "Konsultasi bersama Vina",
+                                modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
@@ -546,7 +559,7 @@ fun ReportsScreen(
                     ) {
                         Button(
                             onClick = { viewModel.openChat() },
-                            modifier = Modifier.weight(1f).height(42.dp),
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = duit.primary,
@@ -556,7 +569,7 @@ fun ReportsScreen(
                             Icon(imageVector = Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "TANYA VINA SEKARANG",
+                                text = "Tanya Vina",
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                             )
                         }
@@ -576,10 +589,10 @@ fun ReportsScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                 ) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = "PENGELUARAN TERBESAR",
@@ -614,11 +627,12 @@ fun ReportsScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .clickable(role = Role.Button) { detailCategory = cat?.id.orEmpty(); detailType = "expense" }
                                         .padding(vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(modifier = Modifier.weight(1f).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = rankNumber,
                                             style = MaterialTheme.typography.titleMedium.copy(
@@ -644,7 +658,7 @@ fun ReportsScreen(
                                             color = duit.textPrimary
                                         )
                                     }
-                                    Column(horizontalAlignment = Alignment.End) {
+                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = "−" + Formatters.displayRupiah(amount),
                                             style = MaterialTheme.typography.titleSmall.copy(
@@ -681,11 +695,11 @@ fun ReportsScreen(
 
         if (activeBreakdown.isNotEmpty()) {
             item {
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = if (isExpenseMode) "PENGELUARAN PER KATEGORI" else "PEMASUKAN PER KATEGORI",
@@ -711,6 +725,7 @@ fun ReportsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable(role = Role.Button) { detailCategory = cat?.id.orEmpty(); detailType = reportChartType }
                         .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
                     Row(
@@ -718,7 +733,7 @@ fun ReportsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.weight(1f).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
                                     .size(10.dp)
@@ -742,7 +757,7 @@ fun ReportsScreen(
                             )
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                             val sign = if (isExpenseMode) "−" else "+"
                             val amountColor = if (isExpenseMode) duit.expense else duit.income
                             Text(
@@ -786,11 +801,11 @@ fun ReportsScreen(
         if (assetBreakdown.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(20.dp))
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = "PENGELUARAN PER ASET",
@@ -873,6 +888,20 @@ fun ReportsScreen(
     }
     }
 
+    detailType?.let { type ->
+        val details = remember(report.transactions, type, detailCategory) {
+            reportTransactionDetails(report.transactions, type, detailCategory)
+        }
+        ReportTransactionsSheet(
+            title = detailCategory?.let { catMap[it]?.name ?: "Lainnya" }
+                ?: if (type == "expense") "Rincian pengeluaran" else "Rincian pemasukan",
+            periodLabel = periodLabel, transactions = details,
+            categories = catMap, assets = assetMap, isBalanceHidden = isBalanceHidden,
+            onDismiss = { detailType = null }, onOpen = { tx ->
+                detailType = null
+                viewModel.selectedTransactionForDetail.value = tx
+            })
+    }
     PeriodSelectionSheet(
         visible = showPeriodSheet,
         selectedPeriod = selectedPeriod.takeIf { reportRange == null },

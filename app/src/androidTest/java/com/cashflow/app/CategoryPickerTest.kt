@@ -45,13 +45,39 @@ class CategoryPickerTest {
         } finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
-    @Test fun defaultCatalogHasFiftyExpensesThirtyIncomeAndShortUniqueNames() {
+    @Test fun defaultCatalogIncludesEverydayCategoriesWithShortUniqueNames() {
         val cats = DatabaseHelper(instrumentation.targetContext).getDefaultCategoriesList()
-        assertEquals(50, cats.count { it.type == "expense" })
-        assertEquals(30, cats.count { it.type == "income" })
+        assertEquals(62, cats.count { it.type == "expense" })
+        assertEquals(36, cats.count { it.type == "income" })
+        assertTrue(cats.any { it.id == "cat_game" && it.name == "Game" && it.type == "expense" })
         assertEquals(cats.size, cats.map { it.id }.distinct().size)
         assertEquals(cats.size, cats.map { it.type to it.name }.distinct().size)
         assertTrue(cats.all { it.name.length <= 14 })
+    }
+
+    @Test fun favoritingDoesNotSelectACategoryOrCloseThePicker() {
+        val favorites = mutableStateOf(emptySet<String>())
+        var selected: String? = null
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, ComponentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+        try {
+            instrumentation.runOnMainSync { activity.setContent { CashflowTheme {
+                AllCategoriesDialog(categories.take(3), "test1", onCategorySelected = { selected = it.id }, onDismiss = {},
+                    favoriteCategoryIds = favorites.value, onToggleFavorite = { id ->
+                        favorites.value = if (id in favorites.value) favorites.value - id else favorites.value + id
+                    })
+            } } }
+            click(node { it.contentDescription?.toString() == "Jadikan Kategori 2 favorit" })
+            node { it.contentDescription?.toString() == "Hapus Kategori 2 dari favorit" }
+            assertNull(selected)
+            assertEquals(setOf("test2"), favorites.value)
+            click(node { it.contentDescription?.toString() == "Hapus Kategori 2 dari favorit" })
+            node { it.contentDescription?.toString() == "Jadikan Kategori 2 favorit" }
+            assertTrue(favorites.value.isEmpty())
+            assertNull(selected)
+            click(node { it.text?.toString() == "Kategori 2" && it.className?.toString() == "android.widget.TextView" })
+            instrumentation.runOnMainSync { assertEquals("test2", selected) }
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
     @Test fun searchFiltersALargeCatalogAndSelectingDoesNotChangeUntilTapped() {

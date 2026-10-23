@@ -32,6 +32,13 @@ class NotificationDeliveryTest {
             if (sent) {
                 android.os.SystemClock.sleep(300)
                 assertTrue(manager.activeNotifications.any { it.id == 9098 })
+                val notification = manager.activeNotifications.first { it.id == 9098 }.notification
+                assertNotNull("Notifikasi harus menampilkan logo Duit Aing", notification.getLargeIcon())
+                assertEquals(android.app.Notification.CATEGORY_REMINDER, notification.category)
+                assertEquals("Catatan harian", notification.extras.getString(android.app.Notification.EXTRA_SUB_TEXT))
+                assertEquals("Catat transaksi", notification.actions.single().title.toString())
+                assertEquals(android.app.Notification.VISIBILITY_PRIVATE, notification.visibility)
+                assertEquals(0, notification.flags and android.app.Notification.FLAG_ONLY_ALERT_ONCE)
             }
         } finally { manager.cancel(9098) }
     }

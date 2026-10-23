@@ -36,4 +36,15 @@ class QuickCategoriesTest {
         assertFalse(ranked.any { it.id == "hidden" })
         assertEquals(listOf("c10", "salary"), rankCategoriesByUsage(cats, rows.toList()).take(2).map { it.id })
     }
+
+    @Test fun favoriteCategoriesComeFirstAndUnfavoritingRestoresUsageOrder() {
+        val rows = listOf(tx("a", "c11"), tx("b", "c11"), tx("c", "c3"))
+        val favorites = setOf("c9", "c3", "missing")
+        val ranked = rankCategoriesByUsage(categories, rows, favorites)
+        assertEquals(listOf("c3", "c9", "c11"), ranked.take(3).map { it.id })
+        assertEquals(ranked.size, ranked.map { it.id }.distinct().size)
+        assertEquals(listOf("c11", "c3"), rankCategoriesByUsage(categories, rows, emptySet()).take(2).map { it.id })
+        assertFalse(rankCategoriesByUsage(categories + Category("hidden", "Arsip", "expense", isActive = false), rows,
+            setOf("hidden")).any { it.id == "hidden" })
+    }
 }

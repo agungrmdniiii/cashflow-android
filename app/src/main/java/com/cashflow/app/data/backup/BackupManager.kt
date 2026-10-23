@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import com.cashflow.app.data.db.DatabaseHelper
+import com.cashflow.app.data.preferences.PreferenceManager
 import com.cashflow.app.data.model.TransactionType
 import com.cashflow.app.data.model.RecurringTransaction
 import com.cashflow.app.data.service.RecurringSchedulerService
@@ -47,7 +48,7 @@ sealed class BackupValidationResult {
 object BackupManager {
     const val MAX_BACKUP_BYTES = 32 * 1024 * 1024
 
-    const val CURRENT_SCHEMA_VERSION = 10
+    const val CURRENT_SCHEMA_VERSION = 11
     const val APP_VERSION = com.cashflow.app.BuildConfig.VERSION_NAME
 
     fun readBackupBytes(input: InputStream): ByteArray {
@@ -91,7 +92,7 @@ object BackupManager {
         val directory = File(context.filesDir, "backups").apply { mkdirs() }
         val temporary = File(directory, "before-restore.tmp")
         FileOutputStream(temporary).use {
-            it.write(createBackupJson(db).toByteArray(Charsets.UTF_8))
+            it.write(createBackupJson(db, PreferenceManager(context)).toByteArray(Charsets.UTF_8))
             it.fd.sync()
         }
         java.nio.file.Files.move(temporary.toPath(), File(directory, "before-restore.json").toPath(),
@@ -113,7 +114,7 @@ object BackupManager {
     /**
      * Mengekstrak seluruh data lokal dari database menjadi JSON string terstruktur dan ber-checksum.
      */
-    fun createBackupJson(db: SQLiteDatabase): String {
+    fun createBackupJson(db: SQLiteDatabase, preferences: PreferenceManager? = null): String {
         val ownsTransaction = !db.inTransaction()
         if (ownsTransaction) db.beginTransaction()
         try {
@@ -331,6 +332,7 @@ object BackupManager {
             }
         }
         data.put("recurring_executions", executions)
+        preferences?.let { data.put("app_settings", it.createBackupSettings()) }
 
         val dataString = data.toString()
         val checksum = sha256(dataString)
@@ -406,6 +408,9 @@ object BackupManager {
         if (expectedChecksum != actualChecksum) {
             return BackupValidationResult.Invalid("Integritas data rusak: Checksum tidak cocok.")
         }
+        try { backupSettings(data) } catch (e: IllegalArgumentException) {
+            return BackupValidationResult.Invalid(e.message ?: "Pengaturan cadangan tidak valid.")
+        }
 
         val summary = BackupSummary(
             assetCount = data.getJSONArray("assets").length(),
@@ -427,12 +432,21 @@ object BackupManager {
     /**
      * Memulihkan database dari JSON secara atomik dengan backup pengaman pra-restore (safety backup).
      */
-    fun restoreBackup(db: SQLiteDatabase, data: JSONObject): Result<Unit> {
+    private fun backupSettings(data: JSONObject): JSONObject? {
+        if (!data.has("app_settings")) return null
+        val settings = requireNotNull(data.optJSONObject("app_settings")) { "Pengaturan cadangan harus berupa objek." }
+        PreferenceManager.validateBackupSettings(settings)
+        return settings
+    }
+
+    fun restoreBackup(db: SQLiteDatabase, data: JSONObject, preferences: PreferenceManager? = null): Result<Unit> {
         if (listOf("assets", "categories", "transactions").any { data.optJSONArray(it) == null }) {
             return Result.failure(IllegalArgumentException("Struktur cadangan tidak lengkap. Data lama tidak diubah."))
         }
+        val settings = try { backupSettings(data) } catch (e: IllegalArgumentException) { return Result.failure(e) }
+        val activeCategoryIds = mutableSetOf<String>()
         db.beginTransaction()
-        return try {
+        val result = try {
             // Bersihkan data lama
             db.execSQL("DELETE FROM ${DatabaseHelper.TABLE_TRANSACTIONS}")
             db.execSQL("DELETE FROM ${DatabaseHelper.TABLE_BUDGETS}")
@@ -702,6 +716,12 @@ object BackupManager {
             // Jalankan recalculate saldo untuk memverifikasi konsistensi saldo aset
             LedgerService.recalculateAllBalances(db)
 
+            if (settings != null && preferences != null) {
+                db.rawQuery("SELECT id FROM ${DatabaseHelper.TABLE_CATEGORIES} WHERE is_active = 1", null).use { cursor ->
+                    while (cursor.moveToNext()) activeCategoryIds.add(cursor.getString(0))
+                }
+            }
+
             db.setTransactionSuccessful()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -710,52 +730,79 @@ object BackupManager {
         } finally {
             db.endTransaction()
         }
+        // Apply preferences only after the complete ledger transaction has committed.
+        if (result.isSuccess && settings != null) preferences?.restoreBackupSettings(settings, activeCategoryIds)
+        return result
     }
 
     /**
      * Membuat file ZIP cadangan yang menyertakan database JSON dan berkas foto struk lokal.
      */
     fun createBackupZipWithReceipts(context: Context, db: SQLiteDatabase, destZipFile: File): Result<Unit> {
+        var staged: File? = null
         return try {
-            val jsonContent = createBackupJson(db)
-            val receiptsDir = context.filesDir.resolve("receipts")
-            val jsonBytes = jsonContent.toByteArray(Charsets.UTF_8)
+            val jsonBytes = createBackupJson(db, PreferenceManager(context)).toByteArray(Charsets.UTF_8)
             require(jsonBytes.size <= MAX_BACKUP_BYTES) { "Data JSON melebihi 32 MB." }
             val referenced = mutableSetOf<String>()
-            val transactions = JSONObject(jsonContent).getJSONObject("data").getJSONArray("transactions")
+            val transactions = JSONObject(String(jsonBytes, Charsets.UTF_8)).getJSONObject("data").getJSONArray("transactions")
             for (index in 0 until transactions.length()) {
                 val path = transactions.getJSONObject(index).optString("attachment", "")
                 if (path.isNotBlank()) referenced.add(File(path).name)
             }
-            val receiptFiles = receiptsDir.listFiles().orEmpty().filter { it.isFile && it.name in referenced }
+            val receiptsDir = context.filesDir.resolve("receipts")
+            val receiptFiles = referenced.map { File(receiptsDir, it) }
+            val missing = receiptFiles.count { !it.isFile || !it.canRead() }
+            require(missing == 0) { "$missing foto struk tidak tersedia. Pulihkan foto terlebih dahulu atau gunakan cadangan JSON tanpa foto." }
             require(receiptFiles.size <= 1000 && receiptFiles.all { it.length() <= MAX_BACKUP_BYTES } &&
                 jsonBytes.size.toLong() + receiptFiles.sumOf { it.length() } <= 256L * 1024 * 1024) { "Jumlah atau ukuran struk melebihi batas cadangan ZIP (1000 foto, 32 MB/foto, total 256 MB)." }
 
-            ZipOutputStream(FileOutputStream(destZipFile)).use { zos ->
-                // 1. Tambah backup.json
-                val jsonEntry = ZipEntry("backup.json")
-                zos.putNextEntry(jsonEntry)
+            // Stage beside the destination: a failed export must not replace a good archive.
+            val temporary = File.createTempFile("backup-", ".zip", destZipFile.absoluteFile.parentFile).also { staged = it }
+            var totalBytes = jsonBytes.size.toLong()
+            ZipOutputStream(FileOutputStream(temporary)).use { zos ->
+                zos.putNextEntry(ZipEntry("backup.json"))
                 zos.write(jsonBytes)
                 zos.closeEntry()
-
-                // 2. Tambah file foto struk jika direktori ada
-                if (receiptsDir.exists() && receiptsDir.isDirectory) {
-                    val files = receiptsDir.listFiles() ?: emptyArray()
-                    for (file in files) {
-                        if (file.isFile && file.name in referenced) {
-                            val entry = ZipEntry("receipts/${file.name}")
-                            zos.putNextEntry(entry)
-                            FileInputStream(file).use { fis ->
-                                fis.copyTo(zos)
-                            }
-                            zos.closeEntry()
+                val buffer = ByteArray(8192)
+                for (file in receiptFiles) {
+                    val size = file.length()
+                    val modified = file.lastModified()
+                    var copied = 0L
+                    zos.putNextEntry(ZipEntry("receipts/${file.name}"))
+                    file.inputStream().use { input ->
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count == -1) break
+                            copied += count
+                            totalBytes += count
+                            require(copied <= MAX_BACKUP_BYTES && totalBytes <= 256L * 1024 * 1024) { "Ukuran struk berubah dan melebihi batas cadangan ZIP." }
+                            zos.write(buffer, 0, count)
                         }
                     }
+                    require(copied == size && file.length() == size && file.lastModified() == modified) { "Foto struk berubah saat dicadangkan. Silakan coba lagi." }
+                    zos.closeEntry()
                 }
             }
+            // Read every entry to verify ZIP integrity, including receipt CRCs, before publication.
+            val entries = mutableSetOf<String>()
+            ZipInputStream(temporary.inputStream()).use { zip ->
+                val buffer = ByteArray(8192)
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    require(entries.add(entry.name)) { "ZIP berisi berkas ganda." }
+                    while (zip.read(buffer) != -1) { /* Complete reads validate the entry CRC. */ }
+                    zip.closeEntry()
+                    entry = zip.nextEntry
+                }
+            }
+            require(entries == referenced.map { "receipts/$it" }.toSet() + "backup.json") { "Foto struk dalam cadangan belum lengkap." }
+            java.nio.file.Files.move(temporary.toPath(), destZipFile.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            staged?.delete()
         }
     }
 
@@ -831,7 +878,7 @@ object BackupManager {
                     tx.put("attachment", path)
                 }
             }
-            restoreBackup(db, validation.parsedData).getOrThrow()
+            restoreBackup(db, validation.parsedData, PreferenceManager(context)).getOrThrow()
             committed = true
             Result.success(validation.summary)
         } catch (e: Exception) {

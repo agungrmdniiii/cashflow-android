@@ -74,6 +74,13 @@ fun SettingsSheet(
     val context = LocalContext.current
     val fileScope = rememberCoroutineScope()
     var page by remember { mutableStateOf<SettingsPage?>(null) }
+    val requestedPage by viewModel.settingsInitialPage.collectAsState()
+    LaunchedEffect(requestedPage) {
+        if (requestedPage == "BACKUP") {
+            page = SettingsPage.BACKUP
+            viewModel.settingsInitialPage.value = null
+        }
+    }
     val duit = MaterialTheme.duit
     val permissionActivity = remember(context) {
         generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
@@ -506,7 +513,7 @@ fun SettingsSheet(
                     onRequest = { requestNotifications() }, onOpenSettings = { openNotificationSettings() },
                     onTest = { requestNotifications {
                         if (com.cashflow.app.data.service.NotificationHelper.showLocalNotification(context, 3099,
-                            "Notifikasi Duit Aing aktif", "Pengingat kini dapat ditampilkan. Jadwal mengikuti pengaturan Anda.",
+                            "Pengingat Anda siap", "Notifikasi Duit Aing berhasil ditampilkan. Pengingat harian mengikuti jam yang Anda pilih.",
                             com.cashflow.app.data.service.NotificationHelper.CHANNEL_DAILY_REMINDER)) {
                             viewModel.showSnackbar("Notifikasi uji dikirim. Periksa panel notifikasi.")
                         } else {
@@ -524,18 +531,11 @@ fun SettingsSheet(
                     activeAssets = activeAssets,
                     defaultAsset = defaultAsset,
                     onDailyReminderToggled = { enabled -> if (enabled) requestNotifications { viewModel.setDailyReminderEnabled(true) } else viewModel.setDailyReminderEnabled(false) },
+                    onDailyReminderTimeChanged = { viewModel.setDailyReminderTime(it) },
                     onBudgetAlertsToggled = { enabled -> if (enabled) requestNotifications { viewModel.setBudgetAlertsEnabled(true) } else viewModel.setBudgetAlertsEnabled(false) },
                     onBudgetRolloverToggled = { viewModel.setBudgetRolloverEnabled(it) },
                     onDefaultAssetSelected = { viewModel.setDefaultAsset(it.id) }
                 )
-                var reminderTimeInput by remember(dailyReminderTime) { mutableStateOf(dailyReminderTime) }
-                OutlinedTextField(value = reminderTimeInput, onValueChange = { reminderTimeInput = it },
-                    label = { Text("Jam pengingat (HH:mm)") }, supportingText = { Text("Waktu perkiraan; dapat ditunda Android saat hemat baterai.") },
-                    trailingIcon = { TextButton(onClick = {
-                        runCatching { java.time.LocalTime.parse(reminderTimeInput) }
-                            .onSuccess { viewModel.setDailyReminderTime(it.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))) }
-                            .onFailure { viewModel.showSnackbar("Gunakan format HH:mm, misalnya 20:00") }
-                    }) { Text("Simpan") } }, modifier = Modifier.fillMaxWidth())
 
                 // 4. Pintasan Transaksi (Favorit & Berulang)
                 var startDayInput by remember(budgetStartDay) { mutableStateOf(budgetStartDay.toString()) }
@@ -637,6 +637,7 @@ fun SettingsSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 8.dp)
                     .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
@@ -660,7 +661,7 @@ fun SettingsSheet(
                         .padding(12.dp)
                 ) {
                     Text(
-                        text = "PERINGATAN: Memulihkan cadangan akan menimpa data yang ada saat ini. Cadangan pengaman otomatis dari data saat ini akan dibuat sebelum pemulihan.",
+                        text = "Pemulihan akan mengganti data keuangan serta pengaturan yang tercantum dalam cadangan. Salinan pengaman data dan pengaturan saat ini akan dibuat terlebih dahulu.",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             lineHeight = 16.sp,
@@ -689,6 +690,9 @@ fun SettingsSheet(
                     RestoreItemRow("TARGET KEUANGAN", "${valid.summary.goalCount} target (saat ini: ${currentGoals.size})")
                     HorizontalDivider(color = duit.border, thickness = 1.dp)
                     RestoreItemRow("CATATAN HUTANG", "${valid.summary.debtCount} hutang (saat ini: ${currentDebts.size})")
+                    HorizontalDivider(color = duit.border, thickness = 1.dp)
+                    RestoreItemRow("PENGATURAN", if (valid.parsedData.has("app_settings"))
+                        "Termasuk favorit kategori dan preferensi penggunaan" else "Tidak disertakan; pengaturan saat ini dipertahankan")
                     HorizontalDivider(color = duit.border, thickness = 1.dp)
                     RestoreItemRow("CHECKSUM SHA-256", "Terverifikasi ✓")
                 }
@@ -1387,12 +1391,11 @@ private fun ChangelogItem(
 @Composable
 private fun RestoreItemRow(label: String, value: String) {
     val duit = MaterialTheme.duit
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = label,

@@ -120,6 +120,7 @@ fun AddEditTransactionContent(
 ) {
     val activeAssets by viewModel.activeAssets.collectAsState()
     val categories by viewModel.categoriesByUsage.collectAsState()
+    val favoriteCategoryIds by viewModel.favoriteCategoryIds.collectAsState()
     val defaultAsset by viewModel.defaultAsset.collectAsState()
     val debts by viewModel.debts.collectAsState()
 
@@ -199,6 +200,20 @@ fun AddEditTransactionContent(
     val amountFocusRequester = remember { FocusRequester() }
     val haptic = LocalHapticFeedback.current
     val favoriteTemplates by viewModel.favoriteTemplates.collectAsState()
+    var pendingFavorite by remember { mutableStateOf<com.cashflow.app.data.model.FavoriteTemplate?>(null) }
+    LaunchedEffect(selectedType, pendingFavorite) {
+        pendingFavorite?.let { fav ->
+            amountText = fav.amount.toString()
+            descriptionText = fav.name
+            selectedCategoryId = fav.categoryId ?: ""
+            selectedAssetId = fav.assetId
+            selectedDestAssetId = fav.destinationAssetId ?: ""
+            noteText = fav.note
+            isDebtPayment = false
+            selectedDebtId = null
+            pendingFavorite = null
+        }
+    }
 
     var isSubmitting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -398,28 +413,27 @@ fun AddEditTransactionContent(
                 .verticalScroll(formScrollState),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Quick Favorite Templates Row (if any exist)
+            if (existingTx == null) {
+                Text("Transaksi favorit", style = MaterialTheme.typography.titleSmall, color = duit.textPrimary)
+                Text("Pilih favorit, lalu periksa nominal. Buat favorit dari detail transaksi → Simpan sebagai favorit.",
+                    style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+            }
             if (favoriteTemplates.isNotEmpty() && existingTx == null) {
                 FadingHorizontalScrollRow(
                     fadeColor = duit.background,
                     contentPadding = PaddingValues(start = 2.dp, end = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    favoriteTemplates.take(5).forEach { fav ->
+                    favoriteTemplates.filter { fav ->
+                        activeAssets.any { it.id == fav.assetId } &&
+                            (fav.categoryId == null || categories.any { it.id == fav.categoryId }) &&
+                            (fav.type != TransactionType.TRANSFER.value || activeAssets.any { it.id == fav.destinationAssetId })
+                    }.forEach { fav ->
                         OutlinedCard(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                amountText = fav.amount.toString()
-                                descriptionText = fav.name
                                 selectedType = TransactionType.fromValue(fav.type)
-                                selectedCategoryId = fav.categoryId ?: ""
-                                selectedAssetId = fav.assetId
-                                if (fav.destinationAssetId != null) {
-                                    selectedDestAssetId = fav.destinationAssetId
-                                }
-                                if (fav.note.isNotBlank()) {
-                                    noteText = fav.note
-                                }
+                                pendingFavorite = fav
                             },
                             shape = RoundedCornerShape(999.dp),
                             colors = CardDefaults.outlinedCardColors(containerColor = duit.surface),
@@ -590,7 +604,8 @@ fun AddEditTransactionContent(
                         }
                     },
                     onOpenAllCategories = { showAllCategoriesDialog = true },
-                    accentColor = accentColor
+                    accentColor = accentColor,
+                    favoriteCategoryIds = favoriteCategoryIds
                 )
             }
 
@@ -1290,7 +1305,9 @@ fun AddEditTransactionContent(
             }
             showAllCategoriesDialog = false
         },
-        onDismiss = { showAllCategoriesDialog = false }
+        onDismiss = { showAllCategoriesDialog = false },
+        favoriteCategoryIds = favoriteCategoryIds,
+        onToggleFavorite = viewModel::toggleCategoryFavorite
     )
 
     // Modal Sheet: Receipt Photo Source (Camera vs Gallery)
@@ -1333,7 +1350,8 @@ private fun CategoryGridSection(
     selectedCategoryId: String,
     onCategorySelected: (Category) -> Unit,
     onOpenAllCategories: () -> Unit,
-    accentColor: Color
+    accentColor: Color,
+    favoriteCategoryIds: Set<String>
 ) {
     val duit = MaterialTheme.duit
     val haptic = LocalHapticFeedback.current
@@ -1360,9 +1378,9 @@ private fun CategoryGridSection(
                 color = duit.textSecondary
             )
 
-            if (categories.size > 8) {
+            if (categories.isNotEmpty()) {
                 Text(
-                    text = "Lihat semua (${categories.size})",
+                    text = "Semua & favorit",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -1411,6 +1429,10 @@ private fun CategoryGridSection(
                                 .padding(vertical = 8.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
+                            if (cat.id in favoriteCategoryIds) {
+                                Icon(Icons.Rounded.Star, contentDescription = "Kategori favorit",
+                                    tint = duit.primary, modifier = Modifier.align(Alignment.TopEnd).size(14.dp))
+                            }
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1582,7 +1604,9 @@ internal fun AllCategoriesDialog(
     selectedCategoryId: String,
     onCategorySelected: (Category) -> Unit,
     onDismiss: () -> Unit,
-    visible: () -> Boolean = { true }
+    visible: () -> Boolean = { true },
+    favoriteCategoryIds: Set<String> = emptySet(),
+    onToggleFavorite: ((String) -> Unit)? = null
 ) {
     if (!visible()) return
     val duit = MaterialTheme.duit
@@ -1624,6 +1648,7 @@ internal fun AllCategoriesDialog(
                 ) {
                     Text(
                         text = "Semua Kategori",
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -1634,7 +1659,7 @@ internal fun AllCategoriesDialog(
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(duit.surfaceVariant)
                     ) {
@@ -1647,6 +1672,10 @@ internal fun AllCategoriesDialog(
                     }
                 }
 
+                if (onToggleFavorite != null) {
+                    Text("Beri bintang agar kategori tampil di atas.",
+                        style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                }
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Search Bar
@@ -1677,7 +1706,7 @@ internal fun AllCategoriesDialog(
 
                 // Category Grid
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 88.dp),
+                    columns = GridCells.Adaptive(minSize = if (onToggleFavorite != null) 112.dp else 88.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
@@ -1696,18 +1725,18 @@ internal fun AllCategoriesDialog(
                                 )
                                 .selectable(selected = isSelected, interactionSource = null, indication = ripple(), role = Role.RadioButton) {
                                     onCategorySelected(cat)
-                                }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 CategoryIcon(
                                     iconName = cat.icon,
-                                    size = 38.dp,
-                                    iconSize = 20.dp,
+                                    size = 36.dp,
+                                    iconSize = 18.dp,
                                     backgroundColor = if (isSelected) duit.primary else duit.surfaceVariant,
                                     tintColor = if (isSelected) duit.onPrimary else duit.textPrimary
                                 )
@@ -1718,10 +1747,20 @@ internal fun AllCategoriesDialog(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     ),
                                     color = duit.textPrimary,
-                                    maxLines = 1,
+                                    maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                     textAlign = TextAlign.Center
                                 )
+                            }
+                            if (onToggleFavorite != null) {
+                                val favorite = cat.id in favoriteCategoryIds
+                                IconToggleButton(checked = favorite, onCheckedChange = { onToggleFavorite(cat.id) },
+                                    modifier = Modifier.align(Alignment.TopEnd).size(48.dp)) {
+                                    Icon(if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                                        contentDescription = if (favorite) "Hapus ${cat.name} dari favorit" else "Jadikan ${cat.name} favorit",
+                                        tint = if (favorite) duit.primary else duit.textSecondary,
+                                        modifier = Modifier.offset(x = 10.dp, y = (-10).dp).size(16.dp))
+                                }
                             }
                         }
                     }

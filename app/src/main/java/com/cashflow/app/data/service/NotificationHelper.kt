@@ -11,8 +11,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.cashflow.app.MainActivity
 import com.cashflow.app.R
+import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.data.model.BudgetWithProgress
 import com.cashflow.app.data.preferences.PreferenceManager
 import com.cashflow.app.ui.components.Formatters
@@ -74,14 +76,13 @@ object NotificationHelper {
     fun checkAndNotifyBudgets(
         context: Context,
         budgets: List<BudgetWithProgress>,
-        pref: PreferenceManager
+        pref: PreferenceManager,
+        today: LocalDate = LocalDate.now()
     ) {
         if (!hasNotificationPermission(context)) return
 
         val isBudgetAlertsEnabled = pref.isBudgetAlertsEnabled()
         if (!isBudgetAlertsEnabled) return
-
-        val today = LocalDate.now()
 
         for (item in budgets) {
             val budget = item.budget
@@ -100,8 +101,8 @@ object NotificationHelper {
                 val sent = showBudgetNotification(
                     context = context,
                     notificationId = budget.id.hashCode() + 100,
-                    title = "⚠️ Anggaran $catName Habis!",
-                    message = "Pengeluaran ${Formatters.formatRupiah(item.spentAmount)} telah mencapai limit ${Formatters.formatRupiah(item.effectiveTargetAmount)}."
+                    title = "Anggaran $catName mencapai batas",
+                    message = "Terpakai ${Formatters.formatRupiah(item.spentAmount)} dari ${Formatters.formatRupiah(item.effectiveTargetAmount)}. Periksa pengeluaran Anda."
                 )
                 if (sent) {
                     pref.setBoolean(notified100Key, true)
@@ -112,8 +113,8 @@ object NotificationHelper {
                 val sent = showBudgetNotification(
                     context = context,
                     notificationId = budget.id.hashCode() + 80,
-                    title = "⚡ Anggaran $catName Mencapai 80%",
-                    message = "Sisa anggaran Anda: ${Formatters.formatRupiah(item.remainingAmount)} dari total ${Formatters.formatRupiah(item.effectiveTargetAmount)}."
+                    title = "$catName mencapai 80% anggaran",
+                    message = "Sisa ${Formatters.formatRupiah(item.remainingAmount)} dari ${Formatters.formatRupiah(item.effectiveTargetAmount)}. Pantau pengeluaran berikutnya agar tetap sesuai anggaran."
                 )
                 if (sent) pref.setBoolean(notified80Key, true)
             }
@@ -138,10 +139,23 @@ object NotificationHelper {
         val notificationChannel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(channel)
         if (notificationChannel == null || notificationChannel.importance == NotificationManager.IMPORTANCE_NONE) return false
         return try {
-            val intent = PendingIntent.getActivity(context, id, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val (label, button, intentAction) = when (channel) {
+                CHANNEL_BUDGET_ALERTS -> Triple("Anggaran", "Lihat anggaran", CashflowViewModel.ACTION_OPEN_BUDGETS)
+                CHANNEL_BACKUP_REMINDER -> Triple("Cadangan data", "Kelola cadangan", CashflowViewModel.ACTION_OPEN_BACKUP)
+                CHANNEL_DAILY_REMINDER -> if (id == 3002) Triple("Tagihan", "Lihat jadwal", CashflowViewModel.ACTION_OPEN_RECURRING)
+                    else Triple("Catatan harian", "Catat transaksi", CashflowViewModel.ACTION_ADD_TRANSACTION)
+                else -> Triple("Pengingat", "Buka aplikasi", null)
+            }
+            val intent = PendingIntent.getActivity(context, id, Intent(context, MainActivity::class.java).apply {
+                action = intentAction
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_stat_notification)
+                .setLargeIcon(context.packageManager.getApplicationIcon(context.applicationInfo).toBitmap(128, 128))
                 .setContentTitle(title).setContentText(message).setStyle(NotificationCompat.BigTextStyle().bigText(message))
                 .setContentIntent(intent).setAutoCancel(true)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER).setSubText(label)
+                .addAction(0, button, intent)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
             NotificationManagerCompat.from(context).notify(id, notification)
             true

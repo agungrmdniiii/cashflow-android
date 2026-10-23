@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.model.ChatMessage
 import com.cashflow.app.data.model.ChatSender
+import com.cashflow.app.data.model.ChatTransactionEvidence
+import com.cashflow.app.data.model.summarizeTransactions
+import com.cashflow.app.ui.components.Formatters
 import com.cashflow.app.data.service.FinancialInsightService
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.ui.components.DuitAingModalBottomSheet
@@ -75,6 +78,12 @@ fun FinancialChatContent(
     val duit = MaterialTheme.duit
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isLoading by viewModel.isChatLoading.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val assets by viewModel.assets.collectAsState()
+    val isBalanceHidden by viewModel.isBalanceHidden.collectAsState()
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
+    val assetMap = remember(assets) { assets.associateBy { it.id } }
+    var selectedEvidence by remember { mutableStateOf<ChatTransactionEvidence?>(null) }
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -193,7 +202,10 @@ fun FinancialChatContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(chatMessages, key = { it.id }, contentType = { it.sender }) { msg ->
-                    ChatBubbleItem(message = msg)
+                    ChatBubbleItem(message = msg, onEvidence = {
+                        focusManager.clearFocus()
+                        selectedEvidence = it
+                    })
                 }
 
                 if (isLoading) {
@@ -334,10 +346,31 @@ fun FinancialChatContent(
                 }
             }
         }
+    selectedEvidence?.let { evidence ->
+        val rows = remember(evidence) { evidence.transactions.sortedWith(compareByDescending<com.cashflow.app.data.model.Transaction> {
+            it.transactionDate }.thenByDescending { it.transactionTime }) }
+        val totals = remember(evidence) { summarizeTransactions(evidence.transactions) }
+        ReportTransactionsSheet(
+            title = evidence.label,
+            periodLabel = "${Formatters.formatDateReadable(evidence.range.start.toString())} – ${Formatters.formatDateReadable(evidence.range.end.toString())}\nData saat jawaban dibuat.",
+            transactions = rows, categories = categoryMap, assets = assetMap, isBalanceHidden = isBalanceHidden,
+            summaryText = if (evidence.isCashflow) "Pemasukan ${Formatters.formatRupiah(totals.income)}\nPengeluaran ${Formatters.formatRupiah(totals.expense)}\nArus kas bersih ${Formatters.formatRupiah(totals.income - totals.expense)}" else null,
+            onDismiss = { selectedEvidence = null },
+            onOpen = { snapshot ->
+                val current = viewModel.transactions.value.firstOrNull { it.id == snapshot.id }
+                if (current == null) viewModel.showSnackbar("Transaksi ini sudah dihapus. Rincian menampilkan data saat jawaban dibuat.")
+                else {
+                    selectedEvidence = null
+                    onDismiss()
+                    if (current != snapshot) viewModel.showSnackbar("Detail menampilkan catatan terbaru; jawaban Vina memakai data sebelumnya.")
+                    viewModel.selectedTransactionForDetail.value = current
+                }
+            })
+    }
 }
 
 @Composable
-private fun ChatBubbleItem(message: ChatMessage) {
+private fun ChatBubbleItem(message: ChatMessage, onEvidence: (ChatTransactionEvidence) -> Unit) {
     val duit = MaterialTheme.duit
     val isUser = message.sender == ChatSender.USER
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -402,6 +435,14 @@ private fun ChatBubbleItem(message: ChatMessage) {
                 )
             }
 
+            if (!isUser && !message.isError) message.transactionEvidence.forEach { evidence ->
+                Spacer(Modifier.height(8.dp))
+                Text("${if (evidence.isComparison) "Pembanding" else "Periode"}: ${Formatters.formatDateReadable(evidence.range.start.toString())} – ${Formatters.formatDateReadable(evidence.range.end.toString())}",
+                    style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
+                TextButton(onClick = { onEvidence(evidence) }) {
+                    Text(if (evidence.isComparison) "Lihat transaksi pembanding" else "Lihat transaksi")
+                }
+            }
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = formattedTime,

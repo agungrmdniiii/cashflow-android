@@ -24,6 +24,7 @@ import com.cashflow.app.data.update.UpdatePhase
 import com.cashflow.app.data.update.updateInstallIntent
 import com.cashflow.app.ui.theme.duit
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppUpdateSection() {
@@ -33,14 +34,21 @@ fun AppUpdateSection() {
     val duit = MaterialTheme.duit
     var show by rememberSaveable { mutableStateOf(false) }
     var installError by remember { mutableStateOf<String?>(null) }
+    var installing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val install = {
-        try {
-            val apk = status.apk ?: error("Berkas pembaruan tidak tersedia. Unduh kembali.")
-            context.startActivity(updateInstallIntent(context, apk))
-            installError = null
-        } catch (_: Exception) {
-            installError = "Pemasangan belum dapat dibuka. Pastikan berkas tersedia dan coba lagi."
+        scope.launch {
+            installing = true
+            try {
+                val apk = manager.verifiedInstallFile()
+                context.startActivity(updateInstallIntent(context, apk))
+                installError = null
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (_: Exception) {
+                installError = "Paket belum dapat dipasang. Periksa status unduhan dan coba lagi."
+            } finally { installing = false }
         }
+        Unit
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (context.packageManager.canRequestPackageInstalls()) install()
@@ -50,6 +58,8 @@ fun AppUpdateSection() {
         title = "Pembaruan aplikasi",
         description = when (status.phase) {
             UpdatePhase.DOWNLOADING -> "Mengunduh pembaruan · ${status.progress}%"
+            UpdatePhase.PAUSED -> "Unduhan menunggu · ${status.progress}%"
+            UpdatePhase.VERIFYING -> "Memverifikasi paket pembaruan"
             UpdatePhase.READY -> "Pembaruan siap dipasang"
             else -> "Versi ${BuildConfig.VERSION_NAME} · Periksa versi terbaru"
         },
@@ -71,14 +81,15 @@ fun AppUpdateSection() {
             Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Versi terpasang: ${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})", color = duit.textSecondary)
-                if (status.phase == UpdatePhase.CHECKING) {
+                if (status.phase in listOf(UpdatePhase.CHECKING, UpdatePhase.VERIFYING)) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("Memeriksa pembaruan...")
+                    Text(if (status.phase == UpdatePhase.VERIFYING) "Memverifikasi paket..." else "Memeriksa pembaruan...")
                 }
                 if (status.message.isNotBlank()) Text(status.message, color = if (status.phase == UpdatePhase.ERROR) duit.expense else duit.textPrimary)
-                if (status.phase == UpdatePhase.DOWNLOADING) {
+                if (status.phase in listOf(UpdatePhase.DOWNLOADING, UpdatePhase.PAUSED)) {
                     LinearProgressIndicator(progress = { status.progress / 100f }, modifier = Modifier.fillMaxWidth())
-                    Text("Mengunduh pembaruan · ${status.progress}%")
+                    Text("${if (status.phase == UpdatePhase.PAUSED) "Unduhan menunggu" else "Mengunduh pembaruan"} · ${status.progress}%")
+                    Text("Anda dapat menutup aplikasi. Android akan meneruskan unduhan saat jaringan tersedia.", color = duit.textSecondary)
                     TextButton(onClick = manager::cancelDownload) { Text("Batalkan unduhan") }
                 }
                 if (status.phase == UpdatePhase.READY) Text("Unduhan telah diverifikasi. Android akan meminta konfirmasi pemasangan.")
@@ -94,7 +105,7 @@ fun AppUpdateSection() {
         confirmButton = {
             when (status.phase) {
                 UpdatePhase.AVAILABLE -> TextButton(onClick = manager::download) { Text("Unduh pembaruan") }
-                UpdatePhase.READY -> TextButton(onClick = {
+                UpdatePhase.READY -> TextButton(enabled = !installing, onClick = {
                     if (status.apk?.isFile != true) {
                         installError = null
                         manager.download()
@@ -102,7 +113,7 @@ fun AppUpdateSection() {
                     else try {
                         permissionLauncher.launch(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")))
                     } catch (_: Exception) { installError = "Buka Pengaturan Android untuk mengizinkan pemasangan pembaruan." }
-                }) { Text(if (status.apk?.isFile == true) "Pasang pembaruan" else "Unduh ulang") }
+                }) { Text(if (installing) "Memeriksa paket..." else if (status.apk?.isFile == true) "Pasang pembaruan" else "Unduh ulang") }
                 UpdatePhase.ERROR -> TextButton(onClick = { installError = null; if (status.release == null) manager.check() else manager.download() }) {
                     Text(if (status.release == null) "Coba lagi" else "Unduh ulang")
                 }
@@ -110,7 +121,7 @@ fun AppUpdateSection() {
             }
         },
         dismissButton = {
-            if (status.phase in listOf(UpdatePhase.AVAILABLE, UpdatePhase.DOWNLOADING, UpdatePhase.READY, UpdatePhase.ERROR)) {
+            if (status.phase in listOf(UpdatePhase.AVAILABLE, UpdatePhase.DOWNLOADING, UpdatePhase.PAUSED, UpdatePhase.READY, UpdatePhase.ERROR)) {
                 TextButton(onClick = { show = false }) { Text("Nanti") }
             }
         }

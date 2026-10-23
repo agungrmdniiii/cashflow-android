@@ -6,6 +6,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AppUpdateMetadataTest {
+    @Test fun persistedReleaseRoundTripsAllTrustedMetadata() {
+        val release = UpdateRelease.parse(metadata().toString())
+        assertEquals(release, UpdateRelease.parse(release.toJson()))
+    }
     private fun metadata() = JSONObject().put("versionCode", 112).put("versionName", "1.0.0")
         .put("minSdk", 26).put("size", 12345).put("sha256", "a".repeat(64))
         .put("apkUrl", "https://github.com/agungrmdniiii/cashflow-android/releases/download/v1.0.0-build.112/DuitAing.apk")

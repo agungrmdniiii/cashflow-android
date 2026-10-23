@@ -13,7 +13,8 @@ import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportDateRangeDialog(initialRange: ReportDateRange?, onDismiss: () -> Unit, onApply: (ReportDateRange) -> Unit) {
+fun ReportDateRangeDialog(initialRange: ReportDateRange?, onDismiss: () -> Unit, onApply: (ReportDateRange) -> Unit,
+    title: String = "Rentang laporan") {
     val state = rememberDateRangePickerState(
         initialSelectedStartDateMillis = initialRange?.start?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
         initialSelectedEndDateMillis = initialRange?.end?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
@@ -29,7 +30,7 @@ fun ReportDateRangeDialog(initialRange: ReportDateRange?, onDismiss: () -> Unit,
                         onApply(ReportDateRange(start, end))
                     }) { Text("Gunakan rentang") }
                 }
-                Text("Rentang laporan", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
+                Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
                 DateRangePicker(state = state, modifier = Modifier.weight(1f), title = null, showModeToggle = true)
             }
         }

@@ -37,8 +37,30 @@ data class ReportSnapshot(
     val period: PeriodFilter = PeriodFilter.BULAN_INI,
     val range: ReportDateRange? = null,
     val summary: TransactionSummary = TransactionSummary(),
-    val chart: List<CashflowBucket> = emptyList()
+    val chart: List<CashflowBucket> = emptyList(),
+    val transactions: List<Transaction> = emptyList(),
+    val comparison: MonthToDateComparison? = null
 )
+
+data class MonthToDateComparison(
+    val currentRange: ReportDateRange,
+    val previousRange: ReportDateRange,
+    val current: TransactionSummary,
+    val previous: TransactionSummary
+)
+
+fun compareMonthToDate(transactions: List<Transaction>, today: LocalDate): MonthToDateComparison {
+    val previousMonth = today.minusMonths(1)
+    val current = ReportDateRange(today.withDayOfMonth(1), today)
+    val previous = ReportDateRange(previousMonth.withDayOfMonth(1), previousMonth.withDayOfMonth(minOf(today.dayOfMonth, previousMonth.lengthOfMonth())))
+    return MonthToDateComparison(current, previous,
+        summarizeTransactions(filterTransactionsByPeriod(transactions, PeriodFilter.BULAN_INI, today, current)),
+        summarizeTransactions(filterTransactionsByPeriod(transactions, PeriodFilter.BULAN_INI, today, previous)))
+}
+
+fun reportTransactionDetails(transactions: List<Transaction>, type: String, categoryId: String? = null): List<Transaction> =
+    transactions.filter { !it.isAdjustment && it.type == type && (categoryId == null || it.categoryId.orEmpty() == categoryId) }
+        .sortedWith(compareByDescending<Transaction> { it.transactionDate }.thenByDescending { it.transactionTime }.thenBy { it.id })
 
 fun summarizeTransactions(transactions: List<Transaction>): TransactionSummary {
     var income = 0L

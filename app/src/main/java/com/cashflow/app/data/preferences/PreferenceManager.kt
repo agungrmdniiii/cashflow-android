@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.cashflow.app.data.model.BiometricTimeout
 import com.cashflow.app.data.model.ThemeMode
+import org.json.JSONArray
+import org.json.JSONObject
 
 class PreferenceManager(context: Context) {
 
@@ -50,6 +52,9 @@ class PreferenceManager(context: Context) {
     fun setBackupSaved(format: String, time: Long) { prefs.edit().putLong(KEY_LAST_BACKUP_TIME, time).putString("backup_format", format).apply() }
     fun getLastRestoreTime(): Long = prefs.getLong("last_restore_time", 0L)
     fun setLastRestoreTime(time: Long) { prefs.edit().putLong("last_restore_time", time).apply() }
+
+    fun getFavoriteCategoryIds(): Set<String> = prefs.getStringSet("favorite_category_ids", emptySet()).orEmpty().toSet()
+    fun setFavoriteCategoryIds(ids: Set<String>) { prefs.edit().putStringSet("favorite_category_ids", ids.toSet()).apply() }
 
     fun setLastBackupTime(timestamp: Long) {
         prefs.edit().putLong(KEY_LAST_BACKUP_TIME, timestamp).apply()
@@ -217,7 +222,55 @@ class PreferenceManager(context: Context) {
         prefs.edit().putString(KEY_USER_NAME, name.trim()).apply()
     }
 
+    fun createBackupSettings(): JSONObject = JSONObject().apply {
+        put(KEY_THEME_MODE, getThemeMode().value)
+        put(KEY_USER_NAME, getUserName())
+        put(KEY_BALANCE_HIDDEN, isBalanceHidden())
+        put(KEY_FAVORITE_DIRECT_SAVE, isFavoriteDirectSave())
+        put("budget_start_day", getBudgetStartDay())
+        put(KEY_BUDGET_ALERTS_ENABLED, isBudgetAlertsEnabled())
+        put(KEY_DAILY_REMINDER_ENABLED, isDailyReminderEnabled())
+        put(KEY_DAILY_REMINDER_TIME, getDailyReminderTime())
+        put(KEY_BUDGET_ROLLOVER_ENABLED, isBudgetRolloverEnabled())
+        put(KEY_BACKUP_REMINDER_ENABLED, isBackupReminderEnabled())
+        put("favorite_category_ids", JSONArray(getFavoriteCategoryIds().sorted()))
+    }
+
+    fun restoreBackupSettings(settings: JSONObject, activeCategoryIds: Set<String>) {
+        validateBackupSettings(settings)
+        val editor = prefs.edit()
+        // Only portable preferences are allowed; device security and service consent stay local.
+        for (key in BACKUP_BOOLEAN_KEYS) if (settings.has(key)) editor.putBoolean(key, settings.getBoolean(key))
+        for (key in listOf(KEY_THEME_MODE, KEY_USER_NAME, KEY_DAILY_REMINDER_TIME)) {
+            if (settings.has(key)) editor.putString(key, settings.getString(key))
+        }
+        if (settings.has("budget_start_day")) editor.putInt("budget_start_day", settings.getInt("budget_start_day"))
+        settings.optJSONArray("favorite_category_ids")?.let { ids ->
+            editor.putStringSet("favorite_category_ids", (0 until ids.length()).map { ids.getString(it) }.filter { it in activeCategoryIds }.toSet())
+        }
+        editor.apply()
+    }
+
     companion object {
+        private val BACKUP_BOOLEAN_KEYS = listOf("balance_hidden", "favorite_direct_save", "budget_alerts_enabled",
+            "daily_reminder_enabled", "budget_rollover_enabled", "backup_reminder_enabled")
+
+        fun validateBackupSettings(settings: JSONObject) {
+            for (key in BACKUP_BOOLEAN_KEYS) {
+                require(!settings.has(key) || settings.opt(key) is Boolean) { "Pengaturan $key harus berupa pilihan aktif/nonaktif." }
+            }
+            if (settings.has("theme_mode")) require(settings.opt("theme_mode") in listOf("system", "light", "dark")) { "Tema cadangan tidak valid." }
+            if (settings.has("user_name")) require(settings.opt("user_name") is String) { "Nama pengguna cadangan tidak valid." }
+            if (settings.has("budget_start_day")) require(settings.opt("budget_start_day") is Int && settings.getInt("budget_start_day") in 1..31) { "Tanggal awal anggaran harus antara 1 dan 31." }
+            if (settings.has("daily_reminder_time")) require(settings.opt("daily_reminder_time") is String &&
+                Regex("([01]\\d|2[0-3]):[0-5]\\d").matches(settings.getString("daily_reminder_time"))) { "Jam pengingat cadangan tidak valid." }
+            if (settings.has("favorite_category_ids")) {
+                val ids = settings.optJSONArray("favorite_category_ids")
+                require(ids != null && ids.length() <= 10000) { "Daftar kategori favorit tidak valid." }
+                for (i in 0 until ids.length()) require(ids.opt(i) is String && ids.getString(i).isNotBlank()) { "Kategori favorit cadangan tidak valid." }
+            }
+        }
+
         private const val PREFS_NAME = "duit_aing_preferences"
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_THEME_MODE = "theme_mode"

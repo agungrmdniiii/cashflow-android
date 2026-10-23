@@ -7,6 +7,8 @@ import com.cashflow.app.data.model.RecurringTransaction
 import com.cashflow.app.data.model.RecurringExecution
 import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.data.repository.CashflowRepository
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -15,10 +17,11 @@ import java.util.UUID
 data class UpcomingRecurringItem(
     val recurring: RecurringTransaction,
     val scheduledDate: LocalDate,
-    val isOverdue: Boolean
+    val isOverdue: Boolean,
+    val referenceDate: LocalDate = LocalDate.now()
 ) {
     val dueDate: String get() = scheduledDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-    val daysRemaining: Int get() = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), scheduledDate).toInt()
+    val daysRemaining: Int get() = java.time.temporal.ChronoUnit.DAYS.between(referenceDate, scheduledDate).toInt()
 }
 
 typealias UpcomingRecurringBill = UpcomingRecurringItem
@@ -92,19 +95,25 @@ object RecurringSchedulerService {
         repository: CashflowRepository,
         today: LocalDate = LocalDate.now()
     ): List<Transaction> {
-        val activeRecurring = repository.recurringTransactions.value.filter { it.isActive }
+        val activeRecurring = repository.recurringTransactions.value.filter { it.isActive && it.mode == RecurringMode.AUTO.value }
+        if (activeRecurring.isEmpty()) return emptyList()
+        val executed = repository.executedOccurrenceKeys()
         val generatedTransactions = mutableListOf<Transaction>()
-
-        for (rec in activeRecurring) {
-            val scheduledDates = generateScheduledDates(rec, today)
-            for (date in scheduledDates) {
-                val dateStr = date.format(DATE_FORMATTER)
-                if (rec.mode == RecurringMode.AUTO.value) {
-                    repository.executeRecurringOccurrence(rec.id, dateStr).getOrThrow()?.let {
+        var attempted = false
+        try {
+            for (rec in activeRecurring) {
+                for (date in generateScheduledDates(rec, today)) {
+                    val dateStr = date.format(DATE_FORMATTER)
+                    if ((rec.id to dateStr) in executed) continue
+                    attempted = true
+                    repository.executeRecurringOccurrence(rec.id, dateStr, refresh = false).getOrThrow()?.let {
                         generatedTransactions.add(it)
                     }
                 }
             }
+        } finally {
+            // Publish committed rows even if cancellation/failure interrupts catch-up.
+            if (attempted) withContext(NonCancellable) { repository.reloadForBackgroundCheck() }
         }
         return generatedTransactions
     }
@@ -134,7 +143,8 @@ object RecurringSchedulerService {
                             UpcomingRecurringItem(
                                 recurring = rec,
                                 scheduledDate = d,
-                                isOverdue = isOverdue
+                                isOverdue = isOverdue,
+                                referenceDate = today
                             )
                         )
                     }
@@ -148,23 +158,26 @@ object RecurringSchedulerService {
     fun getUpcomingBills(
         repo: CashflowRepository,
         recurringList: List<RecurringTransaction>,
-        daysAhead: Int = 7
+        daysAhead: Int = 7,
+        today: LocalDate = LocalDate.now()
     ): List<UpcomingRecurringItem> {
         val executed = repo.executedOccurrenceKeys()
         return getUpcomingOccurrences(
             recurringList = recurringList,
             isExecuted = { id, date -> (id to date) in executed },
-            daysAhead = daysAhead
+            daysAhead = daysAhead,
+            today = today
         )
     }
 
     fun getUpcomingBills(
         context: Context,
         recurringList: List<RecurringTransaction>,
-        daysAhead: Int = 7
+        daysAhead: Int = 7,
+        today: LocalDate = LocalDate.now()
     ): List<UpcomingRecurringItem> {
         val repo = (context.applicationContext as com.cashflow.app.CashflowApplication).repository
-        return getUpcomingBills(repo, recurringList, daysAhead)
+        return getUpcomingBills(repo, recurringList, daysAhead, today)
     }
 
     suspend fun processDueRecurringSchedules(

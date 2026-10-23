@@ -193,7 +193,8 @@ private fun categoryMentioned(q: String, category: Category): Boolean {
 }
 
 /** Returns null when an existing conversational answer should handle the question. */
-internal fun answerLocalDataQuestion(q: String, context: FinancialChatContext): String? {
+internal fun answerLocalDataQuestion(q: String, context: FinancialChatContext,
+    onEvidence: (com.cashflow.app.data.model.ChatTransactionEvidence) -> Unit = {}): String? {
     val today = runCatching { LocalDate.parse(context.currentDate) }.getOrNull() ?: return null
     fun money(amount: Long) = Formatters.formatRupiah(amount)
     val mentionedCategories = context.categories.filter { categoryMentioned(q, it) }
@@ -272,6 +273,9 @@ internal fun answerLocalDataQuestion(q: String, context: FinancialChatContext): 
     val label = when { transfer -> "Transfer"; expense && income -> "Arus Kas"; expense -> "Pengeluaran"; income -> "Pemasukan"; else -> "Transaksi" }
     val period = if (range.start == range.end) range.start.toString() else "${range.start} sampai ${range.end}"
     val filters = (mentionedCategories.map { it.name } + accounts.map { it.name }).joinToString(" · ")
+    onEvidence(com.cashflow.app.data.model.ChatTransactionEvidence(
+        listOf(label, filters).filter { it.isNotBlank() }.joinToString(" · "), range, transactions,
+        isCashflow = expense && income))
     return buildString {
         append("**$label — $period**\n")
         if (filters.isNotBlank()) append("$filters\n")
@@ -289,6 +293,9 @@ internal fun answerLocalDataQuestion(q: String, context: FinancialChatContext): 
             else (ChronoUnit.DAYS.between(range.start, range.end) + 1).let { ReportDateRange(range.start.minusDays(it), range.start.minusDays(1)) }
             fun value(txs: List<Transaction>) = txs.sumOf { if (expense && income && it.type == "expense") -it.amount else it.amount }
             val before = value(matching.filter { previous.contains(it.transactionDate) })
+            onEvidence(com.cashflow.app.data.model.ChatTransactionEvidence(
+                listOf(label, filters).filter { it.isNotBlank() }.joinToString(" · "), previous,
+                matching.filter { previous.contains(it.transactionDate) }, isComparison = true, isCashflow = expense && income))
             val difference = value(transactions) - before
             append("Periode pembanding ${previous.start} sampai ${previous.end}: **${money(before)}**\nSelisih: **${money(difference)}**\n")
             if (q.has("kenapa", "mengapa") && expense && !income) {
