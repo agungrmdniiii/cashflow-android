@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kebijakan Privasi � Duit Aing</title><link rel="stylesheet" href="site.css"></head>
+<body><header><a class="brand" href="index.html">Duit Aing</a><nav aria-label="Navigasi"><a href="index.html">Tentang aplikasi</a></nav></header>
+<!-- Content generated from docs/PRIVACY.md. Keep both copies aligned before publication. -->
+<main><h1>Kebijakan Privasi Duit Aing</h1>
+<p>Terakhir diperbarui: 25 Oktober 2026.</p>
+<p>Duit Aing adalah aplikasi pencatatan keuangan pribadi untuk Android yang dikembangkan melalui proyek <a href="https://github.com/agungrmdniiii/cashflow-android">cashflow-android</a>. Aplikasi dapat dipakai tanpa membuat akun Duit Aing. Koneksi Google Drive bersifat opsional.</p>
+<h2>Data di perangkat</h2>
+<p>Catatan transaksi, rekening, anggaran, utang/piutang, target, foto struk, dan preferensi disimpan di perangkat. Vina memproses pertanyaan dan data keuangan secara offline di perangkat. Percakapan tersebut tidak dikirim ke penyedia AI.</p>
+<p>Pengguna dapat mengekspor atau membagikan data melalui tindakan yang dipilih sendiri. Berkas ekspor dan cadangan lokal biasa dapat memuat informasi keuangan serta foto struk tanpa enkripsi. Penerima dan lokasi penyimpanannya ditentukan pengguna.</p>
+<h2>Cadangan Google Drive</h2>
+<p>Setelah pengguna menghubungkan akun dan memberi izin, Duit Aing menggunakan akses <code>drive.appdata</code> untuk menyimpan dan membaca cadangan aplikasi pada folder data khusus aplikasi di akun tersebut. Izin ini tidak memberikan akses ke seluruh berkas Drive pengguna.</p>
+<p>Cadangan berisi data aplikasi dan foto struk, dienkripsi di perangkat menggunakan kata sandi pemulihan sebelum dikirim melalui HTTPS ke Google Drive. Aplikasi menggunakan identitas akun yang dipilih dan metadata berkas seperti nama, ukuran, serta waktu pembuatan untuk menampilkan dan memulihkan cadangan. Tidak ada server pengembang yang menerima salinan cadangan. Penyimpanan serta layanan akun Google mengikuti kebijakan Google.</p>
+<p>Kata sandi Google tidak diminta atau disimpan oleh Duit Aing. Kata sandi pemulihan dilindungi Android Keystore pada perangkat agar pencadangan otomatis dapat berjalan. Token akses Google dipakai sementara dan tidak dimasukkan ke arsip cadangan. Pengguna harus menghubungkan ulang akun dan memasukkan kata sandi pemulihan ketika berpindah perangkat.</p>
+<p>Data Google digunakan untuk menyediakan fungsi pencadangan dan pemulihan yang diminta pengguna. Data tersebut tidak dijual, tidak digunakan untuk iklan atau pelatihan model AI, dan tidak dibagikan kepada pengembang. Penggunaan data Google oleh Duit Aing mematuhi <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, termasuk ketentuan Limited Use.</p>
+<h2>Izin dan layanan perangkat</h2>
+<ul>
+<li><strong>Mikrofon:</strong> digunakan ketika pengguna memulai pencatatan suara. Pengenalan mengikuti layanan suara Android yang tersedia dan dapat melibatkan pemrosesan oleh penyedia layanan tersebut. Ini terpisah dari Vina offline.</li>
+<li><strong>Foto dan kamera:</strong> foto yang dipilih atau diambil digunakan untuk struk. Pembacaan teks memakai Google ML Kit di perangkat; model pendukung dapat diunduh melalui layanan Google.</li>
+<li><strong>Notifikasi:</strong> digunakan untuk pengingat yang diaktifkan pengguna. Pengguna dapat menolak atau mematikan izin dari pengaturan Android.</li>
+<li><strong>Berkas dan folder:</strong> akses cadangan memakai pemilih berkas Android. Cadangan otomatis lokal memakai folder yang secara khusus diizinkan pengguna.</li>
+<li><strong>Biometrik:</strong> kunci aplikasi menggunakan mekanisme Android. Duit Aing tidak memperoleh templat sidik jari atau wajah.</li>
+<li><strong>Pembaruan:</strong> pemeriksaan dan pengunduhan APK berkomunikasi dengan GitHub. GitHub dapat menerima informasi koneksi seperti alamat IP sesuai kebijakannya.</li>
+</ul>
+<p>Pencadangan atau pemindahan data bawaan Android juga dapat berlaku sesuai pengaturan perangkat dan akun pengguna. Aturan aplikasi mengecualikan preferensi akun cadangan, kata sandi yang dilindungi perangkat, dan kredensial dari proses tersebut. Mekanisme ini berbeda dari cadangan Drive yang dibuat langsung oleh Duit Aing.</p>
+<h2>Kendali dan penghapusan</h2>
+<p>Pengguna dapat menonaktifkan jadwal, memutuskan koneksi Drive, atau mencabut izin melalui pengaturan akun Google. Memutuskan koneksi tidak otomatis menghapus arsip yang sudah tersimpan. Arsip Drive dipertahankan sampai dihapus pengguna melalui pengelolaan data aplikasi di Google Drive atau mekanisme Google yang tersedia.</p>
+<p>Penghapusan data melalui aplikasi menghapus data lokal yang dicakup tindakan tersebut, setelah konfirmasi. Berkas yang sudah diekspor, dibagikan, atau dicadangkan di luar aplikasi tetap harus dihapus dari lokasinya masing-masing. Pengembang tidak dapat membuka cadangan terenkripsi tanpa kata sandi pemulihan pengguna.</p>
+<h2>Pertanyaan dan perubahan</h2>
+<p>Pertanyaan mengenai kebijakan ini dapat disampaikan melalui <a href="https://github.com/agungrmdniiii/cashflow-android/issues">halaman proyek Duit Aing</a>. Jangan sertakan catatan keuangan, kata sandi, atau informasi pribadi pada laporan publik. Kontak dukungan yang terdaftar juga tersedia pada layar persetujuan Google.</p>
+<p>Perubahan kebijakan akan dicantumkan pada halaman ini beserta tanggal pembaruannya.</p></main><footer>Duit Aing � <a href="index.html">Tentang aplikasi</a></footer></body></html>

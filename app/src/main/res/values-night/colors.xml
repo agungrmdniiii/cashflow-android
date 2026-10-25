@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Duit Aing "Mono dan Lime" Tokens (Night) -->
-    <color name="background">#0C0C0C</color>
-    <color name="surface">#161616</color>
-    <color name="textPrimary">#F2F2EE</color>
-    <color name="primary">#C8F25A</color>
-    <color name="lime">#C8F25A</color>
-</resources>

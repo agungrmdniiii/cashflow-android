@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Duit Aing "Mono dan Lime" Tokens (Light) -->
-    <color name="background">#F4F4F1</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="textPrimary">#111111</color>
-    <color name="primary">#111111</color>
-    <color name="lime">#C8F25A</color>
-</resources>
