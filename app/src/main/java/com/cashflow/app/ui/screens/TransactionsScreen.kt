@@ -62,6 +62,7 @@ fun TransactionsScreen(
     val isFilterSheetOpen by viewModel.isFilterSheetOpen.collectAsState()
 
     val groupedTransactions by viewModel.transactionDays.collectAsState()
+    val filteredTransactions by viewModel.filteredTransactionsTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filterType by viewModel.filterType.collectAsState()
     val filterInputMethod by viewModel.filterInputMethod.collectAsState()
@@ -117,8 +118,7 @@ fun TransactionsScreen(
                         letterSpacing = (-0.5).sp
                     ),
                     color = duit.textPrimary,
-                    maxLines = 1,
-                    softWrap = false
+                    softWrap = true
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -529,6 +529,7 @@ fun TransactionsScreen(
     ExportDataDialog(
         isOpen = showExportDialog,
         viewModel = viewModel,
+        filteredTransactions = filteredTransactions,
         hasActiveFilter = searchQuery.isNotBlank() || filterType != "all" || hasActiveFilters,
         filterName = "Data Terfilter",
         onDismiss = { showExportDialog = false }

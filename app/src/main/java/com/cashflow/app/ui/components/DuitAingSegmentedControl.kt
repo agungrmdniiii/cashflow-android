@@ -70,14 +70,14 @@ fun <T> DuitAingSegmentedControl(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(height - AppSpacing.xs)
+                    .heightIn(min = maxOf(height - AppSpacing.xs, 48.dp))
                     .clip(pillShape)
                     .background(activeBg)
                     .clickable(
                         role = Role.Tab,
                         onClick = { onValueChange(item.value) }
                     )
-                    .padding(horizontal = AppSpacing.xs),
+                    .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.sm),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -87,11 +87,12 @@ fun <T> DuitAingSegmentedControl(
                     item.icon?.invoke()
                     Text(
                         text = item.label,
+                        modifier = Modifier.weight(1f, fill = false),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         ),
                         color = activeText,
-                        maxLines = 1
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     if (item.badgeCount > 0) {
                         Box(
@@ -105,7 +106,9 @@ fun <T> DuitAingSegmentedControl(
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold
                                 ),
-                                color = if (isSelected) duit.onPrimary else Color.White
+                                color = if (isSelected) duit.onPrimary else Color.White,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

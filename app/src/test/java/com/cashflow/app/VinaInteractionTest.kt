@@ -56,7 +56,7 @@ class VinaInteractionTest {
         val question = user("pengeluaran BCA 01/09/2026 sampai 30/09/2026")
         val reply = answer(listOf(question))
         val history = listOf(question, ChatMessage(sender = ChatSender.ASSISTANT, text = reply))
-        assertEquals(listOf("Rincikan", "Bandingkan"), FinancialInsightService.suggestedQuestions(history))
+        assertTrue(FinancialInsightService.suggestedQuestions(history).containsAll(listOf("Rincikan", "Bandingkan")))
         val comparison = answer(history + user("Bandingkan"))
         assertTrue(comparison, comparison.contains("75.000") && comparison.contains("Periode pembanding"))
         assertFalse(comparison, comparison.contains("900.000"))
@@ -73,10 +73,85 @@ class VinaInteractionTest {
         val suggestions = FinancialInsightService.suggestedQuestions(listOf(question, ChatMessage(sender = ChatSender.ASSISTANT, text = reply)))
         assertFalse(suggestions.contains("Rincikan"))
         assertTrue(reply, reply.endsWith("?"))
-        assertEquals(listOf("Panduan mencatat transaksi"), suggestions)
+        assertTrue(suggestions.contains("Panduan mencatat transaksi"))
         val help = FinancialInsightService.sendChatMessage(listOf(question,
             ChatMessage(sender = ChatSender.ASSISTANT, text = reply), user("ya")), empty).getOrThrow()
         assertTrue(help, help.contains("(+)"))
         assertFalse(help, help.contains("Belum ada transaksi tercatat"))
+    }
+
+    @Test fun recommendationsContinueAfterDetailsRankingAndComparisonWithTheSameAccount() = runBlocking {
+        val history = mutableListOf(user("pengeluaran BCA bulan lalu"))
+        for ((selection, required) in listOf(
+            "Rincikan" to "Bekal rapat",
+            "Yang paling besar?" to "Bekal rapat",
+            "Bandingkan" to "Periode pembanding",
+            "Kenapa?" to "Perubahan per kategori"
+        )) {
+            history.add(ChatMessage(sender = ChatSender.ASSISTANT, text = answer(history)))
+            val options = FinancialInsightService.suggestedQuestions(history)
+            assertTrue("Missing $selection after ${history.last().text}: $options", selection in options)
+            assertTrue(options.size in 1..3)
+            history.add(user(selection))
+            val result = answer(history)
+            assertTrue(result, result.contains(required) && result.contains("75.000"))
+            assertFalse(result, result.contains("900.000") || result.contains("125.000"))
+        }
+    }
+
+    @Test fun completedDetailsOfferAnotherPeriodAndRetainTheAccountWhenSelected() = runBlocking {
+        val history = mutableListOf(user("pengeluaran BCA bulan lalu"), user("rincikan"), user("yang paling besar?"), user("bandingkan"), user("kenapa?"))
+        history.add(ChatMessage(sender = ChatSender.ASSISTANT, text = answer(history)))
+        val suggestions = FinancialInsightService.suggestedQuestions(history)
+        assertTrue(suggestions.toString(), "Kalau bulan ini?" in suggestions)
+        val next = answer(history + user("Kalau bulan ini?"))
+        assertTrue(next, next.contains("125.000"))
+        assertFalse(next, next.contains("900.000") || next.contains("2026-09-10"))
+    }
+
+    @Test fun recommendationsRemainAvailableForEmptyUnknownGreetingAndErrorReplies() = runBlocking {
+        val empty = context.copy(transactions = emptyList())
+        val cases = listOf("halo vina", "terima kasih", "tidak dulu", "pertanyaan yang tidak dikenali", "saldo saya", "pengeluaran bulan ini", "kategori lainnya?")
+        assertTrue(FinancialInsightService.suggestedQuestions(emptyList()).isNotEmpty())
+        for (question in cases) {
+            val history = listOf(user(question), ChatMessage(sender = ChatSender.ASSISTANT,
+                text = FinancialInsightService.sendChatMessage(listOf(user(question)), empty).getOrThrow()))
+            val suggestions = FinancialInsightService.suggestedQuestions(history)
+            assertTrue("No recommendations for $question", suggestions.size in 1..3)
+            assertEquals(suggestions.distinct(), suggestions)
+            for (selection in suggestions) {
+                val next = FinancialInsightService.sendChatMessage(history + user(selection), empty).getOrThrow()
+                assertFalse("$question -> $selection: $next", next.contains("Saya belum memahami"))
+                if (question == "pengeluaran bulan ini") assertFalse(selection in listOf("Rincikan", "Yang paling besar?"))
+            }
+        }
+        assertTrue(FinancialInsightService.suggestedQuestions(listOf(ChatMessage(sender = ChatSender.ASSISTANT, text = "Gagal", isError = true))).isNotEmpty())
+    }
+
+    @Test fun pendingQuestionKeepsPreviousRecommendationsUntilItsReplyArrives() = runBlocking {
+        val history = listOf(user("pengeluaran BCA bulan lalu"))
+        val complete = history + ChatMessage(sender = ChatSender.ASSISTANT, text = answer(history))
+        val suggestions = FinancialInsightService.suggestedQuestions(complete)
+        assertTrue(suggestions.isNotEmpty())
+        assertEquals(suggestions, FinancialInsightService.suggestedQuestions(complete + user("Rincikan")))
+    }
+
+    @Test fun periodRecommendationChangesThePrimaryPeriodRatherThanRepeatingTheComparator() = runBlocking {
+        val history = listOf(user("pengeluaran BCA bulan ini"), user("dibanding bulan lalu?"), user("kenapa?"))
+        val complete = history + ChatMessage(sender = ChatSender.ASSISTANT, text = answer(history))
+        val recommendations = FinancialInsightService.suggestedQuestions(complete)
+        assertTrue(recommendations.toString(), "Kalau bulan lalu?" in recommendations)
+        assertFalse(recommendations.toString(), "Kalau bulan ini?" in recommendations)
+    }
+
+    @Test fun allTimeRecommendationsCanContinueThroughComparison() = runBlocking {
+        val history = mutableListOf(user("pengeluaran semua"))
+        for (selection in listOf("Rincikan", "Yang paling besar?", "Bandingkan", "Kenapa?")) {
+            val reply = answer(history)
+            history.add(ChatMessage(sender = ChatSender.ASSISTANT, text = reply))
+            val suggestions = FinancialInsightService.suggestedQuestions(history)
+            assertTrue("$selection missing from $suggestions after $reply", selection in suggestions)
+            history.add(user(selection))
+        }
     }
 }

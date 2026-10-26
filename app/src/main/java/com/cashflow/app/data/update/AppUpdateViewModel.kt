@@ -299,7 +299,7 @@ internal fun openGitHubConnection(address: String): HttpURLConnection {
     var url = URL(address)
     repeat(6) {
         val host = url.host.lowercase()
-        require(url.protocol == "https" && url.userInfo == null && url.port in listOf(-1, 443) && (host == "github.com" || host.endsWith(".githubusercontent.com"))) { "Sumber pembaruan tidak dipercaya." }
+        require(url.protocol == "https" && url.userInfo == null && url.port in listOf(-1, 443) && (host in listOf("github.com", "api.github.com") || host.endsWith(".githubusercontent.com"))) { "Sumber pembaruan tidak dipercaya." }
         val connection = (url.openConnection() as HttpURLConnection).apply {
             instanceFollowRedirects = false
             useCaches = false

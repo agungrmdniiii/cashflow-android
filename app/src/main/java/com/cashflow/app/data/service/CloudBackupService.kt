@@ -1,5 +1,10 @@
 package com.cashflow.app.data.service
 
+import android.net.Network
+import com.cashflow.app.data.backup.BackupArchive
+import com.cashflow.app.data.backup.BackupManager
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -33,6 +38,12 @@ object CloudBackupService {
     private val ENCRYPTED_MAGIC = "DUITAING_ENC_V2".toByteArray(Charsets.UTF_8)
     private val LEGACY_MAGIC = "DUITAING_ENC_V1".toByteArray(Charsets.UTF_8)
 
+    internal fun passwordKey(password: String, salt: ByteArray, iterations: Int = PBKDF2_ITERATIONS): SecretKeySpec {
+        val spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH_BITS)
+        return try { SecretKeySpec(SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded, "AES") }
+        finally { spec.clearPassword() }
+    }
+
     /**
      * Enkripsi data JSON dengan AES-256-GCM menggunakan password pengguna.
      * Format output biner: [MAGIC (15B)] + [SALT (16B)] + [IV (12B)] + [CIPHERTEXT + GCM_TAG]
@@ -42,9 +53,7 @@ object CloudBackupService {
         val salt = ByteArray(SALT_LENGTH_BYTES).apply { random.nextBytes(this) }
         val iv = ByteArray(IV_LENGTH_BYTES).apply { random.nextBytes(this) }
 
-        val keySpec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
-        val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val secretKey = SecretKeySpec(keyFactory.generateSecret(keySpec).encoded, "AES")
+        val secretKey = passwordKey(password, salt)
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(TAG_LENGTH_BITS, iv))
@@ -86,9 +95,7 @@ object CloudBackupService {
         val cipherBytes = ByteArray(buffer.remaining())
         buffer.get(cipherBytes)
 
-        val keySpec = PBEKeySpec(password.toCharArray(), salt, if (isLegacy) 10_000 else PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
-        val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val secretKey = SecretKeySpec(keyFactory.generateSecret(keySpec).encoded, "AES")
+        val secretKey = passwordKey(password, salt, if (isLegacy) 10_000 else PBKDF2_ITERATIONS)
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(TAG_LENGTH_BITS, iv))
@@ -96,128 +103,110 @@ object CloudBackupService {
         return cipher.doFinal(cipherBytes)
     }
 
-    /**
-     * Mengunggah file terenkripsi ke folder Google Drive appData (terisolasi & privat).
-     */
-    suspend fun uploadToDriveAppData(
-        accessToken: String,
-        fileName: String,
-        fileBytes: ByteArray
-    ): Result<String> = withContext(Dispatchers.IO) {
-        val boundary = "-------DuitAingDriveBoundary" + System.currentTimeMillis()
-        try {
-            val url = URL("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Authorization", "Bearer $accessToken")
-                setRequestProperty("Content-Type", "multipart/related; boundary=$boundary")
-                doOutput = true
-                connectTimeout = 20000
-                readTimeout = 20000
-            }
+    data class Page(val files: List<CloudBackupMetadata>, val nextPageToken: String?)
+    class RequestFailed(val status: Int) : IOException(when (status) {
+        401 -> "Sesi Drive berakhir. Hubungkan kembali akun Anda."
+        403 -> "Drive menolak akses. Periksa ruang penyimpanan dan izin akun."
+        429 -> "Drive sedang membatasi permintaan. Coba lagi nanti."
+        else -> "Drive belum dapat dihubungi (HTTP $status). Coba lagi."
+    })
 
-            val metadata = JSONObject().apply {
-                put("name", fileName)
-                put("parents", org.json.JSONArray().put("appDataFolder"))
-                put("mimeType", "application/octet-stream")
-            }
-
-            DataOutputStream(conn.outputStream).use { out ->
-                // Part 1: Metadata
-                out.writeBytes("--$boundary\r\n")
-                out.writeBytes("Content-Type: application/json; charset=UTF-8\r\n\r\n")
-                out.writeBytes(metadata.toString() + "\r\n")
-
-                // Part 2: Media
-                out.writeBytes("--$boundary\r\n")
-                out.writeBytes("Content-Type: application/octet-stream\r\n\r\n")
-                out.write(fileBytes)
-                out.writeBytes("\r\n--$boundary--\r\n")
-                out.flush()
-            }
-
-            val code = conn.responseCode
-            if (code in 200..299) {
-                val response = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                val id = JSONObject(response).getString("id")
-                Result.success(id)
-            } else {
-                val err = conn.errorStream?.let { BufferedReader(InputStreamReader(it)).use { r -> r.readText() } }
-                Result.failure(Exception("Upload gagal (HTTP $code): $err"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Mengambil daftar file backup di folder Google Drive appData.
-     */
-    suspend fun listDriveAppDataBackups(
-        accessToken: String
-    ): Result<List<CloudBackupMetadata>> = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,size,createdTime)&orderBy=createdTime%20desc")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                setRequestProperty("Authorization", "Bearer $accessToken")
-                connectTimeout = 15000
-                readTimeout = 15000
-            }
-
-            val code = conn.responseCode
-            if (code == 200) {
-                val response = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                val json = JSONObject(response)
-                val files = json.optJSONArray("files") ?: org.json.JSONArray()
-                val list = mutableListOf<CloudBackupMetadata>()
-                for (i in 0 until files.length()) {
-                    val f = files.getJSONObject(i)
-                    list.add(
-                        CloudBackupMetadata(
-                            id = f.getString("id"),
-                            name = f.getString("name"),
-                            sizeBytes = f.optLong("size", 0L),
-                            createdTime = f.optString("createdTime", "")
-                        )
-                    )
+    private suspend fun <T> request(token: String, url: String, network: Network?, action: (HttpURLConnection, () -> Unit) -> T): Result<T> =
+        withContext(Dispatchers.IO) { suspendCancellableCoroutine { continuation ->
+            var connection: HttpURLConnection? = null
+            try {
+                require(token.isNotBlank()) { "Hubungkan akun Google terlebih dahulu." }
+                val conn = ((network?.openConnection(URL(url)) ?: URL(url).openConnection()) as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    connectTimeout = 20000
+                    readTimeout = 60000
+                    setRequestProperty("Authorization", "Bearer $token")
                 }
-                Result.success(list)
-            } else {
-                val err = conn.errorStream?.let { BufferedReader(InputStreamReader(it)).use { r -> r.readText() } }
-                Result.failure(Exception("List backup gagal (HTTP $code): $err"))
+                connection = conn
+                continuation.invokeOnCancellation { conn.disconnect() }
+                val result = action(conn) { if (!continuation.isActive) throw kotlinx.coroutines.CancellationException() }
+                if (continuation.isActive) continuation.resume(Result.success(result))
+            } catch (e: Exception) {
+                if (continuation.isActive) continuation.resume(Result.failure(e))
+            } finally { connection?.disconnect() }
+        } }
+
+    private fun response(conn: HttpURLConnection): JSONObject {
+        if (conn.responseCode !in 200..299) throw RequestFailed(conn.responseCode)
+        return conn.inputStream.use { JSONObject(BackupManager.readBackupBytes(it).toString(Charsets.UTF_8)) }
+    }
+
+    suspend fun uploadToDriveAppData(accessToken: String, file: File, network: Network? = null): Result<String> =
+        request(accessToken, "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,size,md5Checksum", network) { conn, checkActive ->
+            require(file.length() in 1..BackupArchive.MAX_ENCRYPTED_BYTES) { "Ukuran cadangan tidak valid." }
+            val boundary = "DuitAing" + java.util.UUID.randomUUID().toString()
+            val metadata = JSONObject().put("name", file.name).put("parents", org.json.JSONArray().put("appDataFolder"))
+                .put("mimeType", "application/octet-stream")
+            val prefix = ("--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n$metadata\r\n" +
+                "--$boundary\r\nContent-Type: application/octet-stream\r\n\r\n").toByteArray(Charsets.UTF_8)
+            val suffix = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
+            val size = file.length()
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "multipart/related; boundary=$boundary")
+            conn.setFixedLengthStreamingMode(prefix.size.toLong() + size + suffix.size)
+            val digest = java.security.MessageDigest.getInstance("MD5")
+            conn.outputStream.buffered().use { output ->
+                output.write(prefix)
+                file.inputStream().buffered().use { input ->
+                    val buffer = ByteArray(65536)
+                    var copied = 0L
+                    while (true) {
+                        checkActive()
+                        val count = input.read(buffer)
+                        if (count == -1) break
+                        copied += count
+                        require(copied <= size) { "Arsip berubah saat diunggah." }
+                        digest.update(buffer, 0, count)
+                        output.write(buffer, 0, count)
+                    }
+                    require(copied == size) { "Arsip belum lengkap." }
+                }
+                output.write(suffix)
             }
-        } catch (e: Exception) {
-            Result.failure(e)
+            val result = response(conn)
+            val checksum = digest.digest().joinToString("") { "%02x".format(it) }
+            require(result.optLong("size", -1) == size && result.optString("md5Checksum") == checksum) { "Drive belum mengonfirmasi cadangan yang utuh. Coba lagi." }
+            result.getString("id")
+        }
+
+    suspend fun listDriveAppDataBackups(accessToken: String, pageToken: String? = null, network: Network? = null): Result<Page> {
+        val page = pageToken?.let { "&pageToken=" + java.net.URLEncoder.encode(it, "UTF-8") }.orEmpty()
+        return request(accessToken, "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&pageSize=50&fields=nextPageToken,files(id,name,size,createdTime)&orderBy=createdTime%20desc&q=trashed%3Dfalse$page", network) { conn, _ ->
+            val result = response(conn)
+            val files = result.optJSONArray("files") ?: org.json.JSONArray()
+            val records = (0 until files.length()).map { index ->
+                val f = files.getJSONObject(index)
+                CloudBackupMetadata(f.getString("id"), f.getString("name"), f.optLong("size", 0), f.optString("createdTime"))
+            }.filter { it.name.startsWith("duitaing-backup-") && it.sizeBytes in 1..BackupArchive.MAX_ENCRYPTED_BYTES }
+            Page(records, result.optString("nextPageToken").takeIf { it.isNotBlank() })
         }
     }
 
-    /**
-     * Mengunduh file backup dari Google Drive appData.
-     */
-    suspend fun downloadDriveBackup(
-        accessToken: String,
-        fileId: String
-    ): Result<ByteArray> = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("https://www.googleapis.com/drive/v3/files/$fileId?alt=media")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                setRequestProperty("Authorization", "Bearer $accessToken")
-                connectTimeout = 20000
-                readTimeout = 20000
-            }
-
-            val code = conn.responseCode
-            if (code == 200) {
-                val bytes = conn.inputStream.use { it.readBytes() }
-                Result.success(bytes)
-            } else {
-                val err = conn.errorStream?.let { BufferedReader(InputStreamReader(it)).use { r -> r.readText() } }
-                Result.failure(Exception("Download backup gagal (HTTP $code): $err"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
+    suspend fun downloadDriveBackup(accessToken: String, fileId: String, destination: File, network: Network? = null): Result<Unit> {
+        require(fileId.matches(Regex("[A-Za-z0-9_-]{1,200}"))) { "Identitas cadangan tidak valid." }
+        return request(accessToken, "https://www.googleapis.com/drive/v3/files/$fileId?alt=media", network) { conn, checkActive ->
+            if (conn.responseCode != 200) throw RequestFailed(conn.responseCode)
+            require(!destination.exists() || destination.length() == 0L) { "Berkas tujuan sudah berisi data." }
+            try {
+                conn.inputStream.buffered().use { input -> destination.outputStream().buffered().use { output ->
+                    val buffer = ByteArray(65536)
+                    var total = 0L
+                    while (true) {
+                        checkActive()
+                        val count = input.read(buffer)
+                        if (count == -1) break
+                        total += count
+                        require(total <= BackupArchive.MAX_ENCRYPTED_BYTES) { "Cadangan Drive melebihi batas ukuran." }
+                        output.write(buffer, 0, count)
+                    }
+                } }
+            } catch (e: Exception) { destination.delete(); throw e }
         }
     }
 

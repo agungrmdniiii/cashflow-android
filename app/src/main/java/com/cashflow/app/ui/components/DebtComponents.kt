@@ -37,6 +37,7 @@ import java.time.format.DateTimeFormatter
  * Editorial Neo-Brutalist Summary Card for Debts
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun DebtSummaryCard(
     totalRemaining: Long,
     totalPaid: Long,
@@ -57,10 +58,10 @@ fun DebtSummaryCard(
                 .padding(20.dp)
         ) {
             // Eyebrow tag & Overdue warning
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 EyebrowTag(
                     text = "TOTAL KEWAJIBAN HUTANG",

@@ -46,7 +46,9 @@ fun AssetBadge(
             color = textColor,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.SemiBold
-            )
+            ),
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

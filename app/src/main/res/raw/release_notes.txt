@@ -1,19 +1,12 @@
-- Mengganti input jam pengingat dengan pemilih waktu 24 jam, disertai pilihan simpan dan batal.
-- Merapikan judul dan isi notifikasi serta menambahkan tindakan langsung untuk mencatat transaksi, meninjau anggaran, membuka jadwal, dan mengelola cadangan.
-- Menampilkan logo Duit Aing pada kartu notifikasi dan memperjelas pesan pengingat harian, tagihan, serta cadangan data.
-- Menambahkan pemeriksaan saldo rekening dengan pratinjau selisih dan konfirmasi penyesuaian.
-- Memperjelas akses transaksi favorit, menampilkan seluruh favorit yang valid, dan memastikan kategori serta rekening mengikuti favorit yang dipilih.
-- Menambahkan perbandingan laporan sampai tanggal setara bulan sebelumnya serta rincian transaksi dari total dan kategori laporan.
-- Merapikan kartu metrik, konsultasi Vina, serta judul rincian laporan agar teks tidak saling berdesakan pada layar sempit atau ukuran huruf besar.
-- Menambahkan periode dan rincian transaksi pendukung pada jawaban Vina, termasuk data pembanding serta keterangan data saat jawaban dibuat.
-- Memindahkan unduhan pembaruan ke pengelola Android agar dapat diteruskan saat koneksi kembali, memulihkan paket tersimpan setelah aplikasi dibuka ulang, dan memperjelas status verifikasi serta kegagalan.
-- Menyempurnakan pencarian beberapa kata lintas kolom, pengenalan nominal rupiah, dan akses riwayat rekening yang diarsipkan. Filter transaksi kini menggunakan kalender rentang, menampilkan tanggal terpilih, serta memvalidasi batas nominal sebelum diterapkan.
-- Menambahkan kategori pengeluaran dan pemasukan sehari-hari serta favorit kategori. Kategori yang diberi bintang tampil lebih dahulu, diikuti urutan penggunaan, dan pilihan favorit tersimpan di perangkat.
-- Menambahkan tombol mata pada widget untuk menyembunyikan saldo aset dan saldo bersih. Pilihan privasi tersimpan serta mengikuti pengaturan tampilan saldo di aplikasi.
-- Melengkapi cadangan JSON, ZIP, dan terenkripsi dengan favorit kategori serta pengaturan penggunaan. Pemulihan mendukung cadangan lama dan mempertahankan keamanan perangkat.
-- Menambahkan pilihan widget Saldo ringkas, Catat cepat, dan Ringkasan bulanan. Seluruh widget keuangan mengikuti pilihan privasi saldo, dan widget pencatatan membuka formulir tanpa menyimpan transaksi secara otomatis.
-- Menyamakan saldo bersih widget dengan aplikasi: piutang menambah saldo bersih, sementara sisa utang menguranginya.
-- Mengurangi pembacaan database saat memproses jadwal berulang dan mencegah pemuatan ulang riwayat yang sudah selesai.
-- Memperbarui periode laporan, filter tanggal, tagihan, dan progres anggaran ketika hari berganti tanpa perlu mencatat transaksi baru.
-- Memastikan cadangan ZIP lengkap sebelum disimpan. Foto struk yang tidak tersedia kini dijelaskan, dan kegagalan ekspor tidak menimpa arsip sebelumnya.
-- Menyesuaikan batas ukuran teks widget agar nominal tersembunyi tetap utuh pada widget kecil dan pengaturan huruf besar.
+- Menambahkan cadangan lengkap di HP dan Google Drive, termasuk foto struk, dengan perlindungan kata sandi untuk arsip Drive.
+- Menyediakan cadangan otomatis harian, mingguan, atau bulanan dengan pilihan jendela waktu serta jaringan Wi-Fi atau seluler.
+- Merapikan menu Data & Cadangan; rincian jadwal hanya ditampilkan setelah cadangan otomatis diaktifkan.
+- Menambahkan pemberitahuan kegagalan cadangan dengan tindakan Coba lagi atau Hubungkan ulang sesuai penyebabnya.
+- Menambahkan riwayat pembaruan di Tentang Aplikasi, termasuk catatan versi sebelumnya yang telah tersimpan untuk dibaca offline.
+- Meningkatkan percakapan Vina offline agar pertanyaan lanjutan mempertahankan topik, rekening, kategori, dan periode yang sedang dibahas.
+- Menyesuaikan rekomendasi pertanyaan Vina dengan konteks percakapan dan hasil pencarian, termasuk saat jawaban sedang diproses.
+- Memastikan ekspor CSV dan PDF mengikuti pencarian, filter transaksi, dan rentang laporan yang dipilih.
+- Menyamakan perhitungan kekayaan bersih pada menu Aset dan widget, serta menyembunyikan isi insight saat nominal disamarkan.
+- Memperbaiki tampilan judul, tombol, tab, dan label rekening pada layar sempit serta pengaturan huruf besar.
+- Memperbaiki pengembalian transaksi cicilan melalui Urungkan agar saldo rekening dan sisa utang atau piutang tetap sesuai.
+- Keterbatasan yang diketahui: transfer cadangan dengan foto besar belum konsisten dalam pengujian dan masih dapat mengalami timeout atau koneksi terputus.

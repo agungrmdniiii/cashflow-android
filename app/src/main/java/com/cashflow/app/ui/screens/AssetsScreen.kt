@@ -47,11 +47,11 @@ import java.time.LocalDate
  * Open layout emphasizing balances and clean lists rather than bulky containers.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun AssetsScreen(
     viewModel: CashflowViewModel,
     modifier: Modifier = Modifier
 ) {
-    val totalWealth by viewModel.totalWealth.collectAsState()
     val activeAssets by viewModel.activeAssets.collectAsState()
     val defaultAsset by viewModel.defaultAsset.collectAsState()
     val goals by viewModel.goals.collectAsState()
@@ -103,16 +103,15 @@ fun AssetsScreen(
             .background(duit.background)
     ) {
         // 1. Top Bar Header with spacious layout
-        Row(
+        FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
                         .padding(end = 12.dp)
                 ) {
                     Text(
@@ -122,9 +121,7 @@ fun AssetsScreen(
                             fontSize = 24.sp,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = duit.textPrimary,
-                        maxLines = 1,
-                        softWrap = false
+                        color = duit.textPrimary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -217,13 +214,13 @@ fun AssetsScreen(
                             .fillMaxWidth()
                             .padding(20.dp)
                     ) {
-                        Row(
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             EyebrowTag(
-                                text = "TOTAL KEKAYAAN BERSIH",
+                                text = "KEKAYAAN BERSIH",
                                 variant = EyebrowVariant.DARK
                             )
                             Row(
@@ -269,7 +266,7 @@ fun AssetsScreen(
                             )
                         } else {
                             AnimatedNumberText(
-                                value = totalWealth,
+                                value = netWorth,
                                 style = MaterialTheme.typography.displayLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = (-1.2).sp
@@ -279,6 +276,12 @@ fun AssetsScreen(
                                 softWrap = false
                             )
                         }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Aset aktif + sisa piutang − sisa utang",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = duit.onHeroSecondary
+                        )
                     }
                 }
             }
@@ -287,14 +290,14 @@ fun AssetsScreen(
 
         // 3. Assets Section Header
         item {
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "DAFTAR ASET",
                         style = MaterialTheme.typography.titleMedium.copy(
@@ -303,7 +306,6 @@ fun AssetsScreen(
                         ),
                         color = duit.textPrimary
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     EyebrowTag(
                         text = "${activeAssets.size} TERDAFTAR",
                         variant = EyebrowVariant.DEFAULT
@@ -328,17 +330,16 @@ fun AssetsScreen(
 
         // Render Active Assets as Open List Items
         items(activeAssets, key = { it.id }, contentType = { "asset" }) { asset ->
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(role = Role.Button) { viewModel.selectedAssetForDetail.value = asset }
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     AssetIcon(
                         assetType = asset.type,
@@ -348,8 +349,8 @@ fun AssetsScreen(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f, fill = false)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 text = asset.name,
                                 style = MaterialTheme.typography.titleMedium.copy(
@@ -359,7 +360,6 @@ fun AssetsScreen(
                                 color = duit.textPrimary
                             )
                             if (asset.isDefault) {
-                                Spacer(modifier = Modifier.width(6.dp))
                                 AssetBadge(text = "Utama")
                             }
                         }
@@ -406,20 +406,19 @@ fun AssetsScreen(
         // 4. Section: Target Keuangan (Financial Goals)
         item {
             Spacer(modifier = Modifier.height(32.dp))
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
                         .padding(end = 8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    FlowRow(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         Text(
@@ -429,8 +428,7 @@ fun AssetsScreen(
                                 letterSpacing = 0.5.sp,
                                 fontSize = 15.sp
                             ),
-                            color = duit.textPrimary,
-                            maxLines = 1
+                            color = duit.textPrimary
                         )
                         EyebrowTag(
                             text = "${goals.size} TARGET",

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.database.DatabaseErrorHandler
 import android.database.sqlite.SQLiteDatabase
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.test.platform.app.InstrumentationRegistry
 import com.cashflow.app.data.backup.BackupManager
 import com.cashflow.app.data.backup.BackupValidationResult
@@ -40,6 +42,8 @@ class BackupDeletionTest {
 
     @Before fun prepare() = runBlocking {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
+        // FileProvider caches its roots process-wide; initialize with the real cache, which contains every isolated test directory.
+        androidx.core.content.FileProvider.getUriForFile(base, "${base.packageName}.fileprovider", File(base.cacheDir, "export-root-probe.csv"))
         root = Files.createTempDirectory(base.cacheDir.toPath(), "backup-audit-").toFile()
         context = object : ContextWrapper(base) {
             override fun getApplicationContext(): Context = this
@@ -80,6 +84,109 @@ class BackupDeletionTest {
             vm = androidx.lifecycle.ViewModelProvider(store, androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(app))[com.cashflow.app.ui.CashflowViewModel::class.java]
         }
         return vm
+    }
+
+    @Test fun csvExportUsesVisibleSearchResultsAndEmptyFiltersNeverFallBackToAllRows() = runBlocking {
+        verifyTransactionScreenExport("CSV")
+    }
+
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 35)
+    @Test fun pdfExportUsesTheSameVisibleSearchResultsAsCsv() = runBlocking {
+        verifyTransactionScreenExport("PDF")
+    }
+
+    private suspend fun verifyTransactionScreenExport(format: String) {
+        val today = java.time.LocalDate.now().toString()
+        repository.updateTransaction(repository.transactions.value.single().copy(description = "Makan", transactionDate = today)).getOrThrow()
+        repository.addTransaction(Transaction("export-game", "expense", 50, "Game", assetId = "backup-cash", transactionDate = today)).getOrThrow()
+        val vm = isolatedViewModel()
+        val before = vm.transactions.value.toList()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val chooser = java.util.concurrent.atomic.AtomicReference<android.content.Intent?>()
+        val exportContext = object : ContextWrapper(context) {
+            override fun startActivity(intent: android.content.Intent) { chooser.set(intent) }
+        }
+        val activity = instrumentation.startActivitySync(android.content.Intent(instrumentation.targetContext, androidx.activity.ComponentActivity::class.java)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) as androidx.activity.ComponentActivity
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val originalClip = clipboard.primaryClip
+        try {
+            instrumentation.runOnMainSync {
+                vm.searchQuery.value = "Makan"
+                activity.setContent { com.cashflow.app.ui.theme.CashflowTheme {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalContext provides exportContext) {
+                        com.cashflow.app.ui.screens.TransactionsScreen(vm, androidx.compose.ui.Modifier.statusBarsPadding())
+                    }
+                } }
+            }
+            exportAuditNode("1 transaksi ditemukan")
+            suspend fun export(allRows: Boolean = false): String {
+                chooser.set(null)
+                vm.clearSnackbar()
+                exportAuditClick("Menu transaksi")
+                exportAuditClick("Ekspor laporan")
+                exportAuditClick(if (format == "CSV") "Spreadsheet CSV (.csv)" else "Dokumen PDF (.pdf)")
+                exportAuditClick(if (allRows) "SEMUA RIWAYAT" else "DATA TERFILTER")
+                exportAuditClick("EKSPOR $format")
+                val completed = kotlinx.coroutines.withTimeoutOrNull(10000) {
+                    while (chooser.get() == null && vm.snackbarMessage.value == null) kotlinx.coroutines.delay(20)
+                    chooser.get() != null
+                }
+                assertTrue("$format export did not open the share sheet (allRows=$allRows): ${vm.snackbarMessage.value}", completed == true)
+                val send = chooser.get()!!.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+                val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+                return if (format == "CSV") context.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+                else if (android.os.Build.VERSION.SDK_INT >= 35) context.contentResolver.openFileDescriptor(uri, "r")!!.use { descriptor ->
+                    android.graphics.pdf.PdfRenderer(descriptor).use { pdf ->
+                        (0 until pdf.pageCount).joinToString(" ") { index ->
+                            pdf.openPage(index).use { page -> page.textContents.joinToString(" ") { it.text } }
+                        }
+                    }
+                }
+                else error("PDF text verification requires Android 15 or newer")
+            }
+            val filtered = export()
+            assertTrue("The selected Makan record must be exported", filtered.contains("Makan"))
+            assertFalse("Game is not visible in the search results and must not be exported", filtered.contains("Game"))
+            if (format == "CSV") {
+                instrumentation.runOnMainSync { vm.searchQuery.value = "no-such-record" }
+                exportAuditNode("0 transaksi ditemukan")
+                val empty = export()
+                assertFalse("An empty filtered export must not expose hidden records", empty.contains("Makan") || empty.contains("Game"))
+                val all = export(allRows = true)
+                assertTrue(all.contains("Makan") && all.contains("Game"))
+            }
+            assertEquals(before, vm.transactions.value)
+        } finally {
+            instrumentation.runOnMainSync {
+                if (originalClip != null) clipboard.setPrimaryClip(originalClip)
+                else if (android.os.Build.VERSION.SDK_INT >= 28) clipboard.clearPrimaryClip()
+                activity.finish()
+            }
+        }
+    }
+
+    private fun exportAuditFind(node: android.view.accessibility.AccessibilityNodeInfo?, label: String): android.view.accessibility.AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.text?.toString() == label || node.contentDescription?.toString() == label) return node
+        for (index in 0 until node.childCount) exportAuditFind(node.getChild(index), label)?.let { return it }
+        return null
+    }
+
+    private fun exportAuditNode(label: String): android.view.accessibility.AccessibilityNodeInfo {
+        val end = android.os.SystemClock.uptimeMillis() + 5000
+        while (android.os.SystemClock.uptimeMillis() < end) {
+            exportAuditFind(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow, label)?.let { return it }
+            android.os.SystemClock.sleep(30)
+        }
+        error("Export control missing: $label")
+    }
+
+    private fun exportAuditClick(label: String) {
+        var node: android.view.accessibility.AccessibilityNodeInfo? = exportAuditNode(label)
+        while (node != null && !node.isClickable) node = node.parent
+        assertTrue("Export control is not clickable: $label", node?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) == true)
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     @Test fun similarManualTransactionWaitsForConsentAndCancellationKeepsTheLedger() = runBlocking {
@@ -148,6 +255,38 @@ class BackupDeletionTest {
         assertTrue(repository.restoreFromJson(JSONObject()).isFailure)
         assertEquals(before, repository.transactions.value)
         assertEquals(900L, repository.assets.value.single().currentBalance)
+    }
+
+    @Test fun assetCardUsesTheSameNetWorthAsDebtDetailsAndWidget() = runBlocking {
+        repository.addAsset(Asset("archived-wealth", "Arsip", "Tunai", 9000, 9000, isActive = false)).getOrThrow()
+        val helper = DatabaseHelper(context)
+        try {
+            helper.writableDatabase.execSQL("INSERT INTO debts(id,title,lender_name,total_amount,paid_amount,due_date,status,direction,created_at,updated_at) VALUES ('card-credit','Piutang','Test',500,100,'2026-12-01','partial','receivable',1,1), ('card-debt','Utang','Test',300,100,'2026-12-01','partial','debt',1,1), ('paid-debt','Lunas','Test',999,999,'2026-12-01','paid','debt',1,1)")
+        } finally { helper.close() }
+        val vm = isolatedViewModel()
+        kotlinx.coroutines.withTimeout(5000) { vm.netWorth.first { it == 1100L } }
+        val before = vm.transactions.value.toList()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val activity = instrumentation.startActivitySync(android.content.Intent(instrumentation.targetContext, androidx.activity.ComponentActivity::class.java)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) as androidx.activity.ComponentActivity
+        try {
+            instrumentation.runOnMainSync {
+                activity.setContent { com.cashflow.app.ui.theme.CashflowTheme {
+                    com.cashflow.app.ui.screens.AssetsScreen(vm, androidx.compose.ui.Modifier.statusBarsPadding())
+                } }
+            }
+            exportAuditNode("DAFTAR ASET")
+            assertNotNull("The net-worth card must show active assets 900 + remaining receivables 400 - remaining debt 200, not the account balance",
+                exportAuditFind(instrumentation.uiAutomation.rootInActiveWindow, "Rp 1.100"))
+            instrumentation.runOnMainSync { vm.setAssetScreenSubTab(1) }
+            exportAuditNode("Kekayaan Bersih: Rp 1.100")
+            val remote = com.cashflow.app.widget.DuitAingQuickWidget.buildWidgetViews(context)
+            instrumentation.runOnMainSync {
+                assertEquals("Bersih: Rp 1.100", remote.apply(context, null).findViewById<android.widget.TextView>(R.id.tv_widget_subtitle).text.toString())
+            }
+            assertEquals(before, vm.transactions.value)
+            assertEquals(900L, vm.totalWealth.value)
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
     @Test fun widgetNetWorthAddsReceivablesAndSubtractsDebt() = runBlocking {

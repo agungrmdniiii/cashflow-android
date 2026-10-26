@@ -18,6 +18,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -33,6 +34,111 @@ import org.json.JSONObject
 /** Runs against SQLite on the isolated audit emulator, never the user's device. */
 class AuditDatabaseRegressionTest {
     private lateinit var repository: CashflowRepository
+
+    @Test fun undoneDebtPaymentRetainsItsLinkThroughAnotherEditAndDelete() = runBlocking {
+        for (direction in listOf("debt", "receivable")) {
+            repository.addDebt("Undo $direction", "Audit", 400_000L, "2026-12-31", direction = direction).getOrThrow()
+            val debt = repository.debts.value.first { it.title == "Undo $direction" }
+            val before = repository.assets.value.single().currentBalance
+            repository.recordDebtPayment(debt.id, 100_000L, "audit_cash").getOrThrow()
+            val payment = repository.transactions.value.first { it.debtId == debt.id }
+            repository.deleteTransaction(payment.id).getOrThrow()
+            repository.addTransaction(payment).getOrThrow() // Actual delete snackbar undo path.
+            val restored = repository.transactions.value.first { it.id == payment.id }
+            assertEquals("Undo must retain the loan association", debt.id, restored.debtId)
+            repository.updateTransaction(restored.copy(amount = 150_000L)).getOrThrow()
+            assertEquals(150_000L, repository.debts.value.first { it.id == debt.id }.paidAmount)
+            assertEquals(before + if (direction == "debt") -150_000L else 150_000L, repository.assets.value.single().currentBalance)
+            repository.deleteTransaction(payment.id).getOrThrow()
+            assertEquals(0L, repository.debts.value.first { it.id == debt.id }.paidAmount)
+            assertEquals(before, repository.assets.value.single().currentBalance)
+        }
+    }
+
+    @Test fun duplicateConcurrentSubmissionsCommitExactlyOneRealLedgerEntry() = runBlocking {
+        val tx = Transaction("audit_same_submit", "income", 100_000L, "Income", assetId = "audit_cash", transactionDate = LocalDate.now().toString())
+        val start = CompletableDeferred<Unit>()
+        val results = (1..12).map { async(Dispatchers.Default) { start.await(); repository.addTransaction(tx) } }
+        start.complete(Unit)
+        assertEquals(1, results.awaitAll().count { it.isSuccess })
+        assertEquals(1, repository.transactions.value.size)
+        assertEquals(1_100_000L, repository.assets.value.single().currentBalance)
+        val invalid = tx.copy(assetId = "missing_account", amount = 300_000L)
+        assertTrue(repository.updateTransaction(invalid).isFailure)
+        assertEquals(1_100_000L, repository.assets.value.single().currentBalance)
+        assertEquals(tx.amount, repository.transactions.value.single().amount)
+        assertEquals("audit_cash", repository.transactions.value.single().assetId)
+    }
+
+    @Test fun realTransactionLifecycleMatchesHomeReportsWidgetAndOfflineVina() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val app = context.applicationContext as CashflowApplication
+        val holder = androidx.lifecycle.ViewModelStore()
+        lateinit var model: com.cashflow.app.ui.CashflowViewModel
+        instrumentation.runOnMainSync {
+            model = androidx.lifecycle.ViewModelProvider(holder,
+                androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app))[com.cashflow.app.ui.CashflowViewModel::class.java]
+            model.setReportPeriod(com.cashflow.app.data.model.PeriodFilter.BULAN_INI)
+        }
+        val today = LocalDate.now()
+        repository.addAsset(Asset("audit_bank", "Audit Bank", "Bank", 200_000L, 200_000L)).getOrThrow()
+        repository.addAsset(Asset("audit_archived", "Archived", "Bank", 900_000L, 900_000L, isActive = false)).getOrThrow()
+        suspend fun verify(cash: Long, bank: Long, income: Long, expense: Long) {
+            assertEquals(cash, repository.assets.value.first { it.id == "audit_cash" }.currentBalance)
+            assertEquals(bank, repository.assets.value.first { it.id == "audit_bank" }.currentBalance)
+            val db = DatabaseHelper(context)
+            try { assertEquals(0, LedgerService.recalculateAllBalances(db.readableDatabase, false).discrepanciesFound) }
+            finally { db.close() }
+            app.repository.reloadForBackgroundCheck()
+            kotlinx.coroutines.withTimeout(5000) {
+                model.totalWealth.first { it == cash + bank }
+                model.periodIncome.first { it == income }
+                model.periodExpense.first { it == expense }
+                val snapshot = model.reportSnapshot.first {
+                    it.summary.income == income && it.summary.expense == expense &&
+                        it.transactions.map { row -> row.id }.toSet() == repository.transactions.value.map { row -> row.id }.toSet()
+                }
+                assertEquals(income, snapshot.chart.sumOf { it.income })
+                assertEquals(expense, snapshot.chart.sumOf { it.expense })
+            }
+            val remote = com.cashflow.app.widget.DuitAingQuickWidget.buildWidgetViews(context, R.layout.widget_duit_aing_summary)
+            instrumentation.runOnMainSync {
+                val view = remote.apply(context, null)
+                assertEquals(com.cashflow.app.ui.components.Formatters.formatRupiah(cash + bank), view.findViewById<android.widget.TextView>(R.id.tv_widget_balance).text.toString())
+                assertEquals(com.cashflow.app.ui.components.Formatters.formatRupiah(income), view.findViewById<android.widget.TextView>(R.id.tv_widget_income).text.toString())
+                assertEquals(com.cashflow.app.ui.components.Formatters.formatRupiah(expense), view.findViewById<android.widget.TextView>(R.id.tv_widget_expense).text.toString())
+            }
+        }
+        val incoming = Transaction("audit_income", "income", 100_000L, "Income", assetId = "audit_cash", transactionDate = today.toString())
+        val spending = incoming.copy(id = "audit_expense", type = "expense", amount = 40_000L)
+        val transfer = incoming.copy(id = "audit_transfer", type = "transfer", amount = 200_000L, destinationAssetId = "audit_bank")
+        val adjustment = incoming.copy(id = "audit_adjustment", type = "adjustment", amount = 10_000L, isAdjustment = true, adjustmentDirection = -1)
+        try {
+            listOf(incoming, spending, transfer, adjustment).forEach { repository.addTransaction(it).getOrThrow() }
+            verify(850_000L, 400_000L, 100_000L, 40_000L)
+            repository.updateTransaction(spending.copy(amount = 70_000L, assetId = "audit_bank")).getOrThrow()
+            verify(890_000L, 330_000L, 100_000L, 70_000L)
+            val stats = com.cashflow.app.data.service.FinancialInsightService.computeMonthComparison(repository.transactions.value, repository.categories.value, today)
+            val chatContext = com.cashflow.app.data.service.FinancialChatContext("", today.toString(), 1_220_000L,
+                repository.assets.value.filter { it.isActive }, stats, today.minusMonths(1).toString().take(7), today.toString().take(7),
+                stats.categoryDeltas, repository.budgets.value, repository.debts.value, repository.goals.value,
+                repository.transactions.value, repository.categories.value)
+            val answer = com.cashflow.app.data.service.FinancialInsightService.sendChatMessage(listOf(
+                com.cashflow.app.data.model.ChatMessage(text = "berapa total pengeluaran saya bulan ini", sender = com.cashflow.app.data.model.ChatSender.USER)), chatContext).getOrThrow()
+            assertTrue(answer.contains(com.cashflow.app.ui.components.Formatters.formatRupiah(70_000L)))
+            repository.updateTransaction(transfer.copy(amount = 100_000L)).getOrThrow()
+            verify(990_000L, 230_000L, 100_000L, 70_000L)
+            repository.deleteTransaction(incoming.id).getOrThrow()
+            verify(890_000L, 230_000L, 0L, 70_000L)
+            repository.deleteTransaction(adjustment.id).getOrThrow()
+            verify(900_000L, 230_000L, 0L, 70_000L)
+            repository.deleteTransaction(spending.id).getOrThrow()
+            repository.deleteTransaction(transfer.id).getOrThrow()
+            verify(1_000_000L, 200_000L, 0L, 0L)
+            assertTrue(repository.transactions.value.isEmpty())
+        } finally { instrumentation.runOnMainSync { holder.clear() } }
+    }
 
     @Test fun fullySeededCategoriesCanBeCheckedWithoutWriting() {
         val helper = DatabaseHelper(InstrumentationRegistry.getInstrumentation().targetContext)
@@ -171,14 +277,15 @@ class AuditDatabaseRegressionTest {
     }
 
     @Test
-    fun apiKeyIsMigratedOutOfPlainPreferencesAndOnlineDefaultsAreOff() {
+    fun retiredAiCredentialsAreRemovedWithoutChangingTheVoicePreference() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val raw = context.getSharedPreferences("duit_aing_preferences", 0)
         raw.edit().putString("gemini_api_key", "audit-secret-value").commit()
+        raw.edit().putBoolean("online_voice_enabled", true).commit()
         val prefs = PreferenceManager(context)
         assertFalse(raw.contains("gemini_api_key"))
         assertFalse(context.getSharedPreferences("duit_aing_credentials", 0).all.values.any { it.toString().contains("audit-secret-value") })
-        assertFalse(prefs.isOnlineVoiceEnabled())
+        assertTrue(prefs.isOnlineVoiceEnabled())
         assertFalse(raw.contains("ai_insights_enabled"))
     }
 

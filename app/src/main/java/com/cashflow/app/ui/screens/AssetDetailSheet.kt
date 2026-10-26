@@ -36,6 +36,7 @@ import com.cashflow.app.ui.theme.*
 import java.time.LocalDate
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun AssetDetailSheet(
     viewModel: CashflowViewModel,
     asset: Asset,
@@ -122,8 +123,8 @@ fun AssetDetailContent(
                             iconSize = 22.dp
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
                                     text = asset.name,
                                     style = MaterialTheme.typography.titleLarge.copy(
@@ -133,7 +134,6 @@ fun AssetDetailContent(
                                     color = duit.textPrimary
                                 )
                                 if (asset.isDefault) {
-                                    Spacer(modifier = Modifier.width(6.dp))
                                     AssetBadge(text = "Utama")
                                 }
                             }

@@ -31,11 +31,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.cashflow.app.ui.CashflowViewModel
+import com.cashflow.app.data.model.Transaction
 import com.cashflow.app.ui.theme.*
 
 enum class ExportFormat {
@@ -52,6 +54,7 @@ enum class ExportFormat {
 fun ExportDataDialog(
     isOpen: Boolean,
     viewModel: CashflowViewModel,
+    filteredTransactions: List<Transaction>,
     hasActiveFilter: Boolean = false,
     filterName: String = "Periode Aktif",
     onDismiss: () -> Unit
@@ -312,7 +315,8 @@ fun ExportDataDialog(
                                 fontSize = 12.sp
                             ),
                             color = if (isFilteredSelected) (if (isDark) Color(0xFF111111) else Color.White) else duit.textPrimary,
-                            maxLines = 1
+                            textAlign = TextAlign.Center,
+                            maxLines = 2
                         )
                     }
                 }
@@ -337,10 +341,13 @@ fun ExportDataDialog(
                         text = if (selectedFormat == ExportFormat.PDF) "EKSPOR PDF" else "EKSPOR CSV",
                         onClick = {
                             isExporting = true
+                            val source = if (exportFilteredOnly) filteredTransactions else viewModel.transactions.value
+                            val scopeName = filterName.takeIf { exportFilteredOnly }
                             if (selectedFormat == ExportFormat.PDF) {
                                 viewModel.exportPdfFile(
                                     context = context,
-                                    filteredOnly = exportFilteredOnly,
+                                    sourceTransactions = source,
+                                    filterName = scopeName,
                                     onSuccess = { file, sendIntent ->
                                         isExporting = false
                                         onDismiss()
@@ -357,7 +364,8 @@ fun ExportDataDialog(
                             } else {
                                 viewModel.exportCsvFile(
                                     context = context,
-                                    filteredOnly = exportFilteredOnly,
+                                    sourceTransactions = source,
+                                    filterName = scopeName,
                                     onSuccess = { file, sendIntent, content ->
                                         isExporting = false
                                         onDismiss()

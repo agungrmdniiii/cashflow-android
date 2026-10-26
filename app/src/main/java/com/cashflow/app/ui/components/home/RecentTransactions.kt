@@ -33,6 +33,7 @@ import com.cashflow.app.ui.theme.duit
  * - Jarak antar item 12dp
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun RecentTransactions(
     transactions: List<Transaction>,
     categoryMap: Map<String, Category>,
@@ -51,12 +52,12 @@ fun RecentTransactions(
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Section Header
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 text = "Transaksi Terbaru",

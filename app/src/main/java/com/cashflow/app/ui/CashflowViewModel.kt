@@ -645,7 +645,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         list.count { it.isOverdue(today) }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    // Computed: Real Net Worth = Total Wealth - Total Remaining Debt
+    // Net worth = active asset balances + remaining receivables - remaining debt.
     val netWorth: StateFlow<Long> = combine(totalWealth, debts) { wealth, list ->
         wealth + list.filter { it.direction == "receivable" }.sumOf { it.remainingAmount } - list.filter { it.direction == "debt" }.sumOf { it.remainingAmount }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
@@ -1261,23 +1261,16 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun exportCsv(filteredOnly: Boolean = false, onReady: (String) -> Unit) {
-        viewModelScope.launch {
-            val list = if (filteredOnly) periodTransactions.value else null
-            val content = withContext(Dispatchers.IO) { repository.generateCsvContent(list) }
-            onReady(content)
-        }
-    }
-
     fun exportCsvFile(
         context: Context,
-        filteredOnly: Boolean = false,
+        sourceTransactions: List<Transaction>,
+        filterName: String? = null,
         onSuccess: (File, Intent, String) -> Unit,
         onError: (String) -> Unit
     ) {
+        val list = sourceTransactions.toList()
         viewModelScope.launch {
             try {
-                val list = if (filteredOnly) periodTransactions.value else null
                 val content = withContext(Dispatchers.IO) { repository.generateCsvContent(list) }
                 val exportsDir = File(context.cacheDir, "exports")
                 if (!exportsDir.exists()) {
@@ -1285,8 +1278,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val fileName = if (filteredOnly) {
-                    "DuitAing_Transaksi_${selectedPeriod.value.name.lowercase()}_$todayStr.csv"
+                val fileName = if (filterName != null) {
+                    "DuitAing_Transaksi_Terfilter_$todayStr.csv"
                 } else {
                     "DuitAing_Transaksi_$todayStr.csv"
                 }
@@ -1316,16 +1309,17 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
 
     fun exportPdfFile(
         context: Context,
-        filteredOnly: Boolean = false,
+        sourceTransactions: List<Transaction>,
+        filterName: String? = null,
         onSuccess: (File, Intent) -> Unit,
         onError: (String) -> Unit
     ) {
+        val list = sourceTransactions.toList()
         viewModelScope.launch {
             try {
-                val list = if (filteredOnly) periodTransactions.value else transactions.value
                 val catList = categories.value
                 val assetList = assets.value
-                val periodName = if (filteredOnly) selectedPeriod.value.displayName else "Semua Waktu"
+                val periodName = filterName ?: "Semua Waktu"
 
                 val exportsDir = File(context.cacheDir, "exports")
                 if (!exportsDir.exists()) {
@@ -1333,8 +1327,8 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val fileName = if (filteredOnly) {
-                    "DuitAing_Laporan_${selectedPeriod.value.name.lowercase()}_$todayStr.pdf"
+                val fileName = if (filterName != null) {
+                    "DuitAing_Laporan_Terfilter_$todayStr.pdf"
                 } else {
                     "DuitAing_Laporan_Lengkap_$todayStr.pdf"
                 }
@@ -1443,6 +1437,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 }
                 val now = System.currentTimeMillis()
                 prefs.setBackupSaved("JSON", now)
+                com.cashflow.app.data.backup.BackupSettingsStore(getApplication()).recordSuccess(com.cashflow.app.data.backup.BackupDestination.LOCAL, false, now)
                 lastBackupFormat.value = "JSON"
                 lastBackupTime.value = now
                 onSuccess(jsonString)
@@ -1815,6 +1810,7 @@ class CashflowViewModel(application: Application) : AndroidViewModel(application
                 val now = System.currentTimeMillis()
                 val format = if (file.extension == "enc") "Terenkripsi (.enc)" else "ZIP + struk"
                 prefs.setBackupSaved(format, now)
+                com.cashflow.app.data.backup.BackupSettingsStore(getApplication()).recordSuccess(com.cashflow.app.data.backup.BackupDestination.LOCAL, false, now)
                 lastBackupFormat.value = format
                 lastBackupTime.value = now
             }

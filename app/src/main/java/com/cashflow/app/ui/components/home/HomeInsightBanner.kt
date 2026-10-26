@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.service.FinancialInsight
+import com.cashflow.app.ui.components.LocalAmountsHidden
 import com.cashflow.app.ui.theme.duit
 
 /**
@@ -27,6 +28,7 @@ import com.cashflow.app.ui.theme.duit
  * - Dapat ditutup oleh pengguna (tombol tutup target sentuh >= 48dp).
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun HomeInsightBanner(
     insight: FinancialInsight,
     onDismiss: () -> Unit,
@@ -36,6 +38,7 @@ fun HomeInsightBanner(
     onNext: () -> Unit = {}
 ) {
     val duit = MaterialTheme.duit
+    val amountsHidden = LocalAmountsHidden.current
     val badgeBg = when (insight.type.lowercase()) {
         "positive" -> duit.incomeContainer
         "warning" -> duit.warningContainer
@@ -93,7 +96,7 @@ fun HomeInsightBanner(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = insight.title,
+                text = if (amountsHidden) "Insight disembunyikan" else insight.title,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
@@ -103,20 +106,19 @@ fun HomeInsightBanner(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = insight.message,
+                text = if (amountsHidden) "Aktifkan tampilan nominal untuk membaca insight keuangan." else insight.message,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 20.sp),
                 color = duit.textSecondary
             )
             if (total > 1) {
                 Spacer(Modifier.height(8.dp))
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = "$position dari $total",
-                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelSmall,
                         color = duit.textSecondary
                     )

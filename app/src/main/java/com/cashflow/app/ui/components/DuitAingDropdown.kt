@@ -946,6 +946,7 @@ fun AssetTypeDropdownField(
  * Unselected = surfaceVariant + textSecondary.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun TransactionTypeSegmentedControl(
     selectedType: TransactionType,
     onTypeSelected: (TransactionType) -> Unit,
@@ -958,18 +959,22 @@ fun TransactionTypeSegmentedControl(
         TransactionType.INCOME to ("Pemasukan" to Icons.Rounded.SouthWest),
         TransactionType.TRANSFER to ("Transfer" to Icons.Rounded.SwapHoriz)
     )
+    val stacked = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.15f
+    val controlShape = RoundedCornerShape(if (stacked) 24.dp else 999.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(999.dp))
+            .clip(controlShape)
             .background(duit.surfaceVariant)
-            .border(1.dp, duit.border, RoundedCornerShape(999.dp))
+            .border(1.dp, duit.border, controlShape)
             .padding(4.dp)
     ) {
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            maxItemsInEachRow = if (stacked) 1 else 3
         ) {
             types.forEach { (type, pair) ->
                 val (label, icon) = pair
@@ -1003,9 +1008,9 @@ fun TransactionTypeSegmentedControl(
                         .padding(vertical = 9.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             imageVector = icon,
@@ -1020,8 +1025,7 @@ fun TransactionTypeSegmentedControl(
                                 fontSize = 12.sp
                             ),
                             color = contentColor,
-                            maxLines = 1,
-                            softWrap = false
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }

@@ -56,7 +56,7 @@ import java.util.UUID
  * 6. Arus Kas bulan ini: satu kartu (pemasukan, pengeluaran, selisih, mini bar).
  * 7. Anggaran: maksimal 3 teratas dengan progress bar tebal berwarna (hijau/amber/merah) + "Lihat semua".
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     viewModel: CashflowViewModel,
@@ -130,16 +130,15 @@ fun HomeScreen(
                 .padding(bottom = 100.dp)
         ) {
             // 1. Header: Sapaan Personal + Ikon Tanya AI, Cari, dan Pengaturan (ringkas & tidak terpotong)
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
                         .padding(end = 12.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(role = Role.Button) { showEditNameDialog = true }
@@ -161,9 +160,7 @@ fun HomeScreen(
                             fontSize = 19.sp,
                             letterSpacing = (-0.3).sp
                         ),
-                        color = duit.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = duit.textPrimary
                     )
                 }
 

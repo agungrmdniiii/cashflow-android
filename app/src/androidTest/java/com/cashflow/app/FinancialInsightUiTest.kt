@@ -6,6 +6,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
@@ -27,6 +29,33 @@ import java.time.LocalDate
 class FinancialInsightUiTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
+    @Test fun hiddenAmountsNeverRemainInInsightTextOrAccessibilityAndCanBeRevealedAgain() {
+        val hidden = androidx.compose.runtime.mutableStateOf(true)
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, ComponentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+        try {
+            instrumentation.runOnMainSync {
+                activity.setContent { CashflowTheme {
+                    androidx.compose.runtime.CompositionLocalProvider(com.cashflow.app.ui.components.LocalAmountsHidden provides hidden.value) {
+                        HomeInsightBanner(RuleBasedInsight("Target pribadi Rp 99.000", "Pengeluaran bulan ini Rp 70.000", "warning"),
+                            onDismiss = {}, modifier = Modifier.statusBarsPadding())
+                    }
+                } }
+            }
+            node("INSIGHT KEUANGAN")
+            assertNull("The hidden insight must not expose its amount through text or accessibility",
+                find(instrumentation.uiAutomation.rootInActiveWindow, "Pengeluaran bulan ini Rp 70.000"))
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "Target pribadi Rp 99.000"))
+            node("Insight disembunyikan")
+            instrumentation.runOnMainSync { hidden.value = false }
+            node("Pengeluaran bulan ini Rp 70.000")
+            node("Target pribadi Rp 99.000")
+            instrumentation.runOnMainSync { hidden.value = true }
+            node("Insight disembunyikan")
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "Pengeluaran bulan ini Rp 70.000"))
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
+    }
+
     @Test fun suggestedFollowUpButtonsContinueTheConversationWithoutChangingTheLedger() {
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
@@ -38,21 +67,44 @@ class FinancialInsightUiTest {
             } }
         }
         try {
+            fun awaitReply() {
+                val deadline = SystemClock.uptimeMillis() + 5000
+                while (vm.isChatLoading.value && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50)
+                assertFalse("Vina must finish processing", vm.isChatLoading.value)
+                instrumentation.waitForIdleSync()
+            }
+            fun selectRecommendation(question: String) {
+                click(question)
+                val deadline = SystemClock.uptimeMillis() + 5000
+                while (vm.chatMessages.value.lastOrNull { it.sender == ChatSender.USER }?.text != question &&
+                    SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50)
+                assertEquals("Recommendation must submit before waiting for its reply", question,
+                    vm.chatMessages.value.lastOrNull { it.sender == ChatSender.USER }?.text)
+                awaitReply()
+            }
             node("Pengeluaran bulan ini")
             val deadline = SystemClock.uptimeMillis() + 5000
             while (!vm.initialLoadComplete.value && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50)
             val before = vm.transactions.value.toList()
-            org.junit.Assume.assumeTrue("Needs an installed ledger with income", before.any { it.type == "income" && !it.isAdjustment })
-            instrumentation.runOnMainSync { vm.sendChatMessage("pemasukan semua") }
+            org.junit.Assume.assumeTrue("Needs an installed ledger with expenses", before.any { it.type == "expense" && !it.isAdjustment })
+            instrumentation.runOnMainSync { vm.sendChatMessage("pengeluaran semua") }
+            awaitReply()
             node("Rincikan")
             node("Bandingkan")
-            click("Rincikan")
-            val finish = SystemClock.uptimeMillis() + 5000
-            while (vm.isChatLoading.value && SystemClock.uptimeMillis() < finish) SystemClock.sleep(50)
+            selectRecommendation("Rincikan")
+            node("Yang paling besar?")
+            selectRecommendation("Yang paling besar?")
+            node("Bandingkan")
+            selectRecommendation("Bandingkan")
+            assertTrue("Expected contextual recommendation; last reply: ${vm.chatMessages.value.last().text}",
+                FinancialInsightService.suggestedQuestions(vm.chatMessages.value).contains("Kenapa?"))
+            selectRecommendation("Kenapa?")
+            node("Rincikan")
             instrumentation.runOnMainSync {
-                assertEquals(listOf("pemasukan semua", "Rincikan"), vm.chatMessages.value.filter { it.sender == ChatSender.USER }.map { it.text })
+                assertEquals(listOf("pengeluaran semua", "Rincikan", "Yang paling besar?", "Bandingkan", "Kenapa?"),
+                    vm.chatMessages.value.filter { it.sender == ChatSender.USER }.map { it.text })
                 assertFalse(vm.isChatLoading.value)
-                assertTrue(vm.chatMessages.value.last().text.contains("Pemasukan"))
+                assertTrue(vm.chatMessages.value.last().text.contains("Perubahan per kategori"))
                 assertEquals(before, vm.transactions.value)
             }
         } finally { instrumentation.runOnMainSync { activity.finish() } }
@@ -65,7 +117,7 @@ class FinancialInsightUiTest {
             scenario.onActivity {
                 androidx.lifecycle.ViewModelProvider(it)[com.cashflow.app.ui.CashflowViewModel::class.java].selectTab(1)
             }
-            node("Cari transaksi...")
+            node("Menu transaksi")
             scenario.onActivity {
                 androidx.lifecycle.ViewModelProvider(it)[com.cashflow.app.ui.CashflowViewModel::class.java].selectTab(0)
             }
@@ -176,6 +228,77 @@ class FinancialInsightUiTest {
         assertTrue("Must use installed ledger for last month", answer.contains(Formatters.formatRupiah(expected)))
         assertTrue("Must preserve requested month", answer.contains(context.prevMonthPrefix + "-01"))
         assertEquals("Chat must not alter transactions", transactions, repo.transactions.value)
+    }
+
+    @Test fun automaticBackupChoicesStayHiddenUntilEnabledAndRetainTheirValues() {
+        val context = instrumentation.targetContext
+        val store = com.cashflow.app.data.backup.BackupSettingsStore(context)
+        val original = store.automation()
+        org.junit.Assume.assumeFalse("Use an audit device with automatic backups disabled", original.enabled)
+        org.junit.Assume.assumeTrue("Use an audit device without a connected Google account", store.driveAccount == null)
+        store.save(original.copy(destination = com.cashflow.app.data.backup.BackupDestination.DRIVE,
+            frequency = com.cashflow.app.data.backup.BackupFrequency.DAILY, network = com.cashflow.app.data.backup.BackupNetwork.WIFI))
+        val activity = instrumentation.startActivitySync(Intent(context, ComponentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+        try {
+            instrumentation.runOnMainSync { activity.setContent { CashflowTheme {
+                androidx.compose.foundation.layout.Column(Modifier.statusBarsPadding().verticalScroll(rememberScrollState())) {
+                    com.cashflow.app.ui.screens.settings.BackupSettingsPanel({}, {})
+                }
+            } } }
+            fun scrollable(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+                if (root == null || root.isScrollable) return root
+                for (i in 0 until root.childCount) scrollable(root.getChild(i))?.let { return it }
+                return null
+            }
+            fun reveal(label: String) {
+                repeat(6) {
+                    if (find(instrumentation.uiAutomation.rootInActiveWindow, label) != null) return
+                    scrollable(instrumentation.uiAutomation.rootInActiveWindow)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+                    SystemClock.sleep(50)
+                }
+                repeat(8) {
+                    if (find(instrumentation.uiAutomation.rootInActiveWindow, label) != null) return
+                    scrollable(instrumentation.uiAutomation.rootInActiveWindow)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    SystemClock.sleep(100)
+                }
+                node(label)
+            }
+            fun absent(label: String) {
+                val deadline = SystemClock.uptimeMillis() + 3000
+                while (find(instrumentation.uiAutomation.rootInActiveWindow, label) != null && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50)
+                assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, label))
+            }
+            node("Aktifkan")
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "Tujuan"))
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "Frekuensi"))
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "Jaringan"))
+            click("Cadangan otomatis")
+            node("TUJUAN")
+            click("Tutup")
+            assertFalse(store.automation().enabled)
+            assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "Tujuan"))
+            instrumentation.runOnMainSync { store.save(store.automation().copy(enabled = true)) }
+            reveal("Tujuan"); click("Tujuan"); click("Tutup")
+            assertEquals(com.cashflow.app.data.backup.BackupDestination.DRIVE, store.automation().destination)
+            reveal("Frekuensi"); click("Frekuensi"); click("Mingguan")
+            assertEquals(com.cashflow.app.data.backup.BackupFrequency.WEEKLY, store.automation().frequency)
+            reveal("Jaringan"); click("Jaringan"); click("Wi-Fi dan seluler")
+            assertEquals(com.cashflow.app.data.backup.BackupNetwork.ANY, store.automation().network)
+            click("Jaringan"); click("Tutup")
+            assertEquals(com.cashflow.app.data.backup.BackupNetwork.ANY, store.automation().network)
+            reveal("Cadangan otomatis"); click("Cadangan otomatis")
+            assertFalse(store.automation().enabled)
+            absent("Tujuan")
+            absent("Frekuensi")
+            absent("Jaringan")
+            assertEquals(com.cashflow.app.data.backup.BackupFrequency.WEEKLY, store.automation().frequency)
+            assertEquals(com.cashflow.app.data.backup.BackupNetwork.ANY, store.automation().network)
+        } finally {
+            instrumentation.runOnMainSync { activity.finish() }
+            store.save(original)
+            com.cashflow.app.data.service.AutomaticBackupJob.schedule(context, replace = true)
+        }
     }
 
     private fun node(text: String): AccessibilityNodeInfo {

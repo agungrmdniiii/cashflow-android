@@ -668,7 +668,11 @@ private fun DuitAingBottomNavBar(
     val isDark = LocalIsDarkTheme.current
     val duit = MaterialTheme.duit
     val navBarShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    val navBarHeight = maxOf(72.dp, with(androidx.compose.ui.platform.LocalDensity.current) { 16.sp.toDp() + 47.dp })
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val largeText = density.fontScale > 1.15f
+    // Convert each line before summing; Android scales different sp sizes nonlinearly.
+    val labelHeight = with(density) { MaterialTheme.typography.labelSmall.lineHeight.toDp() * 2 }
+    val navBarHeight = maxOf(72.dp, labelHeight + 51.dp)
 
     val leftTabs = listOf(
         Triple(0, "Beranda", Icons.Rounded.Home),
@@ -701,7 +705,7 @@ private fun DuitAingBottomNavBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(navBarHeight)
-                .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs),
+                .padding(horizontal = if (largeText) AppSpacing.xxs else AppSpacing.sm, vertical = AppSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left 2 tabs
@@ -735,7 +739,7 @@ private fun DuitAingBottomNavBar(
 
             Box(
                 modifier = Modifier
-                    .padding(horizontal = AppSpacing.xs)
+                    .padding(horizontal = if (largeText) AppSpacing.xxs else AppSpacing.xs)
                     .size(52.dp)
                     .onGloballyPositioned { onTargetPositioned(4, it.boundsInRoot()) }
                     .graphicsLayer {
@@ -857,15 +861,14 @@ private fun BottomNavTabItem(
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = title,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     fontSize = 11.sp,
                     letterSpacing = (-0.3).sp
                 ),
                 color = if (isSelected) duit.textPrimary else duit.textSecondary,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                maxLines = 2,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }

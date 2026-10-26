@@ -35,6 +35,7 @@ import com.cashflow.app.ui.theme.*
  * tombol mata dengan target sentuh >= 48dp, badge delta bulan lalu, dan sparkline ringkas.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun HeroBalanceCard(
     totalWealth: Long,
     isBalanceHidden: Boolean,
@@ -81,6 +82,7 @@ fun HeroBalanceCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -175,10 +177,10 @@ fun HeroBalanceCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Row 3: Perubahan vs Bulan Lalu / Status Dompet + Navigasi Aset
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="sharedpref" path="duitaing_backup_device.xml"/>
         <exclude domain="sharedpref" path="duit_aing_credentials.xml"/>
         <exclude domain="sharedpref" path="duit_aing_preferences.xml"/>
         <!-- Exclude EncryptedSharedPreferences because Keystore keys are device-bound and cannot be transferred via cloud backup without breaking restore -->
@@ -8,6 +9,7 @@
         <exclude domain="database" path="cashflow.db-journal"/>
     </cloud-backup>
     <device-transfer>
+        <exclude domain="sharedpref" path="duitaing_backup_device.xml"/>
         <exclude domain="sharedpref" path="duit_aing_credentials.xml"/>
         <exclude domain="sharedpref" path="duit_aing_preferences.xml"/>
         <exclude domain="sharedpref" path="encrypted_cashflow_prefs.xml"/>

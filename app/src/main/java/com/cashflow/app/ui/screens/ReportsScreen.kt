@@ -220,12 +220,12 @@ fun ReportsScreen(
 
         // 3. Section Title "Pengeluaran Anda" / "Pemasukan Anda" + Month Dropdown Pill
         item {
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = if (isExpense) "Pengeluaran Anda" else "Pemasukan Anda",

@@ -215,8 +215,8 @@ fun FinancialChatContent(
                 }
             }
 
-            // 3. Rekomendasi Pertanyaan Cepat (Inspirasi awal)
-            if (!isLoading && suggestions.isNotEmpty()) {
+            // 3. Rekomendasi mengikuti percakapan dan tetap terlihat saat memproses jawaban.
+            if (suggestions.isNotEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -239,18 +239,19 @@ fun FinancialChatContent(
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         suggestions.forEach { suggestion ->
+                            key(suggestion) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(duit.surfaceVariant)
                                     .border(1.dp, duit.border, RoundedCornerShape(8.dp))
-                                    .clickable(role = Role.Button) {
-                                        if (!isTourPreview) {
-                                            viewModel.sendChatMessage(suggestion)
-                                            focusManager.clearFocus()
-                                        }
+                                    .clickable(enabled = !isLoading && !isTourPreview, role = Role.Button) {
+                                        viewModel.sendChatMessage(suggestion)
+                                        focusManager.clearFocus()
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .heightIn(min = 48.dp)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = suggestion,
@@ -258,8 +259,9 @@ fun FinancialChatContent(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
                                     ),
-                                    color = duit.textPrimary
+                                    color = if (isLoading) duit.textSecondary else duit.textPrimary
                                 )
+                            }
                             }
                         }
                     }

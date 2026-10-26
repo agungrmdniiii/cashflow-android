@@ -71,7 +71,7 @@ fun AboutSection(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Versi ${com.cashflow.app.BuildConfig.VERSION_NAME} · Build ${com.cashflow.app.BuildConfig.VERSION_CODE}\nLihat catatan perubahan",
+                        text = "Versi ${com.cashflow.app.BuildConfig.VERSION_NAME} · Build ${com.cashflow.app.BuildConfig.VERSION_CODE}\nLihat riwayat pembaruan",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
@@ -106,6 +106,18 @@ fun AboutSection(
                 AppUpdateSection()
                 HorizontalDivider(color = duit.border, thickness = 1.dp)
             }
+
+            SettingsItemRow(
+                title = "Riwayat pembaruan",
+                description = "Catatan versi terbaru dan sebelumnya",
+                icon = Icons.Rounded.History,
+                iconTint = duit.textPrimary,
+                iconBackground = duit.surfaceVariant,
+                onClick = onOpenChangelog,
+                control = { DuitAingButton(text = "LIHAT", onClick = onOpenChangelog,
+                    variant = DuitAingButtonVariant.SECONDARY, height = 36.dp) }
+            )
+            HorizontalDivider(color = duit.border, thickness = 1.dp)
 
             // Row 1: Panduan Penggunaan
             SettingsItemRow(

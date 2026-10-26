@@ -25,7 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -131,7 +131,7 @@ fun DuitAingButton(
                 role = Role.Button,
                 onClick = onClick
             )
-            .padding(horizontal = actualPadding),
+            .padding(horizontal = actualPadding, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
@@ -164,9 +164,7 @@ fun DuitAingButton(
                         fontSize = actualFontSize
                     ),
                     color = contentColor,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
+                    textAlign = TextAlign.Center
                 )
 
                 if (trailingIcon != null) {

@@ -593,10 +593,7 @@ object FinancialInsightService {
     }
 
     /** Answers only from the current on-device ledger and conversation. */
-    fun suggestedQuestions(conversationHistory: List<ChatMessage>): List<String> {
-        val reply = conversationHistory.lastOrNull()?.takeIf { it.sender == ChatSender.ASSISTANT && !it.isError } ?: return emptyList()
-        return localFollowUps(localQuestionWithHistory(conversationHistory), reply.text).map { it.first }
-    }
+    fun suggestedQuestions(conversationHistory: List<ChatMessage>): List<String> = localSuggestedQuestions(conversationHistory)
 
     suspend fun sendChatMessage(
         conversationHistory: List<ChatMessage>,

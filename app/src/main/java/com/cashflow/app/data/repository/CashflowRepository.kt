@@ -294,7 +294,7 @@ class CashflowRepository(private val context: Context, cursorFactory: SQLiteData
                     put("note", transaction.note)
                     put("attachment", transaction.attachment)
                     put("input_method", transaction.inputMethod)
-                    put("debt_id", if (transaction.type == TransactionType.EXPENSE.value) transaction.debtId else null)
+                    put("debt_id", transaction.debtId)
                     put("goal_id", transaction.goalId)
                     put("is_sample", if (transaction.isSample) 1 else 0)
                     put("tags", transaction.tags)
@@ -454,7 +454,10 @@ class CashflowRepository(private val context: Context, cursorFactory: SQLiteData
         }
     }
 
-    suspend fun deleteAllUserData(): Result<Unit> = balanceWriteMutex.withLock {
+    suspend fun deleteAllUserData(): Result<Unit> {
+        val backup = com.cashflow.app.data.backup.BackupSettingsStore(context)
+        backup.save(backup.automation().copy(enabled = false))
+        return com.cashflow.app.data.backup.BackupCoordinator.changeData(context) { balanceWriteMutex.withLock {
         withContext(Dispatchers.IO) {
             val db = dbHelper.writableDatabase
             try {
@@ -472,6 +475,10 @@ class CashflowRepository(private val context: Context, cursorFactory: SQLiteData
                 Result.failure(e)
             }
         }
+    }
+
+    }
+
     }
 
     // --- ASSET OPERATIONS ---
@@ -1188,7 +1195,7 @@ class CashflowRepository(private val context: Context, cursorFactory: SQLiteData
         return BackupManager.validateBackupJson(jsonString)
     }
 
-    suspend fun restoreFromJson(data: JSONObject): Result<Unit> = balanceWriteMutex.withLock {
+    suspend fun restoreFromJson(data: JSONObject): Result<Unit> = com.cashflow.app.data.backup.BackupCoordinator.changeData(context) { balanceWriteMutex.withLock {
         withContext(Dispatchers.IO) {
             val db = dbHelper.writableDatabase
             val res = runCatching {
@@ -1202,12 +1209,15 @@ class CashflowRepository(private val context: Context, cursorFactory: SQLiteData
         }
     }
 
-    suspend fun createBackupZip(destZipFile: File): Result<Unit> = withContext(Dispatchers.IO) {
+    }
+
+    suspend fun createBackupZip(destZipFile: File): Result<Unit> = balanceWriteMutex.withLock { withContext(Dispatchers.IO) {
         val db = dbHelper.readableDatabase
         BackupManager.createBackupZipWithReceipts(context, db, destZipFile)
     }
+    }
 
-    suspend fun restoreFromZip(zipFile: File): Result<BackupSummary> = balanceWriteMutex.withLock {
+    suspend fun restoreFromZip(zipFile: File): Result<BackupSummary> = com.cashflow.app.data.backup.BackupCoordinator.changeData(context) { balanceWriteMutex.withLock {
         withContext(Dispatchers.IO) {
             val db = dbHelper.writableDatabase
             val res = BackupManager.restoreBackupFromZip(context, db, zipFile)
@@ -1216,6 +1226,8 @@ class CashflowRepository(private val context: Context, cursorFactory: SQLiteData
             }
             res
         }
+    }
+
     }
 
     // --- CSV EXPORT GENERATOR ---

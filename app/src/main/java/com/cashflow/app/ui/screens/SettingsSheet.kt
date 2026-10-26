@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.cashflow.app.data.backup.BackupManager
 import com.cashflow.app.data.backup.BackupValidationResult
 import com.cashflow.app.data.model.BiometricTimeout
+import com.cashflow.app.data.model.filterTransactionsByPeriod
 import com.cashflow.app.data.repository.LedgerRecalculateResult
 import com.cashflow.app.security.BiometricHelper
 import com.cashflow.app.ui.CashflowViewModel
@@ -52,7 +53,8 @@ private enum class SettingsPage(val title: String, val description: String) {
     NOTIFICATIONS("Notifikasi & Anggaran", "Pengingat, batas anggaran, dan tanggal gajian"),
     BACKUP("Data & Cadangan", "Backup, pemulihan, impor, dan ekspor"),
     ONLINE("Vina & Suara", "Analisis lokal dan pengaturan suara"),
-    ABOUT("Tentang Aplikasi", "Panduan, versi, dan pemeriksaan sistem")
+    ABOUT("Tentang Aplikasi", "Panduan, versi, dan pemeriksaan sistem"),
+    HISTORY("Riwayat pembaruan", "Catatan perubahan setiap versi")
 }
 /**
  * Clean, Modular Neo-Brutalist Settings Sheet for "Duit Aing"
@@ -74,6 +76,7 @@ fun SettingsSheet(
     val context = LocalContext.current
     val fileScope = rememberCoroutineScope()
     var page by remember { mutableStateOf<SettingsPage?>(null) }
+    fun back() { page = if (page == SettingsPage.HISTORY) SettingsPage.ABOUT else null }
     val requestedPage by viewModel.settingsInitialPage.collectAsState()
     LaunchedEffect(requestedPage) {
         if (requestedPage == "BACKUP") {
@@ -184,7 +187,6 @@ fun SettingsSheet(
     var showExportDialog by remember { mutableStateOf(false) }
     var showEncryptExportDialog by remember { mutableStateOf(false) }
     var showBackupFormatDialog by remember { mutableStateOf(false) }
-    var showRestoreFormatDialog by remember { mutableStateOf(false) }
     var preparedBackupFile by remember { mutableStateOf<java.io.File?>(null) }
     var selectedZipFile by remember { mutableStateOf<java.io.File?>(null) }
     var csvContent by remember { mutableStateOf("") }
@@ -192,12 +194,8 @@ fun SettingsSheet(
     var importingCsv by remember { mutableStateOf(false) }
     var restoringBackup by remember { mutableStateOf(false) }
     var encryptPasswordInput by remember { mutableStateOf("") }
-    var showEncryptRestoreDialog by remember { mutableStateOf(false) }
-    var decryptPasswordInput by remember { mutableStateOf("") }
-    var selectedEncryptedFile by remember { mutableStateOf<java.io.File?>(null) }
     var showDiagnosticDialog by remember { mutableStateOf(false) }
     var diagnosticReportText by remember { mutableStateOf("") }
-    var showChangelogDialog by remember { mutableStateOf(false) }
     var showDesignSystemPreview by remember { mutableStateOf(false) }
     var showIntegritySheet by remember { mutableStateOf(false) }
     val integrityDiscrepancies by viewModel.integrityDiscrepancies.collectAsState()
@@ -251,80 +249,6 @@ fun SettingsSheet(
         }
     }
 
-    val restoreFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
-        if (uri != null) fileScope.launch {
-            try {
-                val validation = withContext(Dispatchers.IO) {
-                val jsonContent = context.contentResolver.openInputStream(uri)?.use {
-                    BackupManager.readBackupBytes(it).toString(Charsets.UTF_8)
-                } ?: throw java.io.IOException("Berkas tidak dapat dibuka.")
-
-                viewModel.validateBackupJson(jsonContent)
-                }
-                when (validation) {
-                    is BackupValidationResult.Valid -> {
-                        selectedZipFile = null
-                        validatedBackup = validation
-                        restoreInputConfirmation = ""
-                    }
-                    is BackupValidationResult.Invalid -> {
-                        restoreErrorReason = validation.reason
-                    }
-                }
-            } catch (e: Exception) {
-                restoreErrorReason = "Gagal membaca berkas: ${e.message}"
-            }
-        }
-    }
-
-    val restoreEncryptedLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
-        if (uri != null) fileScope.launch {
-            try {
-                val cacheFile = java.io.File(context.cacheDir, "temp_restore.enc")
-                withContext(Dispatchers.IO) { requireNotNull(context.contentResolver.openInputStream(uri)).use { input ->
-                    cacheFile.writeBytes(BackupManager.readBackupBytes(input))
-                } }
-                selectedEncryptedFile = cacheFile
-                decryptPasswordInput = ""
-                showEncryptRestoreDialog = true
-            } catch (e: Exception) {
-                viewModel.showSnackbar("Gagal membuka berkas: ${e.message}")
-            }
-        }
-    }
-
-    val restoreZipLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
-        if (uri != null) fileScope.launch {
-            try {
-                val cacheFile = java.io.File(context.cacheDir, "temp_restore.zip")
-                val validation = withContext(Dispatchers.IO) { requireNotNull(context.contentResolver.openInputStream(uri)).use { input ->
-                    BackupManager.copyBackupZip(input, cacheFile)
-                }
-                    BackupManager.validateBackupZip(cacheFile)
-                }
-                when (validation) {
-                    is BackupValidationResult.Valid -> {
-                        selectedZipFile = cacheFile
-                        validatedBackup = validation
-                        restoreInputConfirmation = ""
-                    }
-                    is BackupValidationResult.Invalid -> restoreErrorReason = validation.reason
-                }
-            } catch (e: Exception) {
-                viewModel.showSnackbar("Gagal membuka berkas ZIP: ${e.message}")
-            }
-        }
-    }
-
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) viewModel.showSnackbar("Pemilihan berkas dibatalkan. Data tidak berubah.")
         if (uri != null) fileScope.launch {
@@ -367,7 +291,7 @@ fun SettingsSheet(
     }
 
     androidx.compose.ui.window.Dialog(
-        onDismissRequest = { if (page != null) page = null else onDismiss() },
+        onDismissRequest = { if (page != null) back() else onDismiss() },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = duit.surface) {
@@ -383,7 +307,7 @@ fun SettingsSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (page != null) IconButton(onClick = { page = null }) {
+                if (page != null) IconButton(onClick = ::back) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Kembali ke menu pengaturan", tint = duit.textPrimary)
                 }
                 Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
@@ -433,7 +357,7 @@ fun SettingsSheet(
                 targetState = page,
                 modifier = Modifier.weight(1f),
                 transitionSpec = {
-                    val forward = targetState != null
+                    val forward = targetState != null && (initialState == null || targetState!!.ordinal > initialState!!.ordinal)
                     (slideInHorizontally(tween(220)) { if (forward) it / 8 else -it / 8 } + fadeIn(tween(180))) togetherWith
                         (slideOutHorizontally(tween(180)) { if (forward) -it / 8 else it / 8 } + fadeOut(tween(120)))
                 },
@@ -442,11 +366,11 @@ fun SettingsSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .then(if (displayedPage == SettingsPage.HISTORY) Modifier else Modifier.verticalScroll(rememberScrollState())),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 when (displayedPage) {
-                    null -> SettingsPage.entries.forEach { destination ->
+                    null -> SettingsPage.entries.filter { it != SettingsPage.HISTORY }.forEach { destination ->
                         val icon = when (destination) {
                             SettingsPage.APPEARANCE -> Icons.Rounded.Palette
                             SettingsPage.SECURITY -> Icons.Rounded.Security
@@ -454,10 +378,11 @@ fun SettingsSheet(
                             SettingsPage.BACKUP -> Icons.Rounded.Backup
                             SettingsPage.ONLINE -> Icons.Rounded.AutoAwesome
                             SettingsPage.ABOUT -> Icons.Rounded.Info
+                            SettingsPage.HISTORY -> Icons.Rounded.History
                         }
                         SettingsItemRow(title = destination.title, description = destination.description, icon = icon,
                             onClick = { page = destination }, control = { Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = duit.textSecondary) })
-                        if (destination != SettingsPage.entries.last()) HorizontalDivider(color = duit.border)
+                        if (destination != SettingsPage.ABOUT) HorizontalDivider(color = duit.border)
                     }
                     SettingsPage.APPEARANCE -> {
                 // 0. Profil Pengguna (Nama Panggilan)
@@ -549,18 +474,24 @@ fun SettingsSheet(
                     }
 
                     SettingsPage.BACKUP -> {
-                Text("Anda memilih sendiri berkas atau lokasi melalui pemilih Android. Aplikasi tidak meminta akses ke seluruh penyimpanan.",
-                    style = MaterialTheme.typography.bodySmall, color = duit.textSecondary)
-                Spacer(Modifier.height(12.dp))
+                com.cashflow.app.ui.screens.settings.BackupSettingsPanel(
+                    onRestoreReady = { prepared ->
+                        selectedZipFile = prepared.zip
+                        validatedBackup = prepared.validation
+                        restoreInputConfirmation = ""
+                    },
+                    onAdvanced = { showBackupFormatDialog = true }
+                )
                 // 5. Data & Cadangan (Backup, Restore, Sync, Reset)
                 DataBackupSection(
+                    showBackupControls = false,
                     lastBackupTime = lastBackupTime,
                     backupFormat = backupFormat,
                     isBackupOverdue = isBackupOverdue,
                     isBackupReminderEnabled = isBackupReminderEnabled,
                     hasSampleData = hasSampleData,
                     onExportJson = { showBackupFormatDialog = true },
-                    onRestoreJson = { showRestoreFormatDialog = true },
+                    onRestoreJson = {},
                     onBackupReminderToggled = { enabled -> if (enabled) requestNotifications { viewModel.setBackupReminderEnabled(true) } else viewModel.setBackupReminderEnabled(false) },
                     onRecalculateBalances = {
                         viewModel.recalculateBalances { result ->
@@ -568,10 +499,10 @@ fun SettingsSheet(
                         }
                     },
                     onExportReport = { showExportDialog = true },
+                    onImportCsv = { csvLauncher.launch("*/*") },
                     onDeleteSampleData = { showDeleteSampleDialog = true },
                     onDeleteAllData = { showDeleteAllStep1Dialog = true }
                 )
-                OutlinedButton(onClick = { csvLauncher.launch("*/*") }, modifier = Modifier.fillMaxWidth()) { Text("Impor CSV Duit Aing") }
                 if (lastRestoreTime > 0) Text("Pemulihan terakhir berhasil: " + java.text.SimpleDateFormat("dd MMM yyyy HH:mm", java.util.Locale.forLanguageTag("id-ID")).format(java.util.Date(lastRestoreTime)), style = MaterialTheme.typography.bodySmall)
 
 
@@ -589,7 +520,7 @@ fun SettingsSheet(
                     SettingsPage.ABOUT -> {
                 // 7. Tentang Aplikasi (About, Changelog, Diagnostics, Design System)
                 AboutSection(
-                    onOpenChangelog = { showChangelogDialog = true },
+                    onOpenChangelog = { page = SettingsPage.HISTORY },
                     onOpenOnboarding = {
                         onDismiss()
                         onOpenOnboarding()
@@ -614,8 +545,9 @@ fun SettingsSheet(
 
 
                     }
+                    SettingsPage.HISTORY -> ReleaseHistorySection()
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                if (displayedPage != SettingsPage.HISTORY) Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -630,8 +562,11 @@ fun SettingsSheet(
     validatedBackup?.let { valid ->
         DuitAingModalBottomSheet(
             onDismissRequest = {
-                validatedBackup = null
-                restoreInputConfirmation = ""
+                if (!restoringBackup) {
+                    selectedZipFile?.delete(); selectedZipFile = null
+                    validatedBackup = null
+                    restoreInputConfirmation = ""
+                }
             }
         ) {
             Column(
@@ -719,10 +654,11 @@ fun SettingsSheet(
                     DuitAingButton(
                         text = "BATAL",
                         onClick = {
+                            selectedZipFile?.delete(); selectedZipFile = null
                             validatedBackup = null
-                            selectedZipFile = null
                             restoreInputConfirmation = ""
                         },
+                        enabled = !restoringBackup,
                         modifier = Modifier.weight(1f),
                         variant = DuitAingButtonVariant.SECONDARY
                     )
@@ -735,6 +671,7 @@ fun SettingsSheet(
                             val zip = selectedZipFile
                             if (zip != null) {
                                 viewModel.restoreZipBackupFile(zip) { result ->
+                                    zip.delete()
                                     restoringBackup = false
                                     result.onFailure { restoreErrorReason = it.message ?: "Gagal memulihkan ZIP" }
                                     validatedBackup = null
@@ -979,12 +916,24 @@ fun SettingsSheet(
     )
 
     // 6. Export Data Dialog (PDF & CSV)
-    ExportDataDialog(
-        isOpen = showExportDialog,
-        viewModel = viewModel,
-        hasActiveFilter = false,
-        onDismiss = { showExportDialog = false }
-    )
+    if (showExportDialog) {
+        val period by viewModel.selectedPeriod.collectAsState()
+        val range by viewModel.reportDateRange.collectAsState()
+        val today by viewModel.calendarDate.collectAsState()
+        val filtered = remember(currentTransactions, period, range, today) {
+            filterTransactionsByPeriod(currentTransactions, period, today, range)
+        }
+        val scopeName = range?.let {
+            "${Formatters.formatDateReadable(it.start.toString())} – ${Formatters.formatDateReadable(it.end.toString())}"
+        } ?: period.displayName
+        ExportDataDialog(
+            isOpen = true,
+            viewModel = viewModel,
+            filteredTransactions = filtered,
+            filterName = scopeName,
+            onDismiss = { showExportDialog = false }
+        )
+    }
 
     if (showBackupFormatDialog) {
         AlertDialog(onDismissRequest = { showBackupFormatDialog = false },
@@ -1009,16 +958,6 @@ fun SettingsSheet(
                 }) { Text("Data JSON (.json) — tanpa kata sandi") }
             } }, confirmButton = { TextButton(onClick = { showBackupFormatDialog = false }) { Text("Batal") } })
     }
-    if (showRestoreFormatDialog) {
-        AlertDialog(onDismissRequest = { showRestoreFormatDialog = false },
-            title = { Text("Pilih Jenis Cadangan") },
-            text = { Column {
-                TextButton(onClick = { showRestoreFormatDialog = false; restoreEncryptedLauncher.launch("*/*") }) { Text("Cadangan terenkripsi (.enc)") }
-                TextButton(onClick = { showRestoreFormatDialog = false; restoreZipLauncher.launch("*/*") }) { Text("Data + foto struk (.zip)") }
-                TextButton(onClick = { showRestoreFormatDialog = false; restoreFileLauncher.launch("*/*") }) { Text("Data JSON (.json)") }
-            } }, confirmButton = { TextButton(onClick = { showRestoreFormatDialog = false }) { Text("Batal") } })
-    }
-
     // 7. Export Encrypted Backup Dialog
     if (showEncryptExportDialog) {
         AlertDialog(
@@ -1072,66 +1011,6 @@ fun SettingsSheet(
             },
             dismissButton = {
                 TextButton(onClick = { showEncryptExportDialog = false }) {
-                    Text("BATAL", color = duit.textSecondary)
-                }
-            }
-        )
-    }
-
-    // 8. Restore Encrypted Backup Dialog
-    if (showEncryptRestoreDialog && selectedEncryptedFile != null) {
-        AlertDialog(
-            onDismissRequest = { showEncryptRestoreDialog = false },
-            title = {
-                Text("Buka Kunci Cadangan .enc", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Berkas: ${selectedEncryptedFile?.name}\nMasukkan kata sandi enkripsi cadangan:",
-                        style = MaterialTheme.typography.bodySmall.copy(color = duit.textSecondary, fontSize = 12.sp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = decryptPasswordInput,
-                        onValueChange = { decryptPasswordInput = it },
-                        label = { Text("Kata Sandi") },
-                        singleLine = true,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val pwd = decryptPasswordInput
-                        if (pwd.isEmpty()) {
-                            viewModel.showSnackbar("Masukkan kata sandi")
-                            return@Button
-                        }
-                        showEncryptRestoreDialog = false
-                        viewModel.readEncryptedBackupFile(selectedEncryptedFile!!, pwd) { res ->
-                            res.onSuccess { valid ->
-                                selectedZipFile = null
-                                validatedBackup = valid
-                                restoreInputConfirmation = ""
-                            }.onFailure { err ->
-                                viewModel.showSnackbar("Gagal: Kata sandi salah atau berkas rusak (${err.message})")
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = duit.primary,
-                        contentColor = duit.onPrimary
-                    )
-                ) {
-                    Text("PULIHKAN", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEncryptRestoreDialog = false }) {
                     Text("BATAL", color = duit.textSecondary)
                 }
             }
@@ -1274,55 +1153,6 @@ fun SettingsSheet(
             dismissButton = {
                 TextButton(onClick = { showDiagnosticDialog = false }) {
                     Text("TUTUP", color = duit.textSecondary)
-                }
-            }
-        )
-    }
-
-    // 11. Catatan perubahan versi terpasang Dialog
-    if (showChangelogDialog) {
-        AlertDialog(
-            onDismissRequest = { showChangelogDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Verified,
-                        contentDescription = null,
-                        tint = duit.textPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        "Yang baru di versi ${com.cashflow.app.BuildConfig.VERSION_NAME}",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 380.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    val notes = remember(context) {
-                        context.resources.openRawResource(com.cashflow.app.R.raw.release_notes).bufferedReader().use { it.readText() }
-                    }
-                    Text(notes, style = MaterialTheme.typography.bodyMedium, color = duit.textSecondary)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showChangelogDialog = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = duit.primary,
-                        contentColor = duit.onPrimary
-                    )
-                ) {
-                    Text("MENGERTI", fontWeight = FontWeight.Bold)
                 }
             }
         )

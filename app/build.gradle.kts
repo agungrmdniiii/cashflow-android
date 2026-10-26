@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.lottie.compose)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303")

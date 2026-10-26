@@ -24,6 +24,12 @@ class CashflowApplication : Application() {
         // 2. Initialize resilient network connectivity monitor
         OfflineSyncManager.initialize(this)
         com.cashflow.app.data.service.LocalReminderJob.schedule(this)
+        // A process death rolls back SQLite changes; a previous in-process pause must not survive restart.
+        com.cashflow.app.data.backup.BackupSettingsStore(this).preferences.edit().remove("data_change").apply()
+        runCatching { com.cashflow.app.data.service.AutomaticBackupJob.schedule(this) }.onFailure {
+            val settings = com.cashflow.app.data.backup.BackupSettingsStore(this)
+            settings.recordError(settings.automation().destination, "Android belum dapat menjadwalkan cadangan. Buka pengaturan cadangan untuk mencoba lagi.")
+        }
     }
 
     private fun setupCrashLogging() {

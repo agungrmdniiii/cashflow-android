@@ -1,0 +1,37 @@
+[
+  {
+    "tag_name": "v1.0.0-build.132",
+    "published_at": "2026-10-23T12:34:08Z",
+    "body": "- Mengganti input jam pengingat dengan pemilih waktu 24 jam, disertai pilihan simpan dan batal.\n- Merapikan judul dan isi notifikasi serta menambahkan tindakan langsung untuk mencatat transaksi, meninjau anggaran, membuka jadwal, dan mengelola cadangan.\n- Menampilkan logo Duit Aing pada kartu notifikasi dan memperjelas pesan pengingat harian, tagihan, serta cadangan data.\n- Menambahkan pemeriksaan saldo rekening dengan pratinjau selisih dan konfirmasi penyesuaian.\n- Memperjelas akses transaksi favorit, menampilkan seluruh favorit yang valid, dan memastikan kategori serta rekening mengikuti favorit yang dipilih.\n- Menambahkan perbandingan laporan sampai tanggal setara bulan sebelumnya serta rincian transaksi dari total dan kategori laporan.\n- Merapikan kartu metrik, konsultasi Vina, serta judul rincian laporan agar teks tidak saling berdesakan pada layar sempit atau ukuran huruf besar.\n- Menambahkan periode dan rincian transaksi pendukung pada jawaban Vina, termasuk data pembanding serta keterangan data saat jawaban dibuat.\n- Memindahkan unduhan pembaruan ke pengelola Android agar dapat diteruskan saat koneksi kembali, memulihkan paket tersimpan setelah aplikasi dibuka ulang, dan memperjelas status verifikasi serta kegagalan.\n- Menyempurnakan pencarian beberapa kata lintas kolom, pengenalan nominal rupiah, dan akses riwayat rekening yang diarsipkan. Filter transaksi kini menggunakan kalender rentang, menampilkan tanggal terpilih, serta memvalidasi batas nominal sebelum diterapkan.\n- Menambahkan kategori pengeluaran dan pemasukan sehari-hari serta favorit kategori. Kategori yang diberi bintang tampil lebih dahulu, diikuti urutan penggunaan, dan pilihan favorit tersimpan di perangkat.\n- Menambahkan tombol mata pada widget untuk menyembunyikan saldo aset dan saldo bersih. Pilihan privasi tersimpan serta mengikuti pengaturan tampilan saldo di aplikasi.\n- Melengkapi cadangan JSON, ZIP, dan terenkripsi dengan favorit kategori serta pengaturan penggunaan. Pemulihan mendukung cadangan lama dan mempertahankan keamanan perangkat.\n- Menambahkan pilihan widget Saldo ringkas, Catat cepat, dan Ringkasan bulanan. Seluruh widget keuangan mengikuti pilihan privasi saldo, dan widget pencatatan membuka formulir tanpa menyimpan transaksi secara otomatis.\n- Menyamakan saldo bersih widget dengan aplikasi: piutang menambah saldo bersih, sementara sisa utang menguranginya.\n- Mengurangi pembacaan database saat memproses jadwal berulang dan mencegah pemuatan ulang riwayat yang sudah selesai.\n- Memperbarui periode laporan, filter tanggal, tagihan, dan progres anggaran ketika hari berganti tanpa perlu mencatat transaksi baru.\n- Memastikan cadangan ZIP lengkap sebelum disimpan. Foto struk yang tidak tersedia kini dijelaskan, dan kegagalan ekspor tidak menimpa arsip sebelumnya.\n- Menyesuaikan batas ukuran teks widget agar nominal tersembunyi tetap utuh pada widget kecil dan pengaturan huruf besar.\n",
+    "prerelease": false,
+    "draft": false
+  },
+  {
+    "tag_name": "v1.0.0-build.117",
+    "published_at": "2026-10-22T00:57:45Z",
+    "body": "- Menampilkan nomor build di halaman Tentang Aplikasi agar versi terpasang lebih mudah dikenali saat pemeriksaan pembaruan.\n",
+    "prerelease": false,
+    "draft": false
+  },
+  {
+    "tag_name": "v1.0.0-build.116",
+    "published_at": "2026-10-21T20:31:52Z",
+    "body": "- Menambahkan pemeriksaan dan pengunduhan pembaruan melalui aplikasi, disertai catatan perubahan sebelum pemasangan.\n- Memperjelas status unduhan dan verifikasi paket sebelum pemasangan.\n- Menyederhanakan pencatatan suara dengan contoh ucapan yang langsung terlihat.\n- Memperbaiki kartu insight agar tetap tersembunyi setelah ditutup selama sesi penggunaan yang sama.\n- Menambahkan konfirmasi sebelum perubahan dan penghapusan data disimpan.\n- Menyempurnakan konsistensi perhitungan dan rentang tanggal pada laporan keuangan.\n- Meningkatkan keandalan pencadangan, pemulihan, dan penghapusan data.\n- Menyediakan percakapan Vina secara offline berdasarkan catatan keuangan di perangkat.\n- Meningkatkan kelancaran daftar transaksi dan pemilihan kategori.\n",
+    "prerelease": false,
+    "draft": false
+  },
+  {
+    "tag_name": "v1.0.0-build.114",
+    "published_at": "2026-10-21T20:19:23Z",
+    "body": "- Menambahkan pemeriksaan dan pengunduhan pembaruan melalui aplikasi, disertai catatan perubahan sebelum pemasangan.\n- Menyederhanakan pencatatan suara dengan contoh ucapan yang langsung terlihat.\n- Memperbaiki kartu insight agar tetap tersembunyi setelah ditutup selama sesi penggunaan yang sama.\n- Menambahkan konfirmasi sebelum perubahan dan penghapusan data disimpan.\n- Menyempurnakan konsistensi perhitungan dan rentang tanggal pada laporan keuangan.\n- Meningkatkan keandalan pencadangan, pemulihan, dan penghapusan data.\n- Menyediakan percakapan Vina secara offline berdasarkan catatan keuangan di perangkat.\n- Meningkatkan kelancaran daftar transaksi dan pemilihan kategori.\n",
+    "prerelease": false,
+    "draft": false
+  },
+  {
+    "tag_name": "v1.1.0-beta.1",
+    "published_at": "2026-10-19T11:22:45Z",
+    "body": "Versi uji coba Android 8.0 ke atas. APK debug, belum rilis produksi.\n\nPembaruan: keyboard dan kategori, 50 kategori pengeluaran dan 30 pemasukan, urutan kategori berdasarkan transaksi tersimpan, serta pembaruan Vina dan insight.\n\nUnduh DuitAing.apk pada bagian Assets. Buat cadangan sebelum memperbarui aplikasi; pembaruan memerlukan tanda tangan APK yang sama.\n\nValidasi: 215 tes unit dan 12 tes UI di emulator. Pengukuran performa dilakukan pada POCO F6; pembukaan pertama masih dapat tersendat.",
+    "prerelease": true,
+    "draft": false
+  }
+]

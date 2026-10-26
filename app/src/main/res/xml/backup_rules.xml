@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
+    <exclude domain="sharedpref" path="duitaing_backup_device.xml"/>
     <exclude domain="sharedpref" path="duit_aing_credentials.xml"/>
     <exclude domain="sharedpref" path="duit_aing_preferences.xml"/>
     <!-- Exclude EncryptedSharedPreferences because Keystore keys are device-bound -->

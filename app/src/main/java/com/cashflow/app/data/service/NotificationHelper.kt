@@ -16,6 +16,9 @@ import com.cashflow.app.MainActivity
 import com.cashflow.app.R
 import com.cashflow.app.ui.CashflowViewModel
 import com.cashflow.app.data.model.BudgetWithProgress
+import com.cashflow.app.data.backup.BackupDestination
+import com.cashflow.app.data.backup.BackupSettingsStore
+import com.cashflow.app.data.backup.DriveAuthorizationRequired
 import com.cashflow.app.data.preferences.PreferenceManager
 import com.cashflow.app.ui.components.Formatters
 import java.time.LocalDate
@@ -133,7 +136,43 @@ object NotificationHelper {
                 it.importance == NotificationManager.IMPORTANCE_NONE }
             .map { it.name.toString() }
 
-    fun showLocalNotification(context: Context, id: Int, title: String, message: String, channel: String): Boolean {
+    internal fun backupFailureMessage(destination: BackupDestination, failure: Exception): String = when {
+        failure is DriveAuthorizationRequired || failure is CloudBackupService.RequestFailed && failure.status == 401 ->
+            "Hubungkan ulang akun Google untuk melanjutkan cadangan otomatis."
+        failure is CloudBackupService.RequestFailed && failure.status == 403 ->
+            "Periksa izin akun dan ruang penyimpanan Google Drive."
+        failure is CloudBackupService.RequestFailed -> "Google Drive belum tersedia. Coba lagi nanti."
+        destination == BackupDestination.LOCAL -> "Periksa akses dan ruang penyimpanan folder cadangan di HP."
+        else -> "Periksa koneksi internet, lalu coba cadangkan kembali."
+    }
+
+    fun showBackupFailure(context: Context, destination: BackupDestination, windowEnd: Long, failure: Exception): Boolean {
+        val store = BackupSettingsStore(context)
+        val options = store.automation()
+        val key = "failure_notice_${destination.name}"
+        val reconnect = destination == BackupDestination.DRIVE && store.preferences.getBoolean("drive_reauth", false)
+        if (!options.enabled || options.destination != destination || store.preferences.getLong(key, 0) == windowEnd &&
+            store.preferences.getBoolean("${key}_reauth", false) == reconnect) return false
+        val id = 3104 + destination.ordinal
+        val retry = if (reconnect) null else PendingIntent.getBroadcast(context, id,
+            Intent(context, BackupClockReceiver::class.java).setAction(BackupClockReceiver.ACTION_RETRY)
+                .putExtra("destination", destination.name).putExtra("failure_window", windowEnd),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val sent = showLocalNotification(context, id, "Cadangan otomatis belum berhasil",
+            backupFailureMessage(destination, failure), CHANNEL_BACKUP_REMINDER,
+            if (reconnect) "Hubungkan ulang" else "Coba lagi", retry, NotificationCompat.CATEGORY_ERROR)
+        if (sent) store.preferences.edit().putLong(key, windowEnd).putBoolean("${key}_reauth", reconnect).apply()
+        return sent
+    }
+
+    fun clearBackupFailure(context: Context, destination: BackupDestination) {
+        runCatching { context.getSystemService(NotificationManager::class.java).cancel(3104 + destination.ordinal) }
+        BackupSettingsStore(context).preferences.edit().remove("failure_notice_${destination.name}")
+            .remove("failure_notice_${destination.name}_reauth").apply()
+    }
+
+    fun showLocalNotification(context: Context, id: Int, title: String, message: String, channel: String,
+        actionLabel: String? = null, actionIntent: PendingIntent? = null, category: String = NotificationCompat.CATEGORY_REMINDER): Boolean {
         initNotificationChannels(context)
         if (!canSendNotifications(context)) return false
         val notificationChannel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(channel)
@@ -154,8 +193,8 @@ object NotificationHelper {
                 .setLargeIcon(context.packageManager.getApplicationIcon(context.applicationInfo).toBitmap(128, 128))
                 .setContentTitle(title).setContentText(message).setStyle(NotificationCompat.BigTextStyle().bigText(message))
                 .setContentIntent(intent).setAutoCancel(true)
-                .setCategory(NotificationCompat.CATEGORY_REMINDER).setSubText(label)
-                .addAction(0, button, intent)
+                .setCategory(category).setSubText(label)
+                .addAction(0, actionLabel ?: button, actionIntent ?: intent)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
             NotificationManagerCompat.from(context).notify(id, notification)
             true

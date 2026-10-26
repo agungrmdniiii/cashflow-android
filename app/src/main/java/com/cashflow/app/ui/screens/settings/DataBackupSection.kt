@@ -39,18 +39,21 @@ fun DataBackupSection(
     onBackupReminderToggled: (Boolean) -> Unit,
     onRecalculateBalances: () -> Unit,
     onExportReport: () -> Unit,
+    onImportCsv: () -> Unit,
     onDeleteSampleData: () -> Unit,
     onDeleteAllData: () -> Unit,
     modifier: Modifier = Modifier,
-    backupFormat: String = "Format tidak tercatat"
+    backupFormat: String = "Format tidak tercatat",
+    showBackupControls: Boolean = true
 ) {
     val duit = MaterialTheme.duit
 
     SettingsSectionCard(
-        title = "Data & Cadangan",
+        title = if (showBackupControls) "Data & Cadangan" else "Alat data",
         modifier = modifier
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            if (showBackupControls) {
             // Status Cadangan Card / Banner
             Column(
                 modifier = Modifier
@@ -199,10 +202,12 @@ fun DataBackupSection(
 
             HorizontalDivider(color = duit.border, thickness = 1.dp)
 
+            }
+
             // Row 5: Rekonsiliasi Saldo Buku Besar
             SettingsItemRow(
                 title = "Rekonsiliasi Saldo",
-                description = "Hitung ulang saldo dari riwayat mutasi jurnal",
+                description = "Hitung ulang saldo transaksi.",
                 icon = Icons.Rounded.Sync,
                 iconTint = duit.textPrimary,
                 iconBackground = duit.surfaceVariant,
@@ -221,7 +226,7 @@ fun DataBackupSection(
             // Row 6: Ekspor Laporan PDF/CSV
             SettingsItemRow(
                 title = "Ekspor Laporan",
-                description = "Unduh rekap transaksi format PDF atau spreadsheet CSV",
+                description = "Berkas PDF atau CSV.",
                 icon = Icons.Rounded.Download,
                 iconTint = duit.textPrimary,
                 iconBackground = duit.surfaceVariant,
@@ -234,6 +239,11 @@ fun DataBackupSection(
                     )
                 }
             )
+
+            HorizontalDivider(color = duit.border, thickness = 1.dp)
+            SettingsItemRow(title = "Impor CSV", icon = Icons.Rounded.UploadFile,
+                control = { DuitAingButton(text = "IMPOR", onClick = onImportCsv,
+                    variant = DuitAingButtonVariant.SECONDARY, height = 36.dp) })
 
             // Row 7: Hapus Data Sampel (Jika ada)
             if (hasSampleData) {
@@ -260,7 +270,7 @@ fun DataBackupSection(
             // Row 8: Hapus Semua Data
             SettingsItemRow(
                 title = "Hapus Semua Data",
-                description = "Hapus permanen seluruh aset dan transaksi aplikasi",
+                description = "Hapus permanen data keuangan.",
                 icon = Icons.Rounded.DeleteForever,
                 iconTint = duit.expense,
                 iconBackground = duit.expenseContainer,

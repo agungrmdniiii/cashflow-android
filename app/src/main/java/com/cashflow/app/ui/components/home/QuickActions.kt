@@ -45,6 +45,7 @@ import com.cashflow.app.ui.theme.duit
  * - Target sentuh >= 48dp
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun QuickActions(
     onExpenseClick: () -> Unit,
     onIncomeClick: () -> Unit,
@@ -52,11 +53,13 @@ fun QuickActions(
     onVoiceClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    FlowRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        maxItemsInEachRow = if (LocalDensity.current.fontScale > 1.15f) 2 else 4
     ) {
         QuickActionButton(
             icon = Icons.AutoMirrored.Rounded.TrendingDown,
@@ -146,20 +149,15 @@ private fun QuickActionButton(
                 modifier = Modifier.size(24.dp)
             )
         }
-        val fontScale = LocalDensity.current.fontScale
-        val labelSize = if (fontScale > 1.15f) 10.5.sp else 12.sp
-
         Spacer(modifier = Modifier.height(7.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.Medium,
-                fontSize = labelSize,
+                fontSize = 12.sp,
                 letterSpacing = (-0.4).sp
             ),
             color = duit.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
         )
     }
